@@ -1,15 +1,19 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/core/trade_palette.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/utils/countdown.dart';
+import 'package:mostro/shared/widgets/countdown_urgency_announcer.dart';
 import 'package:mostro/shared/widgets/status_chip.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/types.dart' as rust_types;
@@ -242,7 +246,10 @@ class TradeStateHeader extends ConsumerWidget {
 
 // ── Countdown chip ────────────────────────────────────────────────────────────
 
-/// Live "MM:SS left" countdown, ticking each second.
+/// Live "12:40 left" countdown, ticking each second, formatted and toned by
+/// the shared countdown (DS-CMP-21): [color] while calm or warning, coral
+/// once urgent. The header does not know whose turn it is, so a calm figure
+/// keeps the waiting amber.
 ///
 /// Renders nothing once the expiry has passed (the timer also stops then).
 class _CountdownChip extends StatefulWidget {
@@ -274,7 +281,7 @@ class _CountdownChipState extends State<_CountdownChip> {
       if (!mounted) return;
       setState(() {});
       // Stop ticking once expired — the chip stays hidden from then on.
-      if (!widget.expiresAt.isAfter(DateTime.now())) {
+      if (!widget.expiresAt.isAfter(clock.now())) {
         _timer?.cancel();
       }
     });
@@ -288,10 +295,13 @@ class _CountdownChipState extends State<_CountdownChip> {
 
   @override
   Widget build(BuildContext context) {
-    final remaining = widget.expiresAt.difference(DateTime.now());
+    final remaining = widget.expiresAt.difference(clock.now());
     if (remaining.inSeconds <= 0) return const SizedBox.shrink();
 
     final textTheme = Theme.of(context).textTheme;
+    final l10n = AppLocalizations.of(context);
+    final urgent = countdownTone(remaining) == CountdownTone.urgent;
+    final color = urgent ? TradePalette.of(context).timerUrgent : widget.color;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -304,27 +314,25 @@ class _CountdownChipState extends State<_CountdownChip> {
           ),
           const SizedBox(width: 6),
         ],
-        Icon(Icons.schedule, size: 12, color: widget.color),
-        const SizedBox(width: 3),
-        Text(
-          AppLocalizations.of(context).timeLeftLabel(_fmtRemaining(remaining)),
-          style: textTheme.bodySmall?.copyWith(
-            color: widget.color,
-            fontWeight: FontWeight.w700,
-            fontSize: 11,
+        Icon(Icons.schedule, size: 12, color: color),
+        const SizedBox(width: 4),
+        CountdownUrgencyAnnouncer(
+          urgent: urgent,
+          message: l10n.timeLeftLabel(
+            formatCountdown(remaining, hours: l10n.invoiceCountdownHours),
+          ),
+          child: Text(
+            l10n.timeLeftLabel(
+              formatCountdown(remaining, hours: l10n.invoiceCountdownHours),
+            ),
+            style: textTheme.bodySmall?.copyWith(
+              color: color,
+              fontWeight: FontWeight.w700,
+              fontSize: 11,
+            ),
           ),
         ),
       ],
     );
-  }
-
-  /// "MM:SS" under an hour, "H:MM:SS" above.
-  static String _fmtRemaining(Duration d) {
-    String two(int v) => v.toString().padLeft(2, '0');
-    final m = d.inMinutes.remainder(60);
-    final s = d.inSeconds.remainder(60);
-    return d.inHours > 0
-        ? '${d.inHours}:${two(m)}:${two(s)}'
-        : '${two(m)}:${two(s)}';
   }
 }

@@ -126,6 +126,14 @@ void main() {
     );
   });
 
+  /// Rust returns `CantDo(InvalidFiatCurrency)` as `CantDo:InvalidFiatCurrency`.
+  test('maps a refused currency to the pick-another guidance', () {
+    expect(
+      localizedDaemonError(l10n, 'CantDo:InvalidFiatCurrency', fallback: 'x'),
+      l10n.invalidFiatCurrencyError,
+    );
+  });
+
   /// mostro-core 0.14.6 adds `CantDoReason::MaintenanceMode`: the node is
   /// draining and refuses new orders and takes. Rust emits the bare marker;
   /// some wrappers prepend their own context, so match it by substring like
@@ -178,5 +186,38 @@ void main() {
       localizedDaemonError(l10n, 'CantDo: something else', fallback: 'generic'),
       'generic',
     );
+  });
+
+  group('isDaemonRefusal', () {
+    test('reads every answer cant_do_message words, wrapped or not', () {
+      for (final raw in const [
+        'CantDo:InvalidOrderStatus',
+        'CantDo:InvalidFiatCurrency',
+        'Order rejected: sats amount is out of the allowed range.',
+        'Order rejected: invalid Lightning invoice.',
+        'Action rejected: not allowed in the current order status.',
+        'Order is already canceled.',
+        'MaintenanceMode',
+        'InvalidTradeIndex',
+        'MakerCancelRefused',
+        'AnyhowException(ProtocolError: CantDo:IsNotYourDispute)',
+      ]) {
+        expect(isDaemonRefusal(raw), isTrue, reason: raw);
+      }
+    });
+
+    test('does not mistake a local failure for the node saying no', () {
+      for (final raw in const [
+        'NoDaemonResponse',
+        'NoRelayAccepted',
+        'UnsupportedNodeProtocol',
+        'NodeCapabilitiesUnknown',
+        'StorageUnavailable',
+        'InvoiceSubmitInFlight',
+        'SocketException: Connection refused',
+      ]) {
+        expect(isDaemonRefusal(raw), isFalse, reason: raw);
+      }
+    });
   });
 }

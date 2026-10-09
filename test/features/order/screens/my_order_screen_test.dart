@@ -66,6 +66,7 @@ OrderItem _order({
   BigInt? amountSats,
   OrderStatus status = OrderStatus.pending,
   String paymentMethod = 'Mercado Pago',
+  Duration expiresIn = const Duration(hours: 23, minutes: 12),
 }) => fakeOrder(
   id: _id,
   kind: kind,
@@ -77,7 +78,7 @@ OrderItem _order({
   status: status,
   isMine: true,
   minutesAgo: 3,
-  expiresAt: kFakeNow.add(const Duration(hours: 23, minutes: 12)),
+  expiresAt: kFakeNow.add(expiresIn),
 );
 
 Finder _byId(String id) =>
@@ -87,6 +88,43 @@ Color? _colorOf(WidgetTester tester, String text) =>
     tester.widget<Text>(find.text(text)).style?.color;
 
 void main() {
+  // DS-CMP-21 (#723): the waiting order's countdown says what runs out, and
+  // hours never read as `23:12`.
+  testWidgets('the waiting countdown announces turning urgent once', (
+    tester,
+  ) async {
+    var now = kFakeNow;
+    await withClock(Clock(() => now), () async {
+      // Created 3 minutes ago: a short window, urgent under a minute.
+      await _pump(
+        tester,
+        order: _order(expiresIn: const Duration(minutes: 1, seconds: 2)),
+      );
+      tester.takeAnnouncements();
+
+      for (var i = 0; i < 8; i++) {
+        now = now.add(const Duration(seconds: 1));
+        await tester.pump(const Duration(seconds: 1));
+      }
+
+      expect(
+        [for (final a in tester.takeAnnouncements()) a.message],
+        ['Expires in 00:59'],
+      );
+    });
+  });
+
+  testWidgets('the waiting countdown is labeled and reads hours as h mm', (
+    tester,
+  ) async {
+    await withClock(Clock.fixed(kFakeNow), () async {
+      await _pump(tester, order: _order());
+
+      expect(find.text('Expires in 23 h 12'), findsOneWidget);
+      expect(find.text('23:12'), findsNothing);
+    });
+  });
+
   group('MyOrderScreen waiting for a taker', () {
     testWidgets('shows the three blocks and both actions', (tester) async {
       await withClock(Clock.fixed(kFakeNow), () async {
@@ -97,7 +135,7 @@ void main() {
         expect(find.text('ARS'), findsOneWidget);
         expect(find.text('1,000'), findsOneWidget);
         expect(find.text('Waiting for a taker'), findsOneWidget);
-        expect(find.text('23:12'), findsOneWidget);
+        expect(find.text('Expires in 23 h 12'), findsOneWidget);
         expect(find.textContaining('Published 3m ago.'), findsOneWidget);
         expect(find.text('Mercado Pago'), findsOneWidget);
         expect(find.text('09150348…99b5'), findsOneWidget);
@@ -129,8 +167,9 @@ void main() {
       });
     });
 
-    testWidgets('shows the fixed sats when the maker fixed them',
-        (tester) async {
+    testWidgets('shows the fixed sats when the maker fixed them', (
+      tester,
+    ) async {
       await withClock(Clock.fixed(kFakeNow), () async {
         await _pump(tester, order: _order(amountSats: BigInt.from(4000)));
 
@@ -171,8 +210,10 @@ void main() {
           },
         );
         addTearDown(
-          () => tester.binding.defaultBinaryMessenger
-              .setMockMethodCallHandler(SystemChannels.platform, null),
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          ),
         );
         await _pump(tester, order: _order());
 
@@ -230,8 +271,9 @@ void main() {
   });
 
   group('MyOrderScreen after the order moved on', () {
-    testWidgets('reads taken while the payment is pending, without Cancel',
-        (tester) async {
+    testWidgets('reads taken while the payment is pending, without Cancel', (
+      tester,
+    ) async {
       await withClock(Clock.fixed(kFakeNow), () async {
         await _pump(
           tester,
@@ -245,7 +287,7 @@ void main() {
           _dark.statusHoldText,
         );
         // The order expiry is not a trade-stage deadline: no countdown.
-        expect(find.text('23:12'), findsNothing);
+        expect(find.textContaining('Expires in'), findsNothing);
         expect(find.textContaining('Published'), findsNothing);
         // The daemon refuses a maker cancel once a taker is in.
         expect(find.text('Cancel'), findsNothing);

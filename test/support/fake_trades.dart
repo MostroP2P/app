@@ -6,10 +6,12 @@ import 'package:mostro/src/rust/api/types.dart';
 /// unless [orderId] names one. [fiatAmountMin]/[fiatAmountMax] make it a
 /// range order; [fiatAmount] is then the slice a take priced, if any.
 /// [completedAt] is when Rust recorded the completion (Unix seconds).
+/// [kind] is the order's side, a sell order unless given.
 TradeInfo fakeTrade({
   String id = 'trade-1',
   String? orderId,
   OrderStatus status = OrderStatus.active,
+  OrderKind kind = OrderKind.sell,
   TradeRole role = TradeRole.buyer,
   String fiatCode = 'USD',
   String paymentMethod = 'Wire',
@@ -30,7 +32,7 @@ TradeInfo fakeTrade({
 }) {
   final order = OrderInfo(
     id: orderId ?? 'order-$id',
-    kind: OrderKind.sell,
+    kind: kind,
     status: status,
     amountSats: amountSats,
     fiatAmount: fiatAmount,

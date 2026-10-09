@@ -24,7 +24,7 @@ void main() {
       expect(v.secondary, [TradeSecondaryAction.cancel]);
       expect(v.cancelIsFullWidth, isTrue);
       expect(v.timer, TradeTimerOwner.counterpart);
-      expect(v.note, TradeTimerNote.expiresCancels);
+      expect(v.note, TradeTimerNote.stepOutcome);
     });
 
     test('the seller who must pay the hold invoice gets the lime action', () {

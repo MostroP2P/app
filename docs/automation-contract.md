@@ -19,7 +19,7 @@ Flutter's `Semantics.identifier` — surfaced on Android as the accessibility
 ```dart
 FilledButton(
   onPressed: _submit,
-  child: Text(l10n.submitButton),
+  child: Text(l10n.publishOrder),
 ).withAutomationId(AutomationIds.orderCreateSubmit)
 ```
 
@@ -57,12 +57,12 @@ fails the build when an identifier is declared and attached to nothing.
 | `settings.mostro_node.pubkey` | The active daemon's full public key, where the visible subtitle is truncated. |
 | `wallet.connection` | `connected` or `disconnected`. |
 | `pay.invoice.text` | The hold invoice (`bolt11`), which is otherwise only drawn as a QR code or paid directly by the wallet. |
-| `pay.order_id` | The exact order ID shown in the seller invoice screen's app bar, including while its invoice is loading. |
+| `pay.order_id` | The exact order ID behind the short one in the seller invoice screen's ID row (DS-CMP-22), in every state, including while its invoice is loading. |
 | `bond.invoice.text` | The anti-abuse bond bolt11 (`docs/ANTI_ABUSE_BOND.md`), otherwise only drawn as a QR code or paid by the wallet. |
-| `bond.order_id` | The exact order ID shown in the pay-bond screen's app bar. |
+| `bond.order_id` | The exact order ID behind the short one in the pay-bond screen's ID row (DS-CMP-22), in every state. |
 | `bond.claim.amount` | The share of a slashed bond on offer to this user, in sats (`docs/ANTI_ABUSE_BOND.md` §6.4). |
 | `bond.claim.status` | The claim's phase as the screen renders it: `pending`, `submitted`, `acknowledged`, `completed`, `expired` (a pending claim past its window reads `expired`). |
-| `bond.claim.order_id` | The exact order ID shown in the claim screen's app bar. |
+| `bond.claim.order_id` | The exact order ID behind the short one in the claim screen's ID row (DS-CMP-22), in every state. |
 | `trade.bondSlashed` | The durable line on the trade detail once this user's own bond was slashed, labelled with the cause (`dispute` / `timeout`); absent otherwise. |
 | `trade.cancelRequest` | The pending cooperative-cancel request on the trade detail (protocol `cancel.md`), this side's or the counterparty's, while the trade is `active` or `fiat-sent`; absent otherwise. |
 | `invoice.nwc.text` | The buyer invoice NWC generated, for payment correlation. |
@@ -134,8 +134,12 @@ My Trades row carries the same verb and files the trade under "your turn".
 §6.2), the screen offers `order.payBond` (`Pay deposit`), which opens
 `/pay_bond/:orderId`, and no `trade.cancel`: the daemon refuses a cancel in
 this window. On that screen `bond.cancel` reads `Don't publish the order` and
-drops the order locally (nothing was published, nothing charged); a taker's
-reads `Don't take the order` and is a daemon cancel. Once the deposit is
+sends the daemon a cancel that waits for its answer (`docs/ANTI_ABUSE_BOND.md`
+§6.2): the order closes unpublished, or a deposit that locked first leaves it
+published (a snackbar says so), or an older node refuses and a dialog offers
+`bond.remove_from_device`; a taker's reads `Don't take the order` and is a
+daemon cancel too. Either opens a
+confirmation first (DS-CMP-20), whose affirmative is `bond.cancel.confirm`. Once the deposit is
 paid the daemon publishes the order and `/my_order` reads `pending`.
 
 **A slashed bond is explained on tap.** Tapping a bond-slashed notification opens a

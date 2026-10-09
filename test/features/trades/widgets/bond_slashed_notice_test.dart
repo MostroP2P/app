@@ -86,7 +86,7 @@ void main() {
       ),
     );
     expect(
-      find.text('The node slashed your 1648-sat bond in this dispute.'),
+      find.text('The node slashed your 1,648-sat bond in this dispute.'),
       findsOneWidget,
     );
     expect(
@@ -151,6 +151,6 @@ void main() {
       ],
     );
     expect(find.textContaining('your 412-sat bond'), findsOneWidget);
-    expect(find.textContaining('1648'), findsNothing);
+    expect(find.textContaining('1,648'), findsNothing);
   });
 }

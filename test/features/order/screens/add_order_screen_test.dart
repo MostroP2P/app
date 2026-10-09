@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/create_order_palette.dart';
+import 'package:mostro/core/mostro_defaults.dart';
 import 'package:mostro/features/about/models/mostro_instance.dart';
 import 'package:mostro/features/about/providers/mostro_node_provider.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
@@ -15,8 +18,12 @@ import 'package:mostro/features/order/screens/add_order_screen.dart';
 import 'package:mostro/features/order/widgets/currency_section.dart';
 import 'package:mostro/features/order/widgets/payment_method_section.dart';
 import 'package:mostro/features/order/widgets/price_section.dart';
+import 'package:mostro/features/settings/providers/mostro_nodes_provider.dart';
+import 'package:mostro/features/settings/providers/node_stats_provider.dart';
+import 'package:mostro/features/settings/providers/settings_provider.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
+import 'package:mostro/shared/widgets/mostro_modal.dart';
 import '../../../support/provider_harness.dart';
 
 const _node = MostroInstance(
@@ -34,6 +41,9 @@ Future<ProviderContainer> _pump(
   String orderType = 'sell',
   Locale locale = const Locale('en'),
   MostroInstance node = _node,
+  List<String> accepted = const [],
+  Map<String, Completer<List<String>>>? acceptedByNode,
+  List<String> Function()? cachedList,
   int? bondEstimate,
 }) async {
   tester.view.physicalSize = const Size(400, 1600);
@@ -42,6 +52,11 @@ Future<ProviderContainer> _pump(
   final container = createContainer(
     overrides: [
       mostroNodeProvider.overrideWith((ref) async => node),
+      activeNodeCurrenciesProvider.overrideWith(
+        (ref) =>
+            acceptedByNode?[ref.watch(activeMostroPubkeyProvider)]!.future ??
+            Future.value(cachedList?.call() ?? accepted),
+      ),
       bondEstimateProvider.overrideWith((ref, sats) async => bondEstimate),
       exchangeRateProvider.overrideWith(
         (ref, code) async => switch (code) {
@@ -373,6 +388,254 @@ void main() {
         (tab.decoration! as BoxDecoration).color,
         CreateOrderPalette.dark.sellActiveBg,
       );
+    });
+  });
+
+  group('currency picker', () {
+    /// The codes the open picker lists, in order.
+    List<String> pickerCodes(WidgetTester tester) => tester
+        .widgetList<ListTile>(
+          find.descendant(
+            of: find.byType(MostroDialog),
+            matching: find.byType(ListTile),
+          ),
+        )
+        .map((tile) => (tile.title! as Text).data!)
+        .toList();
+
+    Future<void> openPicker(WidgetTester tester) async {
+      await tester.tap(find.byType(CurrencyInlineSelector));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('offers only the currencies the node accepts', (tester) async {
+      await _pump(
+        tester,
+        accepted: const ['ARS'],
+      );
+      await openPicker(tester);
+      expect(pickerCodes(tester), ['ARS']);
+    });
+
+    testWidgets('offers the whole catalogue when the node sets no limit', (
+      tester,
+    ) async {
+      await _pump(tester);
+      await openPicker(tester);
+      expect(pickerCodes(tester), ['USD', 'ARS']);
+    });
+
+    testWidgets('lists an accepted code the catalogue does not know', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        accepted: const ['CUP', 'ARS'],
+      );
+      await openPicker(tester);
+      expect(pickerCodes(tester), ['ARS', 'CUP']);
+      final cup = tester.widget<ListTile>(
+        find.ancestor(of: find.text('CUP'), matching: find.byType(ListTile)),
+      );
+      expect(cup.subtitle, isNull);
+    });
+
+    testWidgets('rereads the list once the cache is written', (tester) async {
+      var cached = const <String>[];
+      final container = await _pump(tester, cachedList: () => cached);
+      await openPicker(tester);
+      expect(pickerCodes(tester), ['USD', 'ARS']);
+      await tester.tapAt(Offset.zero);
+      await tester.pumpAndSettle();
+
+      // What the startup warm-up and the node selector's fetch do once
+      // they have written the node's kind 38385 event.
+      cached = const ['ARS'];
+      container.invalidate(activeNodeCurrenciesProvider);
+      await tester.pumpAndSettle();
+
+      expect(container.read(selectedFiatCodeProvider), 'ARS');
+      await openPicker(tester);
+      expect(pickerCodes(tester), ['ARS']);
+    });
+
+    testWidgets("a node switch drops the previous node's list", (
+      tester,
+    ) async {
+      final nodeA = Completer<List<String>>()..complete(const ['ARS']);
+      final nodeB = Completer<List<String>>();
+      final container = await _pump(
+        tester,
+        acceptedByNode: {defaultMostroPubkey: nodeA, 'node-b': nodeB},
+      );
+      expect(container.read(acceptedFiatCodesProvider), ['ARS']);
+
+      container.read(mostroPubkeyProvider.notifier).state = 'node-b';
+      await tester.pump();
+      expect(container.read(acceptedFiatCodesProvider), isNull);
+
+      nodeB.complete(const ['USD']);
+      await tester.pumpAndSettle();
+      expect(container.read(acceptedFiatCodesProvider), ['USD']);
+    });
+  });
+
+  group('selected currency', () {
+    testWidgets("opens on the node's first currency when it lacks USD", (
+      tester,
+    ) async {
+      final container = await _pump(
+        tester,
+        accepted: const ['ARS', 'EUR'],
+      );
+      expect(container.read(selectedFiatCodeProvider), 'ARS');
+      // The form's currency only: the default in settings is not written.
+      expect(container.read(settingsProvider).defaultFiatCode, isNull);
+    });
+
+    testWidgets('keeps the default when the node accepts it', (tester) async {
+      final container = await _pump(
+        tester,
+        accepted: const ['ARS', 'USD'],
+      );
+      expect(container.read(selectedFiatCodeProvider), 'USD');
+    });
+
+    testWidgets("moves off USD when the node's list arrives late", (
+      tester,
+    ) async {
+      final listArrives = Completer<List<String>>();
+      final container = await _pump(
+        tester,
+        acceptedByNode: {defaultMostroPubkey: listArrives},
+      );
+      expect(container.read(selectedFiatCodeProvider), 'USD');
+
+      listArrives.complete(const ['ARS']);
+      await tester.pumpAndSettle();
+
+      expect(container.read(selectedFiatCodeProvider), 'ARS');
+    });
+
+    testWidgets('a late list keeps what the user entered and refuses it', (
+      tester,
+    ) async {
+      final listArrives = Completer<List<String>>();
+      final container = await _pump(
+        tester,
+        acceptedByNode: {defaultMostroPubkey: listArrives},
+      );
+      await tester.enterText(_amountField(), '100');
+      container.read(selectedPaymentMethodsProvider.notifier).state = ['Zelle'];
+      await tester.pumpAndSettle();
+      expect(_publishButton(tester).onPressed, isNotNull);
+
+      listArrives.complete(const ['ARS']);
+      await tester.pumpAndSettle();
+
+      expect(container.read(selectedFiatCodeProvider), 'USD');
+      expect(container.read(selectedPaymentMethodsProvider), ['Zelle']);
+      expect(tester.widget<TextField>(_amountField()).controller!.text, '100');
+      expect(
+        find.text('This Mostro node does not accept USD. Pick another currency'),
+        findsOneWidget,
+      );
+      expect(_publishButton(tester).onPressed, isNull);
+    });
+
+    testWidgets("a node switch moves an untouched form to the new node's list", (
+      tester,
+    ) async {
+      final nodeA = Completer<List<String>>()..complete(const ['ARS', 'USD']);
+      final nodeB = Completer<List<String>>()..complete(const ['ARS']);
+      final container = await _pump(
+        tester,
+        acceptedByNode: {defaultMostroPubkey: nodeA, 'node-b': nodeB},
+      );
+      expect(container.read(selectedFiatCodeProvider), 'USD');
+
+      container.read(mostroPubkeyProvider.notifier).state = 'node-b';
+      await tester.pumpAndSettle();
+
+      expect(container.read(selectedFiatCodeProvider), 'ARS');
+    });
+
+    testWidgets('a reread of the same node keeps a refused currency refused', (
+      tester,
+    ) async {
+      final byNode = {defaultMostroPubkey: Completer<List<String>>()};
+      final container = await _pump(tester, acceptedByNode: byNode);
+      await tester.enterText(_amountField(), '100');
+      container.read(selectedPaymentMethodsProvider.notifier).state = ['Zelle'];
+      byNode[defaultMostroPubkey]!.complete(const ['ARS']);
+      await tester.pumpAndSettle();
+      expect(_publishButton(tester).onPressed, isNull);
+
+      // The cache is written again and the local read is still pending.
+      byNode[defaultMostroPubkey] = Completer<List<String>>();
+      container.invalidate(activeNodeCurrenciesProvider);
+      await tester.pump();
+      await tester.pump();
+
+      expect(container.read(acceptedFiatCodesProvider), ['ARS']);
+      expect(_publishButton(tester).onPressed, isNull);
+
+      byNode[defaultMostroPubkey]!.complete(const ['ARS']);
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets("rereads the node's list when its info event is fetched live", (
+      tester,
+    ) async {
+      var cached = const <String>[];
+      final container = await _pump(tester, cachedList: () => cached);
+      expect(container.read(selectedFiatCodeProvider), 'USD');
+
+      // The live fetch behind mostroNodeProvider writes the cache in Rust.
+      cached = const ['ARS'];
+      container.invalidate(mostroNodeProvider);
+      await tester.pumpAndSettle();
+
+      expect(container.read(selectedFiatCodeProvider), 'ARS');
+    });
+
+    testWidgets('a currency the user picked survives a late list', (
+      tester,
+    ) async {
+      final listArrives = Completer<List<String>>();
+      final container = await _pump(
+        tester,
+        acceptedByNode: {defaultMostroPubkey: listArrives},
+      );
+      await tester.tap(find.byType(CurrencyInlineSelector));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('ARS'));
+      await tester.pumpAndSettle();
+
+      listArrives.complete(const ['USD']);
+      await tester.pumpAndSettle();
+
+      expect(container.read(selectedFiatCodeProvider), 'ARS');
+      expect(
+        find.text('This Mostro node does not accept ARS. Pick another currency'),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a pick survives the same list arriving again', (
+      tester,
+    ) async {
+      final container = await _pump(tester, accepted: const ['USD', 'ARS']);
+      await tester.tap(find.byType(CurrencyInlineSelector));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('ARS'));
+      await tester.pumpAndSettle();
+      expect(container.read(selectedFiatCodeProvider), 'ARS');
+
+      container.invalidate(activeNodeCurrenciesProvider);
+      await tester.pumpAndSettle();
+
+      expect(container.read(selectedFiatCodeProvider), 'ARS');
     });
   });
 }

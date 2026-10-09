@@ -693,6 +693,10 @@ pub async fn fetch_mostro_instance_tags(
         crate::nostr::first_answer::replaceable_rank,
     )
     .await;
+    // Before returning: Dart rereads the cache as soon as this fetch lands.
+    if let Some(event) = &event {
+        crate::api::node_stats::remember_info_event(event).await;
+    }
 
     Ok(event.map(|event| {
         event

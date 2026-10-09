@@ -2343,11 +2343,12 @@ fn wire__crate__api__cashu__cashu_connect_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_mint_url = <Option<String>>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
-                        let output_ok = crate::api::cashu::cashu_connect().await?;
+                        let output_ok = crate::api::cashu::cashu_connect(api_mint_url).await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -8673,6 +8674,7 @@ impl SseDecode for crate::api::types::FundsAtRiskReason {
             2 => crate::api::types::FundsAtRiskReason::PayoutClaimOpen,
             3 => crate::api::types::FundsAtRiskReason::TradeInProgress,
             4 => crate::api::types::FundsAtRiskReason::BondInvoicePending,
+            5 => crate::api::types::FundsAtRiskReason::CashuWalletBalance,
             _ => unreachable!("Invalid variant for FundsAtRiskReason: {}", inner),
         };
     }
@@ -10180,6 +10182,7 @@ impl SseDecode for crate::api::types::TradeUpdateReason {
             3 => crate::api::types::TradeUpdateReason::BondExpired,
             4 => crate::api::types::TradeUpdateReason::CooperativeCancelRequestedByMe,
             5 => crate::api::types::TradeUpdateReason::CooperativeCancelRequestedByPeer,
+            6 => crate::api::types::TradeUpdateReason::Replayed,
             _ => unreachable!("Invalid variant for TradeUpdateReason: {}", inner),
         };
     }
@@ -11893,6 +11896,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::FundsAtRiskReason {
             Self::PayoutClaimOpen => 2.into_dart(),
             Self::TradeInProgress => 3.into_dart(),
             Self::BondInvoicePending => 4.into_dart(),
+            Self::CashuWalletBalance => 5.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -12979,6 +12983,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::TradeUpdateReason {
             Self::BondExpired => 3.into_dart(),
             Self::CooperativeCancelRequestedByMe => 4.into_dart(),
             Self::CooperativeCancelRequestedByPeer => 5.into_dart(),
+            Self::Replayed => 6.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -13950,6 +13955,7 @@ impl SseEncode for crate::api::types::FundsAtRiskReason {
                 crate::api::types::FundsAtRiskReason::PayoutClaimOpen => 2,
                 crate::api::types::FundsAtRiskReason::TradeInProgress => 3,
                 crate::api::types::FundsAtRiskReason::BondInvoicePending => 4,
+                crate::api::types::FundsAtRiskReason::CashuWalletBalance => 5,
                 _ => {
                     unimplemented!("");
                 }
@@ -15205,6 +15211,7 @@ impl SseEncode for crate::api::types::TradeUpdateReason {
                 crate::api::types::TradeUpdateReason::BondExpired => 3,
                 crate::api::types::TradeUpdateReason::CooperativeCancelRequestedByMe => 4,
                 crate::api::types::TradeUpdateReason::CooperativeCancelRequestedByPeer => 5,
+                crate::api::types::TradeUpdateReason::Replayed => 6,
                 _ => {
                     unimplemented!("");
                 }

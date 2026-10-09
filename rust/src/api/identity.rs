@@ -21,6 +21,7 @@ use tokio::sync::RwLock;
 use crate::api::types::{IdentityInfo, NymIdentity};
 use crate::crypto::{keys as key_ops, nym};
 use crate::db::Storage;
+use crate::mostro::delete_effects::{DeleteEffects, RealDeleteEffects};
 
 // ── Global in-memory identity state ──────────────────────────────────────────
 
@@ -249,12 +250,20 @@ pub async fn load_identity_from_mnemonic(
         created_at,
     };
 
-    let mut guard = identity_lock().write().await;
-    *guard = Some(IdentityState {
-        mnemonic_words: words,
-        keys,
-        identity_info: identity_info.clone(),
-    });
+    {
+        let mut guard = identity_lock().write().await;
+        *guard = Some(IdentityState {
+            mnemonic_words: words,
+            keys,
+            identity_info: identity_info.clone(),
+        });
+    }
+
+    // An older install's shared Cashu proof store goes to the identity the
+    // app starts with — this load, at the first launch after the upgrade —
+    // before any screen can replace it. With the identity lock released: the
+    // claim touches only files and settings.
+    crate::api::cashu::claim_legacy_store(&identity_info.public_key).await;
 
     Ok(identity_info)
 }
@@ -354,26 +363,29 @@ pub(crate) async fn current_bip39_seed() -> Result<zeroize::Zeroizing<[u8; 64]>>
 /// Delete the in-memory identity state. Flutter must also clear
 /// `flutter_secure_storage` after calling this.
 pub async fn delete_identity() -> Result<()> {
-    delete_identity_inner(true).await
+    delete_identity_inner(crate::db::app_db::db(), &RealDeleteEffects).await
 }
 
-/// [`delete_identity`], with the wipe of the identity's data switchable.
+/// [`delete_identity`], with the store and the side effects injected.
 ///
-/// `wipe_data: false` exists for the unit test of the identity lifecycle
-/// only: the database and the in-memory stores are process-wide, and tests
-/// run in parallel against them, so a real wipe there deletes the rows other
-/// tests are asserting on. The wipe itself is covered where it can run alone
+/// The parameters exist for the identity lifecycle test (#553): the database
+/// and the in-memory stores are process-wide, and tests run in parallel
+/// against them, so a real wipe there deletes the rows other tests are
+/// asserting on. The test injects a throwaway store and doubles for the
+/// effects instead, while the full wipe is covered where it can run alone
 /// (`clear_identity_data_wipes_the_identity_and_keeps_the_device`,
-/// `clearing_the_store_leaves_no_chats_and_no_unread_count`).
-async fn delete_identity_inner(wipe_data: bool) -> Result<()> {
+/// `clearing_the_store_leaves_no_chats_and_no_unread_count`). There is no
+/// switch to skip the wipe: a deletion always wipes, so no argument of
+/// [`delete_identity`] can turn it off while the tests stay green (PR #565
+/// review). The binding of the real store and effects is held by
+/// `deleting_the_identity_binds_the_real_store_and_effects`.
+async fn delete_identity_inner<S: Storage, W: DeleteEffects>(db: Option<&S>, fx: &W) -> Result<()> {
     if identity_lock().read().await.is_none() {
         bail!("NoIdentity");
     }
     // While the identity still exists: its relay subscriptions are given
     // back first, so nothing of the old user's keeps arriving afterwards.
-    if wipe_data {
-        crate::api::orders::release_identity_subscriptions().await;
-    }
+    fx.release_identity_subscriptions().await;
 
     let mut guard = identity_lock().write().await;
     if guard.is_none() {
@@ -387,14 +399,14 @@ async fn delete_identity_inner(wipe_data: bool) -> Result<()> {
 
     // The push server must stop waking this device for keys the user no
     // longer holds; the registrations name pubkeys only, so no key is needed.
-    crate::api::push::unregister_all().await;
+    fx.unregister_push().await;
 
     // Clear the persisted trade key counter and per-order key mappings: both
     // belong to the deleted identity's derivation tree, and a new mnemonic
     // must start counting from zero instead of inheriting them. (If this
     // cleanup fails, the pubkey guard in `reconcile_trade_key_index` still
     // prevents the stale row from leaking into a different identity.)
-    if let Some(db) = crate::db::app_db::db() {
+    if let Some(db) = db {
         if let Err(e) = db.delete_identity().await {
             log::warn!("[identity] failed to clear persisted identity: {e}");
         }
@@ -406,15 +418,11 @@ async fn delete_identity_inner(wipe_data: bool) -> Result<()> {
         // next user must find the app as a fresh install would leave it.
         // Same handling as above: the identity is already gone, so a failed
         // wipe is reported, never turned into a failed deletion.
-        if wipe_data {
-            if let Err(e) = db.clear_identity_data().await {
-                log::warn!("[identity] failed to wipe the identity's data: {e}");
-            }
+        if let Err(e) = db.clear_identity_data().await {
+            log::warn!("[identity] failed to wipe the identity's data: {e}");
         }
     }
-    if wipe_data {
-        forget_identity_state().await;
-    }
+    fx.forget_identity_state().await;
 
     // Last, so the cleanup warnings above are dropped too: buffered lines name
     // orders and counterparties of the identity being deleted, and the Logs
@@ -438,11 +446,20 @@ pub async fn funds_at_risk() -> Result<Vec<crate::api::types::FundsAtRisk>> {
     };
     let trades = db.list_trades().await?;
     let claims = db.list_bond_claims().await?;
-    Ok(crate::mostro::funds_at_risk::funds_at_risk(
-        &trades,
-        &claims,
-        unix_now(),
-    ))
+    let mut risks = crate::mostro::funds_at_risk::funds_at_risk(&trades, &claims, unix_now());
+    // The Cashu wallet is per identity: replacing this one strands its ecash
+    // unless these words are kept. An unreadable store is logged, not fatal —
+    // it must not hide the trade risks above.
+    match crate::api::cashu::identity_balance_at_risk().await {
+        Ok(Some(sats)) => risks.push(crate::api::types::FundsAtRisk {
+            order_id: String::new(),
+            reason: crate::api::types::FundsAtRiskReason::CashuWalletBalance,
+            amount_sats: Some(sats),
+        }),
+        Ok(None) => {}
+        Err(e) => log::warn!("[identity] Cashu balance unreadable for the funds check: {e}"),
+    }
+    Ok(risks)
 }
 
 /// Empty what the process holds in memory about the deleted identity, and
@@ -451,7 +468,7 @@ pub async fn funds_at_risk() -> Result<Vec<crate::api::types::FundsAtRisk>> {
 /// The stores are process-wide singletons, so without this the new user sees
 /// the previous one's disputes, ratings and `is_mine` marks until a restart,
 /// whatever the database says.
-async fn forget_identity_state() {
+pub(crate) async fn forget_identity_state() {
     crate::api::disputes::forget_identity_disputes().await;
     crate::api::reputation::forget_identity_ratings().await;
     crate::mostro::session::session_manager().clear().await;
@@ -828,6 +845,130 @@ mod tests {
         assert!(!body.contains("refresh_subscriptions_for_active_node"));
     }
 
+    use crate::source_guard::{expect_body, mutant, production_code};
+
+    /// The public deletion hands `delete_identity_inner` the application's
+    /// store and the real effects, and nothing else (PR #565 review).
+    fn check_deletion_binding(source: &str) -> Result<(), String> {
+        expect_body(
+            &production_code(source),
+            "pub async fn delete_identity() -> Result<()>",
+            "delete_identity_inner(crate::db::app_db::db(), &RealDeleteEffects).await",
+        )
+    }
+
+    /// `forget_identity_state` runs every in-memory reset, and the two #533
+    /// names reach their store's `forget` — which
+    /// `forgetting_the_identity_drops_every_dispute` and
+    /// `forgetting_the_identity_drops_every_rating` hold on a store of their
+    /// own.
+    fn check_identity_resets(identity: &str, disputes: &str, ratings: &str) -> Result<(), String> {
+        expect_body(
+            &production_code(identity),
+            "pub(crate) async fn forget_identity_state()",
+            "crate::api::disputes::forget_identity_disputes().await;
+             crate::api::reputation::forget_identity_ratings().await;
+             crate::mostro::session::session_manager().clear().await;
+             crate::mostro::bond_claims::set_claim_nodes(std::iter::empty());
+             crate::mostro::bond_claims::clear_retained();
+             crate::api::orders::forget_book_ownership().await;",
+        )?;
+        expect_body(
+            &production_code(disputes),
+            "pub(crate) async fn forget_identity_disputes()",
+            "dispute_store().forget().await;
+             if let Ok(mut opens) = pending_opens().lock() {
+                 opens.clear();
+             }
+             solver_assigned_at()
+                 .lock()
+                 .unwrap_or_else(|poisoned| poisoned.into_inner())
+                 .clear();",
+        )?;
+        expect_body(
+            &production_code(ratings),
+            "pub(crate) async fn forget_identity_ratings()",
+            "rating_store().forget().await;",
+        )
+    }
+
+    /// #533's second acceptance criterion: `DISPUTE_STORE` and `RATING_STORE`
+    /// are empty after a deletion. The lifecycle test proves with a double
+    /// that `delete_identity_inner` calls `forget_identity_state` (#553);
+    /// this closes the links below it, down to each store's `forget`.
+    /// Source-level because the resets cannot run here: the stores are
+    /// process-wide, so emptying them races the parallel suite (the same
+    /// reason the doubles exist). It holds the resets that exist; a new
+    /// per-identity store still has to be added to them by hand.
+    #[test]
+    fn forgetting_the_identity_runs_every_reset() {
+        check_identity_resets(
+            include_str!("identity.rs"),
+            include_str!("disputes.rs"),
+            include_str!("reputation.rs"),
+        )
+        .unwrap();
+    }
+
+    /// PR #565 review: the lifecycle test drives `delete_identity_inner`
+    /// with a throwaway store and doubles, so nothing it runs can see what
+    /// the public entry point hands it. Passing no store there would skip
+    /// every database write of the deletion with the suite green; this holds
+    /// the binding.
+    #[test]
+    fn deleting_the_identity_binds_the_real_store_and_effects() {
+        check_deletion_binding(include_str!("identity.rs")).unwrap();
+    }
+
+    /// The two guards above, against the mutants that used to pass them
+    /// (PR #565 review): each one must be refused.
+    #[test]
+    fn the_deletion_guards_refuse_a_disconnected_cleanup() {
+        let identity = include_str!("identity.rs");
+        let call = "delete_identity_inner(crate::db::app_db::db(), &RealDeleteEffects).await";
+        for broken in [
+            // A new signature: the guard's own text must not answer for it.
+            mutant(
+                identity,
+                "pub async fn delete_identity() -> Result<()>",
+                "pub async fn delete_identity(wipe_data: bool) -> Result<()>",
+            ),
+            // The binding kept in a comment only.
+            mutant(
+                identity,
+                call,
+                &format!(
+                    "// {call}\n    delete_identity_inner(None::<&crate::db::sqlite::SqliteStorage>, &RealDeleteEffects).await"
+                ),
+            ),
+            // The store handed over, but never present.
+            mutant(identity, "app_db::db(),", "app_db::db().filter(|_| false),"),
+        ] {
+            assert!(check_deletion_binding(&broken).is_err());
+        }
+
+        let disputes = include_str!("disputes.rs");
+        let ratings = include_str!("reputation.rs");
+        for reset in [
+            "crate::api::disputes::forget_identity_disputes().await;",
+            "crate::api::reputation::forget_identity_ratings().await;",
+            "crate::mostro::session::session_manager().clear().await;",
+            "crate::mostro::bond_claims::set_claim_nodes(std::iter::empty());",
+            "crate::mostro::bond_claims::clear_retained();",
+            "crate::api::orders::forget_book_ownership().await;",
+        ] {
+            let commented = mutant(identity, reset, &format!("// {reset}"));
+            assert!(
+                check_identity_resets(&commented, disputes, ratings).is_err(),
+                "commenting out {reset} must fail the guard",
+            );
+        }
+        let skipped = mutant(disputes, "dispute_store().forget().await;", "");
+        assert!(check_identity_resets(identity, &skipped, ratings).is_err());
+        let skipped = mutant(ratings, "rating_store().forget().await;", "");
+        assert!(check_identity_resets(identity, disputes, &skipped).is_err());
+    }
+
     use super::*;
 
     /// A throwaway SQLite store, named per test so parallel runs never collide.
@@ -1062,6 +1203,49 @@ mod tests {
         }
     }
 
+    /// Ordered record of the deletion's non-store effects, each with whether
+    /// an identity was still loaded when it ran, so the lifecycle test can
+    /// assert the wiring of `delete_identity_inner` (#553).
+    #[derive(Default)]
+    struct CallLog(std::sync::Mutex<Vec<(&'static str, bool)>>);
+
+    impl CallLog {
+        async fn push(&self, call: &'static str) {
+            let loaded = identity_generation().await.is_some();
+            self.0.lock().unwrap().push((call, loaded));
+        }
+        fn calls(&self) -> Vec<(&'static str, bool)> {
+            self.0.lock().unwrap().clone()
+        }
+    }
+
+    /// A `DeleteEffects` that records instead of touching the process-wide
+    /// subscriptions, push registrations and in-memory stores.
+    struct SpyEffects<'a>(&'a CallLog);
+
+    impl DeleteEffects for SpyEffects<'_> {
+        async fn release_identity_subscriptions(&self) {
+            self.0.push("release_identity_subscriptions").await;
+        }
+        async fn unregister_push(&self) {
+            self.0.push("unregister_push").await;
+        }
+        async fn forget_identity_state(&self) {
+            self.0.push("forget_identity_state").await;
+        }
+    }
+
+    /// What every deletion must run, and whether the identity is still
+    /// loaded at each step: the subscriptions are released while it exists,
+    /// everything else after it is retired. The order among the last two is
+    /// today's, pinned because a wiring test reads cheapest as a literal
+    /// transcript — not because it is semantic.
+    const DELETION_TRANSCRIPT: [(&str, bool); 3] = [
+        ("release_identity_subscriptions", true),
+        ("unregister_push", false),
+        ("forget_identity_state", false),
+    ];
+
     #[test]
     fn deriving_without_durable_storage_is_refused() {
         // Asserted as a pure decision, not through `derive_trade_key`: that
@@ -1238,8 +1422,40 @@ mod tests {
             Some(1)
         );
 
-        // Without the data wipe: see `delete_identity_inner`.
-        delete_identity_inner(false).await.unwrap();
+        // What the deletion must wipe from the store, and what it must keep.
+        db.save_trade_key("order-a", 21).await.unwrap();
+        let cursor = crate::db::settings_keys::status_cursor("order-a");
+        db.set_setting(&cursor, "1").await.unwrap();
+        db.set_setting(crate::db::settings_keys::PUSH_ENABLED, "false")
+            .await
+            .unwrap();
+
+        // The deletion wiring (#553), against this test's throwaway store and
+        // with doubles for the effects, so the process-wide subscriptions,
+        // push registrations and in-memory stores stay untouched — see
+        // `delete_identity_inner`. Every wipe effect runs (#533's acceptance
+        // criteria), in `DELETION_TRANSCRIPT`'s order.
+        let effects = CallLog::default();
+        delete_identity_inner(Some(&db), &SpyEffects(&effects))
+            .await
+            .unwrap();
+        assert_eq!(
+            effects.calls(),
+            DELETION_TRANSCRIPT,
+            "a deletion must run every wipe effect, releasing the \
+             subscriptions before the identity is retired",
+        );
+        assert!(db.get_identity().await.unwrap().is_none());
+        assert_eq!(db.get_trade_key("order-a").await.unwrap(), None);
+        assert_eq!(db.get_setting(&cursor).await.unwrap(), None);
+        assert_eq!(
+            db.get_setting(crate::db::settings_keys::PUSH_ENABLED)
+                .await
+                .unwrap()
+                .as_deref(),
+            Some("false"),
+            "a deletion keeps the device's preferences",
+        );
         assert!(get_identity().await.unwrap().is_none());
         assert_eq!(identity_generation().await, None);
 
@@ -1261,12 +1477,24 @@ mod tests {
 
         // Importing the same mnemonic again is a new generation: the old
         // transfer stays refused although the pubkey is the same.
+        // (The reload reconciles its index against the global APP_DB if some
+        // other test initialized it — a read-only touch, tolerated either
+        // way, and the only global the block reaches.)
         load_identity_from_mnemonic(words, 0, false, None)
             .await
             .unwrap();
         let reloaded = identity_generation().await.expect("an identity is loaded");
         assert_ne!(reloaded, generation);
         assert!(while_identity_current(generation, async {}).await.is_none());
-        delete_identity_inner(false).await.unwrap();
+        let again = CallLog::default();
+        delete_identity_inner(Some(&db), &SpyEffects(&again))
+            .await
+            .unwrap();
+        assert_eq!(
+            again.calls(),
+            DELETION_TRANSCRIPT,
+            "every deletion runs every effect",
+        );
+        assert!(get_identity().await.unwrap().is_none());
     }
 }

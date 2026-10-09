@@ -5,11 +5,12 @@ import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/create_order_palette.dart';
 import 'package:mostro/features/order/models/create_order_rules.dart';
+import 'package:mostro/features/order/widgets/invoice_widgets.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 
 /// Bottom bar of the create-order screen: the live preview line pinned above
-/// `Cancel` and `Publish order`, always visible and rising with the
-/// keyboard.
+/// `Publish order` and the `Cancel` link under it, always visible and rising
+/// with the keyboard.
 ///
 /// The line has three states: the hint while there is no amount, the
 /// sentence once there is, and — in place of the sentence — a validation
@@ -88,72 +89,50 @@ class OrderPreviewBar extends StatelessWidget {
                 ),
               ],
               const SizedBox(height: 12),
-              Row(
-                children: [
-                  Expanded(
-                    flex: 10,
-                    child: OutlinedButton(
-                      onPressed: onCancel,
-                      style: OutlinedButton.styleFrom(
-                        foregroundColor: palette.textBody,
-                        side: BorderSide(color: create.fieldUnderline),
-                        padding: const EdgeInsets.symmetric(vertical: 14),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        textStyle: const TextStyle(
-                          fontFamily: AppFonts.ui,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                      child: Text(l10n.cancel),
-                    ).withAutomationId(AutomationIds.orderCreateCancel),
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow:
+                      canSubmit && !isSubmitting ? create.ctaShadow : const [],
+                ),
+                child: FilledButton(
+                  onPressed: canSubmit && !isSubmitting ? onSubmit : null,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: palette.lime,
+                    foregroundColor: palette.onLime,
+                    disabledBackgroundColor: create.ctaDisabledBg,
+                    disabledForegroundColor: create.ctaDisabledInk,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    textStyle: const TextStyle(
+                      fontFamily: AppFonts.ui,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    flex: 14,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow:
-                            canSubmit && !isSubmitting
-                                ? create.ctaShadow
-                                : const [],
-                      ),
-                      child: FilledButton(
-                        onPressed: canSubmit && !isSubmitting ? onSubmit : null,
-                        style: FilledButton.styleFrom(
-                          backgroundColor: palette.lime,
-                          foregroundColor: palette.onLime,
-                          disabledBackgroundColor: create.ctaDisabledBg,
-                          disabledForegroundColor: create.ctaDisabledInk,
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          textStyle: const TextStyle(
-                            fontFamily: AppFonts.ui,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        child:
-                            isSubmitting
-                                ? SizedBox(
-                                  width: 18,
-                                  height: 18,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: palette.onLime,
-                                  ),
-                                )
-                                : Text(l10n.publishOrder),
-                      ),
-                    ).withAutomationId(AutomationIds.orderCreateSubmit),
-                  ),
-                ],
-              ),
+                  child:
+                      isSubmitting
+                          ? SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: palette.onLime,
+                            ),
+                          )
+                          : Text(l10n.publishOrder),
+                ),
+              ).withAutomationId(AutomationIds.orderCreateSubmit),
+              const SizedBox(height: 4),
+              // Leaving the form undoes nothing: a neutral link, never an
+              // outlined button as heavy as publishing (DS-CMP-20).
+              InvoiceCancelLink(
+                label: l10n.cancel,
+                danger: false,
+                onPressed: onCancel,
+              ).withAutomationId(AutomationIds.orderCreateCancel),
             ],
           ),
         ),
@@ -204,10 +183,10 @@ class OrderPreviewBar extends StatelessWidget {
     };
     final base = TextStyle(fontSize: 12, height: 1.5, color: palette.textMuted);
     TextStyle figure(Color color) => base.copyWith(
-          fontFamily: AppFonts.figures,
-          fontWeight: FontWeight.w600,
-          color: color,
-        );
+      fontFamily: AppFonts.figures,
+      fontWeight: FontWeight.w600,
+      color: color,
+    );
 
     return _IconLine(
       key: const ValueKey('preview-sentence'),

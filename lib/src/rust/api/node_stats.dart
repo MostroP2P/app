@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `apply_info_tags`, `apply_order_counts`, `cached_info_tags`, `count_open_orders`, `dedup_latest`, `empty`, `fraction_to_pct`, `is_open`, `load_info_cache`, `merge_info`, `newest_info`, `normalize_pubkeys`, `parse_accepted_currencies`, `parse_authors`, `parse_u64`, `rows_from_cache`, `store_info_best_effort`, `store_info`, `summarize`, `supersedes`, `supersedes`, `tag_value`
+// These functions are ignored because they are not marked as `pub`: `apply_info_tags`, `apply_order_counts`, `cached_info_tags`, `count_open_orders`, `dedup_latest`, `empty`, `fraction_to_pct`, `info_of`, `is_open`, `load_info_cache`, `merge_info`, `newest_info`, `normalize_pubkeys`, `parse_accepted_currencies`, `parse_authors`, `parse_u64`, `remember_info_event`, `rows_from_cache`, `store_info_best_effort`, `store_info`, `summarize`, `supersedes`, `supersedes`, `tag_value`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CachedNodeInfo`, `Revision`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`
 

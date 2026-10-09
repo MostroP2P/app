@@ -1,6 +1,6 @@
 [package]
 name = "rust"
-version = "2.0.13"
+version = "2.0.15"
 license = "AGPL-3.0-or-later"
 edition = "2021"
 
@@ -95,10 +95,10 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 # records what was verified against this version and how to upgrade.
 # `wallet` only: the mint, signatory, nostr and tor features are server-side or
 # unused here, and each drags in a large dependency subtree.
-cdk = { version = "=0.17.3", default-features = false, features = ["wallet"] }
+cdk = { version = "=0.18.1", default-features = false, features = ["wallet"] }
 # Proof storage. Native by construction (rusqlite), which is why the web build
 # gets a typed stub instead — see rust/src/cashu/mod.rs.
-cdk-sqlite = { version = "=0.17.3", default-features = false, features = ["wallet"] }
+cdk-sqlite = { version = "=0.18.1", default-features = false, features = ["wallet"] }
 
 # Android logging backend. api::logging delegates to an `AndroidLogger`
 # instance rather than calling `init_once()`, which would install a competing

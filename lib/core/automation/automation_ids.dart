@@ -32,11 +32,17 @@ class AutomationIds {
   static const String drawerSettings = 'drawer.settings';
   static const String drawerAbout = 'drawer.about';
 
-  // Onboarding — v2 has no community/node step in the walkthrough.
+  // Onboarding — the walkthrough, then the first run's node choice.
   static const String walkthroughBack = 'onboarding.walkthrough.back';
   static const String walkthroughSkip = 'onboarding.walkthrough.skip';
   static const String walkthroughNext = 'onboarding.walkthrough.next';
   static const String walkthroughDone = 'onboarding.walkthrough.done';
+  // The node choice keeps v1's ids (community selector), so a suite that
+  // drives one app drives the other.
+  static const String communityDone = 'onboarding.community.done';
+  static const String communitySkip = 'onboarding.community.skip';
+  static String communityCard(String pubkey) =>
+      'onboarding.community.card.$pubkey';
 
   // Key management (account screen)
   static const String keysGenerate = 'keys.generate';
@@ -276,6 +282,9 @@ class AutomationIds {
   static const String bondOrderId = 'bond.order_id';
   static const String bondExplainer = 'bond.explainer';
   static const String bondCancel = 'bond.cancel';
+
+  /// The destructive answer of the dialog `bond.cancel` opens (DS-CMP-20).
+  static const String bondCancelConfirm = 'bond.cancel.confirm';
   static const String bondRemoveFromDevice = 'bond.remove_from_device';
 
   // Payout claim on a slashed bond (docs/ANTI_ABUSE_BOND.md §6.4)

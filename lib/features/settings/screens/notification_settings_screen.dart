@@ -51,6 +51,13 @@ class NotificationSettingsScreen extends ConsumerWidget {
     // Capability first (§9.1): a denied permission on a phone keeps its
     // banner and its toggle, never unsupported copy.
     final supported = ref.watch(pushSupportedProvider);
+    // Web only: the browser has not been asked yet, and its prompt shows only
+    // from a tap. Not offered while push is off: there is nothing to allow.
+    final unasked =
+        supported &&
+        !denied &&
+        (ref.watch(pushStatusProvider).valueOrNull?.enabled ?? true) &&
+        (ref.watch(notificationPermissionUnaskedProvider).valueOrNull ?? false);
 
     return Scaffold(
       backgroundColor: book.bg,
@@ -75,6 +82,9 @@ class NotificationSettingsScreen extends ConsumerWidget {
         children: [
           if (denied) ...[
             const _SystemDeniedBanner(),
+            const SizedBox(height: 14),
+          ] else if (unasked) ...[
+            const _PermissionUnaskedBanner(),
             const SizedBox(height: 14),
           ],
           SettingsGroup(
@@ -437,7 +447,7 @@ class _EventRow extends ConsumerWidget {
   };
 }
 
-// ── Denied-permission banner ──────────────────────────────────────────────────
+// ── Permission banners ────────────────────────────────────────────────────────
 
 /// Shown when the OS is refusing this app's notifications: the four toggles
 /// below cannot deliver anything until this is fixed, and it is not fixed
@@ -448,6 +458,47 @@ class _SystemDeniedBanner extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    return _PermissionBanner(
+      message: l10n.notificationsSystemDenied,
+      action: l10n.openSystemSettingsAction,
+      // `notificationPermissionDeniedProvider` re-reads the answer when the
+      // app resumes, which is when the user comes back.
+      onTap: () => ref.read(openSystemSettingsProvider)(),
+    );
+  }
+}
+
+/// Shown on the web while the browser has not been asked for the permission:
+/// no push can arrive until it is, and its prompt shows only from a tap.
+class _PermissionUnaskedBanner extends ConsumerWidget {
+  const _PermissionUnaskedBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    return _PermissionBanner(
+      message: l10n.notificationsPermissionNotAsked,
+      action: l10n.allowNotificationsAction,
+      // Straight from the tap: the request must go out before any await.
+      onTap: () => ref.read(requestNotificationPermissionProvider)(),
+    );
+  }
+}
+
+/// A warning line with one action, above the push settings.
+class _PermissionBanner extends StatelessWidget {
+  const _PermissionBanner({
+    required this.message,
+    required this.action,
+    required this.onTap,
+  });
+
+  final String message;
+  final String action;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
     final pal = SettingsPalette.of(context);
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -463,15 +514,13 @@ class _SystemDeniedBanner extends ConsumerWidget {
           runSpacing: 4,
           children: [
             Text(
-              l10n.notificationsSystemDenied,
+              message,
               style: TextStyle(fontSize: 11, height: 1.4, color: pal.warnInk),
             ),
             InkWell(
-              // `notificationPermissionDeniedProvider` re-reads the answer
-              // when the app resumes, which is when the user comes back.
-              onTap: () => ref.read(openSystemSettingsProvider)(),
+              onTap: onTap,
               child: Text(
-                l10n.openSystemSettingsAction,
+                action,
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,

@@ -1,6 +1,7 @@
 pub mod actions;
 pub mod bond_claims;
 pub mod bond_policy;
+pub(crate) mod delete_effects;
 pub mod escrow_mode;
 pub mod fsm;
 pub(crate) mod funds_at_risk;

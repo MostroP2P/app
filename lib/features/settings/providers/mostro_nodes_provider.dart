@@ -36,6 +36,9 @@ final mostroNodesProvider =
 class MostroNodesNotifier extends AsyncNotifier<List<MostroNodeEntry>> {
   bool _refreshing = false;
 
+  /// The refresh in flight, if any.
+  Future<void>? _inFlight;
+
   @override
   Future<List<MostroNodeEntry>> build() async {
     final list = await nodes_api.listMostroNodes();
@@ -54,14 +57,38 @@ class MostroNodesNotifier extends AsyncNotifier<List<MostroNodeEntry>> {
   Future<void> refreshMetadata() async {
     if (_refreshing) return;
     _refreshing = true;
+    final run = _refresh();
+    _inFlight = run;
     try {
-      final refreshed = await nodes_api.refreshMostroNodeMetadata();
+      await run;
+    } finally {
+      _refreshing = false;
+      _inFlight = null;
+    }
+  }
+
+  /// The relay round trip behind a refresh; a seam for tests.
+  @visibleForTesting
+  Future<List<MostroNodeEntry>> fetchMetadata() =>
+      nodes_api.refreshMostroNodeMetadata();
+
+  Future<void> _refresh() async {
+    try {
+      final refreshed = await fetchMetadata();
       state = AsyncData(refreshed);
     } catch (e) {
       debugPrint('[mostroNodes] metadata refresh failed: $e');
-    } finally {
-      _refreshing = false;
     }
+  }
+
+  /// A refresh that starts only after the one in flight, when there is one,
+  /// instead of being dropped into it. For a caller that knows the relays
+  /// just became reachable: a refresh issued before that may have come back
+  /// empty, so joining it would not do.
+  Future<void> refreshMetadataAfterPending() async {
+    final pending = _inFlight;
+    if (pending != null) await pending;
+    await refreshMetadata();
   }
 
   /// Activate `pubkey` — persists it, re-targets subscriptions (Rust side) and

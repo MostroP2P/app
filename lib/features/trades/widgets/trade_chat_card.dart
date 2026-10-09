@@ -7,14 +7,21 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/trade_palette.dart';
 import 'package:mostro/features/chat/providers/chat_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/tab_app_bar.dart' show CountBadge;
 
 /// The chat card of an active trade: the counterpart's alias, the unread
 /// badge from the message stream, and a tap into the room. The alias is the
 /// datum — never a "your counterpart" placeholder once the trade is active.
+///
+/// [closed] once the conversation has ended: muted, with a line that the
+/// messages can still be read. The tap opens the room, read-only. The unread
+/// badge stays: the messages are unread until the room is opened, and the
+/// chat list and the Chat tab count them too.
 class TradeChatCard extends ConsumerWidget {
-  const TradeChatCard({super.key, required this.orderId});
+  const TradeChatCard({super.key, required this.orderId, this.closed = false});
 
   final String orderId;
+  final bool closed;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -39,13 +46,13 @@ class TradeChatCard extends ConsumerWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
-            border: Border.all(color: trade.chatBorder),
+            border: Border.all(color: closed ? book.border : trade.chatBorder),
             borderRadius: BorderRadius.circular(18),
           ),
           child: Row(
             children: [
-              _Avatar(unread: unread),
-              const SizedBox(width: 11),
+              _Avatar(unread: unread, closed: closed),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -55,12 +62,12 @@ class TradeChatCard extends ConsumerWidget {
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: book.textStrong,
+                        color: closed ? book.textSecondary : book.textStrong,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
                     Text(
-                      l10n.tradeChatEncrypted,
+                      closed ? l10n.tradeChatClosed : l10n.tradeChatEncrypted,
                       style: TextStyle(fontSize: 11, color: book.textTertiary),
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -68,7 +75,11 @@ class TradeChatCard extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              Icon(Icons.chevron_right, size: 18, color: book.limeIcon),
+              Icon(
+                Icons.chevron_right,
+                size: 18,
+                color: closed ? book.textTertiary : book.limeIcon,
+              ),
             ],
           ),
         ),
@@ -78,9 +89,10 @@ class TradeChatCard extends ConsumerWidget {
 }
 
 class _Avatar extends StatelessWidget {
-  const _Avatar({required this.unread});
+  const _Avatar({required this.unread, required this.closed});
 
   final int unread;
+  final bool closed;
 
   @override
   Widget build(BuildContext context) {
@@ -107,7 +119,7 @@ class _Avatar extends StatelessWidget {
               child: Icon(
                 Icons.chat_bubble_outline,
                 size: 16,
-                color: book.limeText,
+                color: closed ? book.textTertiary : book.limeText,
               ),
             ),
           ),
@@ -115,25 +127,21 @@ class _Avatar extends StatelessWidget {
             Positioned(
               right: 0,
               top: -3,
+              // The shared badge (99+ past 99), ringed in the card's surface
+              // to stand off the icon. A Container insets its child by the
+              // border, so 13 + 2 × 1.5 keeps it 16 high, and a padding of 3
+              // keeps one digit inside 13: a 16 dp circle, a pill past it.
               child: Container(
-                constraints: const BoxConstraints(minWidth: 16),
-                height: 16,
-                padding: const EdgeInsets.symmetric(horizontal: 4),
-                alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: book.lime,
                   borderRadius: BorderRadius.circular(999),
                   border: Border.all(color: book.surface, width: 1.5),
                 ),
-                child: Text(
-                  '$unread',
-                  style: TextStyle(
-                    fontFamily: AppFonts.figures,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    height: 1,
-                    color: book.onLime,
-                  ),
+                child: CountBadge(
+                  count: unread,
+                  background: book.lime,
+                  foreground: book.onLime,
+                  size: 13,
+                  padding: 3,
                 ),
               ),
             ),

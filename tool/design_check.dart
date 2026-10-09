@@ -6,9 +6,11 @@
 /// dart tool/design_check.dart --all           # every line: the §14 debt
 /// ```
 ///
-/// The "Design guide" CI job runs the first form against the pull request's
-/// base. Exits 1 on any break, 2 when git fails. A break that is right on
-/// purpose takes `// design-check: ignore DS-XXX-N — reason` (guide §13).
+/// "Touched" is a screen (`isScreen`) read whole, and in any other file each
+/// top-level declaration a changed line falls in. The "Design guide" CI job
+/// runs the first form against the pull request's base. Exits 1 on any
+/// break, 2 when git fails. A break that is right on purpose takes
+/// `// design-check: ignore DS-XXX-N — reason` (guide §13).
 library;
 
 import 'dart:io';
@@ -52,7 +54,11 @@ Future<void> main(List<String> args) async {
       stderr.writeln('git diff against $base failed:\n${diff.stderr}');
       exit(2);
     }
-    targets = addedLines(diff.stdout as String);
+    targets = {
+      for (final MapEntry(key: path, value: lines)
+          in addedLines(diff.stdout as String).entries)
+        path: isScreen(path) ? null : lines,
+    };
   }
 
   final checked = targets.keys.where(isChecked).toList()..sort();

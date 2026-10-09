@@ -4,6 +4,7 @@
 /// return.
 library;
 
+import 'package:intl/intl.dart';
 import 'package:mostro/src/rust/api/types.dart' as rust_types;
 import 'package:mostro/src/rust/api/types.dart'
     show
@@ -14,30 +15,13 @@ import 'package:mostro/src/rust/api/types.dart'
         InvoiceVerdict_Valid,
         InvoiceVerdict_Rejected;
 
-// ── Order id ──────────────────────────────────────────────────────────────────
-
-/// `#09150348`: the app bar shows the first eight characters of the UUID;
-/// tapping it copies the whole id.
-String invoiceOrderTag(String orderId) =>
-    '#${orderId.length <= 8 ? orderId : orderId.substring(0, 8)}';
-
 // ── Amounts ───────────────────────────────────────────────────────────────────
 
-const _thinSpace = ' ';
-
-/// Whole sats without a thousands separator up to five digits (`25000`), and
-/// grouped by a thin space from six on (`300 000`).
-String formatInvoiceSats(int sats) {
-  final digits = sats.abs().toString();
-  final sign = sats < 0 ? '-' : '';
-  if (digits.length <= 5) return '$sign$digits';
-  final buffer = StringBuffer();
-  for (var i = 0; i < digits.length; i++) {
-    if (i > 0 && (digits.length - i) % 3 == 0) buffer.write(_thinSpace);
-    buffer.write(digits[i]);
-  }
-  return '$sign$buffer';
-}
+/// Whole sats grouped the way the locale groups every other amount in the
+/// app (`2.439` in `es`, `2,439` in `en`), so an invoice screen reads like the
+/// order it belongs to (#720).
+String formatInvoiceSats(int sats, String locale) =>
+    NumberFormat.decimalPattern(locale).format(sats);
 
 /// The Mostro fee a hold invoice of [holdSats] carries, given the node's fee
 /// as a fraction ([nodeFee], `0.006` = 0.6 %), or null when it cannot be
@@ -61,34 +45,35 @@ int? holdInvoiceFee({required int holdSats, required double? nodeFee}) {
   return null;
 }
 
-// ── Countdown ─────────────────────────────────────────────────────────────────
+// ── Step expiry ───────────────────────────────────────────────────────────────
 
-/// Under this the time band turns red and the figure pulses.
-const kInvoiceUrgentThreshold = Duration(seconds: 60);
+/// What mostrod does with the order when a waiting step runs out
+/// (`scheduler.rs`): it goes back to the book when the taker owed the step,
+/// and is cancelled when the maker did. Both sides of the trade read the same
+/// outcome.
+enum StepExpiry { backToBook, cancelled }
 
-/// `14:38` (mm:ss) under an hour; above it, [hours] builds the localized
-/// form (`1 h 05`) from the hour count and the two-digit minutes.
-String formatInvoiceCountdown(
-  Duration remaining, {
-  required String Function(String hours, String minutes) hours,
-}) {
-  final d = remaining.isNegative ? Duration.zero : remaining;
-  String two(int n) => n.toString().padLeft(2, '0');
-  if (d.inHours >= 1) return hours('${d.inHours}', two(d.inMinutes % 60));
-  return '${two(d.inMinutes)}:${two(d.inSeconds % 60)}';
-}
+/// [buyerStep] is the buyer's invoice; otherwise the step is the seller's
+/// hold-invoice payment. The taker owes the buyer's invoice on a sell order
+/// and the seller's payment on a buy order, so [kind] is enough to tell who
+/// owes the step without knowing which side the user took.
+StepExpiry stepExpiry({
+  required bool buyerStep,
+  required rust_types.OrderKind kind,
+}) =>
+    buyerStep == (kind == rust_types.OrderKind.sell)
+        ? StepExpiry.backToBook
+        : StepExpiry.cancelled;
 
-bool isInvoiceCountdownUrgent(Duration remaining) =>
-    remaining < kInvoiceUrgentThreshold;
-
-/// How long until the displayed value changes: every second under an hour;
-/// above it, one second past the seconds into the current minute — the
-/// display floors to whole minutes, so `2:00:15` still reads `2 h 00` after
-/// 15 s and turns `1 h 59` one second later (and `2:00:00` after 1 s).
-Duration invoiceCountdownTick(Duration remaining) {
-  if (remaining <= const Duration(hours: 1)) return const Duration(seconds: 1);
-  return Duration(seconds: remaining.inSeconds % 60 + 1);
-}
+/// Whether [status] says the order was called off, however it ended: an
+/// invoice screen then has nothing left to ask for and leaves for home.
+bool invoiceOrderCancelled(rust_types.OrderStatus status) => switch (status) {
+  rust_types.OrderStatus.canceled ||
+  rust_types.OrderStatus.cooperativelyCanceled ||
+  rust_types.OrderStatus.canceledByAdmin ||
+  rust_types.OrderStatus.expired => true,
+  _ => false,
+};
 
 // ── Buyer input ───────────────────────────────────────────────────────────────
 
@@ -226,16 +211,21 @@ InvoiceCheck invoiceCheckFromVerdict(
     ),
 };
 
-/// An msat amount as sats: `250`, or `250.5` when it carries a remainder.
-String formatInvoiceMsat(int msat) {
-  final sats = msat ~/ 1000;
-  final rest = msat % 1000;
-  if (rest == 0) return formatInvoiceSats(sats);
-  final fraction = rest
+/// An msat amount as sats: `2.439`, or `2.439,5` when it carries a remainder,
+/// in [locale]'s separators.
+///
+/// The whole sats and the remainder are formatted apart, in integer
+/// arithmetic: `msat / 1000` as a double would round an amount past 2^53.
+String formatInvoiceMsat(int msat, String locale) {
+  final format = NumberFormat.decimalPattern(locale);
+  final whole = format.format(msat ~/ 1000);
+  final remainder = (msat % 1000).abs();
+  if (remainder == 0) return whole;
+  final fraction = remainder
       .toString()
       .padLeft(3, '0')
       .replaceFirst(RegExp(r'0+$'), '');
-  return '${formatInvoiceSats(sats)}.$fraction';
+  return '$whole${format.symbols.DECIMAL_SEP}$fraction';
 }
 
 /// Whether [check] lets the buyer submit.
@@ -258,8 +248,9 @@ bool invoiceCheckAllowsSubmit(InvoiceCheck check) => switch (check) {
 /// Kebab-case like `order.status`, and never the row's sentence, which is
 /// translated.
 String? invoiceCheckWord(InvoiceCheck check) => switch (check) {
-  InvoiceCheckNone() || InvoiceCheckPending() || InvoiceCheckUnverified() =>
-    null,
+  InvoiceCheckNone() ||
+  InvoiceCheckPending() ||
+  InvoiceCheckUnverified() => null,
   InvoiceCheckAddress() => 'address',
   InvoiceCheckValid() => 'valid',
   InvoiceCheckError(:final problem) => switch (problem) {

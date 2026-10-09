@@ -6,9 +6,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
+import 'package:mostro/features/order/providers/invoice_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/shared/widgets/trade_action_listener.dart';
 import 'package:mostro/src/rust/api/types.dart';
+
+/// Unix seconds now: the requests these tests send are live ones.
+int _now() => DateTime.now().millisecondsSinceEpoch ~/ 1000;
 
 void main() {
   late StreamController<TradeUpdate> updates;
@@ -29,7 +33,12 @@ void main() {
   }) async {
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [tradeUpdatesProvider.overrideWith((ref) => updates.stream)],
+        overrides: [
+          tradeUpdatesProvider.overrideWith((ref) => updates.stream),
+          invoiceStepWindowProvider.overrideWithValue(
+            const Duration(minutes: 15),
+          ),
+        ],
         child: TradeActionListener(
           resolveRole: resolveRole,
           navigate: navigated.add,
@@ -52,9 +61,9 @@ void main() {
     );
 
     updates.add(
-      const TradeUpdate(
+      TradeUpdate(
         orderId: 'o1',
-        occurredAt: 0,
+        occurredAt: _now(),
         status: OrderStatus.waitingPayment,
       ),
     );
@@ -63,6 +72,40 @@ void main() {
 
     expect(navigated, [AppRoute.payInvoicePath('o1')]);
     expect(container.read(tradeRoleProvider), {'o1': false});
+  });
+
+  testWidgets('a request whose step window ran out does not navigate', (
+    tester,
+  ) async {
+    // A replay — the startup one, or a restore's — re-emits weeks-old
+    // requests; opening their screens bounced the user through a trade
+    // that ended long ago. Each request goes to the role that would act on
+    // it, so only the expiry can keep it from navigating.
+    await pumpListener(
+      tester,
+      resolveRole: (orderId) async =>
+          orderId == 'old-buyer' ? TradeRole.buyer : TradeRole.seller,
+    );
+    final stale = _now() - const Duration(minutes: 16).inSeconds;
+
+    updates.add(
+      TradeUpdate(
+        orderId: 'old-seller',
+        occurredAt: stale,
+        status: OrderStatus.waitingPayment,
+      ),
+    );
+    updates.add(
+      TradeUpdate(
+        orderId: 'old-buyer',
+        occurredAt: stale,
+        status: OrderStatus.waitingBuyerInvoice,
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    expect(navigated, isEmpty);
   });
 
   testWidgets('buyer is sent to add-invoice on WaitingBuyerInvoice', (
@@ -74,9 +117,9 @@ void main() {
     );
 
     updates.add(
-      const TradeUpdate(
+      TradeUpdate(
         orderId: 'o1',
-        occurredAt: 0,
+        occurredAt: _now(),
         status: OrderStatus.waitingBuyerInvoice,
       ),
     );
@@ -96,9 +139,9 @@ void main() {
     );
 
     updates.add(
-      const TradeUpdate(
+      TradeUpdate(
         orderId: 'o1',
-        occurredAt: 0,
+        occurredAt: _now(),
         status: OrderStatus.waitingTakerBond,
       ),
     );
@@ -120,9 +163,9 @@ void main() {
     );
 
     updates.add(
-      const TradeUpdate(
+      TradeUpdate(
         orderId: 'o1',
-        occurredAt: 0,
+        occurredAt: _now(),
         status: OrderStatus.waitingTakerBond,
       ),
     );
@@ -140,9 +183,9 @@ void main() {
     await pumpListener(tester, resolveRole: (_) async => TradeRole.buyer);
 
     updates.add(
-      const TradeUpdate(
+      TradeUpdate(
         orderId: 'o1',
-        occurredAt: 0,
+        occurredAt: _now(),
         status: OrderStatus.waitingPayment,
       ),
     );
@@ -161,17 +204,17 @@ void main() {
     await pumpListener(tester, resolveRole: (_) => role.future);
 
     updates.add(
-      const TradeUpdate(
+      TradeUpdate(
         orderId: 'o1',
-        occurredAt: 0,
+        occurredAt: _now(),
         status: OrderStatus.waitingPayment,
       ),
     );
     await tester.pump();
     updates.add(
-      const TradeUpdate(
+      TradeUpdate(
         orderId: 'o1',
-        occurredAt: 0,
+        occurredAt: _now(),
         status: OrderStatus.active,
       ),
     );

@@ -56,6 +56,28 @@ deleted file mode 100644
         'lib/b.dart': {1, 2, 3},
       });
     });
+
+    test('keeps a file it only removes lines from, with none', () {
+      const diff = '''
+diff --git a/lib/a.dart b/lib/a.dart
+index 1..2 100644
+--- a/lib/a.dart
++++ b/lib/a.dart
+@@ -2 +1,0 @@ class A {
+-  gone
+''';
+      expect(addedLines(diff), {'lib/a.dart': <int>{}});
+    });
+
+    test('keeps a file it only renames, with none', () {
+      const diff = '''
+diff --git a/lib/a.dart b/lib/b.dart
+similarity index 100%
+rename from lib/a.dart
+rename to lib/b.dart
+''';
+      expect(addedLines(diff), {'lib/b.dart': <int>{}});
+    });
   });
 
   group('which files it reads', () {
@@ -72,6 +94,127 @@ deleted file mode 100644
       expect(isChecked('lib/features/x/model.freezed.dart'), isFalse);
       expect(isChecked('test/features/x_test.dart'), isFalse);
       expect(isChecked('lib/features/x/README.md'), isFalse);
+    });
+  });
+
+  group('which files it reads whole', () {
+    test('a screen', () {
+      expect(
+        isScreen('lib/features/cashu/screens/cashu_wallet_screen.dart'),
+        isTrue,
+      );
+      expect(
+        isScreen('lib/features/order/screens/take/take_screen.dart'),
+        isTrue,
+      );
+    });
+
+    test('not a widget or anything else', () {
+      expect(isScreen('lib/features/order/widgets/amount_field.dart'), isFalse);
+      expect(isScreen('lib/shared/widgets/mostro_modal.dart'), isFalse);
+      expect(isScreen('lib/features/x/screens_helper.dart'), isFalse);
+    });
+  });
+
+  /// The CI job's own run, against a throwaway repository whose `main`
+  /// already holds a break outside the declaration a change touches: a
+  /// pull request that touches a screen answers for all of it, one that
+  /// touches any other file for the declarations it touched.
+  group('a pull request', skip: Platform.isWindows, () {
+    const screen = 'lib/features/x/screens/x_screen.dart';
+    const widget = 'lib/features/x/widgets/x_widget.dart';
+    const legacy = 'final a = Colors.white;\nfinal b = 1;\n';
+    final tool = File('tool/design_check.dart').absolute.path;
+    late Directory repo;
+
+    final env = {
+      'GIT_CONFIG_GLOBAL': '/dev/null',
+      'GIT_CONFIG_NOSYSTEM': '1',
+      'GIT_AUTHOR_NAME': 'Test',
+      'GIT_AUTHOR_EMAIL': 'test@example.com',
+      'GIT_COMMITTER_NAME': 'Test',
+      'GIT_COMMITTER_EMAIL': 'test@example.com',
+    };
+
+    void git(List<String> args) {
+      final result = Process.runSync(
+        'git',
+        args,
+        workingDirectory: repo.path,
+        environment: env,
+      );
+      expect(
+        result.exitCode,
+        0,
+        reason: 'git ${args.join(' ')}: ${result.stderr}',
+      );
+    }
+
+    void commit(Map<String, String> files) {
+      for (final MapEntry(key: path, value: source) in files.entries) {
+        File('${repo.path}/$path')
+          ..createSync(recursive: true)
+          ..writeAsStringSync(source);
+      }
+      git(['add', '-A']);
+      git(['commit', '-qm', 'change']);
+    }
+
+    // Not in annotation mode, which CI's own GITHUB_ACTIONS would turn on:
+    // these tests read the plain `path:line: RULE` lines.
+    ProcessResult check() => Process.runSync(
+      'dart',
+      [tool, '--base', 'main'],
+      workingDirectory: repo.path,
+      environment: {'GITHUB_ACTIONS': 'false'},
+    );
+
+    setUp(() {
+      repo = Directory.systemTemp.createTempSync('design_check_');
+      git(['init', '-q', '-b', 'main']);
+      commit({screen: legacy, widget: legacy});
+      git(['switch', '-q', '-c', 'pr']);
+    });
+
+    tearDown(() => repo.deleteSync(recursive: true));
+
+    test('fails on a break anywhere in a screen it touches', () {
+      commit({screen: 'final a = Colors.white;\nfinal b = 2;\n'});
+
+      final result = check();
+
+      expect(result.exitCode, 1, reason: '${result.stdout}');
+      expect(result.stdout, contains('$screen:1: DS-COL-1'));
+    });
+
+    test('fails when it only removes lines from such a screen', () {
+      commit({screen: 'final a = Colors.white;\n'});
+
+      final result = check();
+
+      expect(result.exitCode, 1, reason: '${result.stdout}');
+      expect(result.stdout, contains('$screen:1: DS-COL-1'));
+    });
+
+    test('fails when it only renames such a screen', () {
+      git(['mv', screen, 'lib/features/x/screens/y_screen.dart']);
+      git(['commit', '-qm', 'rename']);
+
+      final result = check();
+
+      expect(result.exitCode, 1, reason: '${result.stdout}');
+      expect(
+        result.stdout,
+        contains('lib/features/x/screens/y_screen.dart:1: DS-COL-1'),
+      );
+    });
+
+    test('reads a widget only where it touches it', () {
+      commit({widget: 'final a = Colors.white;\nfinal b = 2;\n'});
+
+      final result = check();
+
+      expect(result.exitCode, 0, reason: '${result.stdout}');
     });
   });
 

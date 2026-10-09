@@ -48,6 +48,12 @@ impl RatingStore {
         }
     }
 
+    /// Drop every rating: they all belong to the identity being deleted
+    /// (issue #533). Privacy mode is not a rating and stays.
+    async fn forget(&self) {
+        self.ratings.write().await.clear();
+    }
+
     /// Return the local user's rating for a trade, falling back to the peer's
     /// rating if the local user has not yet submitted one.
     async fn get(&self, trade_id: &str) -> Option<RatingInfo> {
@@ -171,7 +177,7 @@ fn rating_store() -> &'static RatingStore {
 /// Forget the ratings of the identity being deleted (issue #533). Privacy
 /// mode is left alone: the identity swap sets it explicitly.
 pub(crate) async fn forget_identity_ratings() {
-    rating_store().ratings.write().await.clear();
+    rating_store().forget().await;
 }
 
 // ── Helper ────────────────────────────────────────────────────────────────────
@@ -293,15 +299,10 @@ pub fn get_privacy_mode() -> bool {
 /// When enabled, no reputation data is sent or received in future trades and
 /// session recovery becomes unavailable.
 ///
-/// **Errors**: `NoIdentity` (identity check deferred to Phase 14+ bridge).
+/// Non-async on purpose, and it must stay free of anything that needs a
+/// runtime: on native, FRB runs it on its thread pool, where no Tokio runtime
+/// exists, and a spawn there panicked before the flag was stored (#774).
 pub fn set_privacy_mode(enabled: bool) {
-    // Best-effort identity check: log a warning if no identity is configured but
-    // proceed anyway so the UI setting is never silently stuck.
-    crate::rt::spawn(async move {
-        if crate::api::identity::get_active_keys().await.is_err() {
-            log::warn!("[reputation] set_privacy_mode({enabled}): no identity configured");
-        }
-    });
     rating_store()
         .privacy_mode
         .store(enabled, Ordering::SeqCst);
@@ -403,6 +404,33 @@ mod tests {
         LOCK.get_or_init(|| Mutex::new(()))
     }
 
+    /// #533: no rating of the deleted identity survives its deletion. On a
+    /// store of this test's own, so the process-wide one other tests use is
+    /// never emptied under them.
+    #[tokio::test]
+    async fn forgetting_the_identity_drops_every_rating() {
+        let store = RatingStore::new();
+        let rating = |trade_id: &str, is_mine| RatingInfo {
+            trade_id: trade_id.to_string(),
+            score: 5,
+            is_mine,
+            created_at: 1,
+        };
+        store.try_insert_mine(rating("mine", true)).await.unwrap();
+        store.insert_peer(rating("peer", false)).await;
+        store.privacy_mode.store(true, Ordering::SeqCst);
+
+        store.forget().await;
+
+        assert!(store.get("mine").await.is_none());
+        assert!(store.get("peer").await.is_none());
+        assert!(store.ratings.read().await.is_empty());
+        assert!(
+            store.privacy_mode.load(Ordering::SeqCst),
+            "privacy mode is not a rating",
+        );
+    }
+
     #[tokio::test]
     async fn submit_rating_stores_record() {
         let _guard = privacy_lock().lock().unwrap();
@@ -457,6 +485,22 @@ mod tests {
         assert!(get_privacy_mode());
         set_privacy_mode(false);
         assert!(!get_privacy_mode());
+    }
+
+    /// #774: on native, FRB runs a non-async bridge function on its thread
+    /// pool, where no Tokio runtime exists. Spawning there panicked before
+    /// the flag was stored, so privacy mode could never be turned on and
+    /// every trade was sealed with the identity key.
+    #[test]
+    fn privacy_mode_is_set_outside_a_tokio_runtime() {
+        let _guard = privacy_lock().lock().unwrap();
+        let set = std::thread::spawn(|| {
+            set_privacy_mode(true);
+            get_privacy_mode()
+        })
+        .join();
+        set_privacy_mode(false);
+        assert_eq!(set.ok(), Some(true), "the flag is set, without a panic");
     }
 
     #[tokio::test]

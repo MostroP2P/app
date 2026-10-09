@@ -704,9 +704,13 @@ class _LimeButton extends StatelessWidget {
       style: FilledButton.styleFrom(
         backgroundColor: pal.lime,
         foregroundColor: pal.onLime,
-        padding: const EdgeInsets.all(15),
+        padding: const EdgeInsets.all(14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        textStyle: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+        textStyle: const TextStyle(
+          fontFamily: AppFonts.ui,
+          fontSize: 14,
+          fontWeight: FontWeight.w700,
+        ),
       ),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -737,9 +741,13 @@ class _OutlineButton extends StatelessWidget {
       style: OutlinedButton.styleFrom(
         foregroundColor: pal.emphasis,
         side: BorderSide(color: pal.outlineBorder),
-        padding: const EdgeInsets.all(13),
+        padding: const EdgeInsets.all(14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        textStyle: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600),
+        textStyle: const TextStyle(
+          fontFamily: AppFonts.ui,
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+        ),
       ),
       child: Text(label),
     );

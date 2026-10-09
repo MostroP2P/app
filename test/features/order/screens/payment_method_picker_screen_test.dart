@@ -89,8 +89,8 @@ void main() {
       await tester.tap(find.text('Zelle'));
       await tester.pumpAndSettle();
 
-      // Chosen: the summary chip is a second copy of the name.
-      expect(find.text('Chosen'), findsOneWidget);
+      // Selected: the summary chip is a second copy of the name.
+      expect(find.text('Selected'), findsOneWidget);
       expect(find.text('Zelle'), findsNWidgets(2));
       expect(find.text('1 method selected'), findsOneWidget);
       // Nothing reached the form: only `Confirm methods` does that.
@@ -117,7 +117,7 @@ void main() {
       tester,
     ) async {
       await _pump(tester);
-      expect(find.text('Choose at least one method'), findsOneWidget);
+      expect(find.text('Select at least one method'), findsOneWidget);
       expect(tester.widget<FilledButton>(_confirm).onPressed, isNull);
     });
 
@@ -260,8 +260,8 @@ void main() {
       await tester.tap(find.byIcon(Icons.close));
       await tester.pumpAndSettle();
 
-      expect(find.text('Chosen'), findsNothing);
-      expect(find.text('Choose at least one method'), findsOneWidget);
+      expect(find.text('Selected'), findsNothing);
+      expect(find.text('Select at least one method'), findsOneWidget);
       semantics.dispose();
     });
   });

@@ -2255,15 +2255,13 @@ async fn adopt_range_remainder(
     // lived and died here — the adopted remainder was canceled before going
     // active. Its replayed new-order must not resurrect the row on the next
     // start (#394). A later generation is a new trade and adopts normally.
-    if matches!(
-        db.get_setting(&crate::db::settings_keys::trade_wiped(order_id))
-            .await,
-        Ok(Some(value)) if tombstone_covers(&value, trade_index)
-    ) {
+    // The replay of a trade from before the last restore reads the same way:
+    // history never becomes a row (`mostro::restore_history`).
+    if matches!(trade_row_state(order_id, trade_index).await, RowState::Wiped) {
         crate::api::logging::blog_debug(
             "orders",
             format!(
-                "skip range-remainder adoption for order={}: row wiped on purpose",
+                "skip range-remainder adoption for order={}: wiped on purpose or history",
                 crate::api::logging::short_id(order_id),
             ),
         );
@@ -2778,7 +2776,11 @@ async fn wipe_never_active_trade(
 /// `Canceled` arm. A wipe that fails reports `false`, so the caller's usual
 /// status write still lands and the row reads `Canceled` instead of a stale
 /// `pending`.
-async fn wipe_on_public_cancel(order_id: &str, wire: &OrderStatus) -> bool {
+async fn wipe_on_public_cancel(
+    order_id: &str,
+    wire: &OrderStatus,
+    revision_at: Option<i64>,
+) -> bool {
     if !matches!(
         wire,
         OrderStatus::Canceled | OrderStatus::Expired | OrderStatus::CanceledByAdmin
@@ -2820,7 +2822,14 @@ async fn wipe_on_public_cancel(order_id: &str, wire: &OrderStatus) -> bool {
                     local.status
                 ),
             );
-            emit_trade_update(order_id, OrderStatus::Canceled);
+            // Dated by the event: a restore replays weeks-old cancels, and
+            // those are history, not news.
+            emit_trade_update_at(
+                order_id,
+                OrderStatus::Canceled,
+                None,
+                revision_at.unwrap_or_else(crate::rt::unix_now),
+            );
             true
         }
         Err(e) => {
@@ -3083,6 +3092,37 @@ pub(crate) async fn subscribe_daemon_messages(
             break 'watch;
         }
     });
+}
+
+/// What a waiting caller receives for a daemon `CantDo` [reason]: prose for
+/// the reasons the screens still match as prose (#373 turns those into markers
+/// too), a bare marker for the rest.
+fn cant_do_message(reason: &str) -> String {
+    match reason {
+        "OutOfRangeSatsAmount" => "Order rejected: sats amount is out of the allowed range.".to_string(),
+        "OutOfRangeFiatAmount" => "Order rejected: fiat amount is out of the allowed range.".to_string(),
+        "InvalidAmount" => "Order rejected: invalid amount.".to_string(),
+        "InvalidInvoice" => "Order rejected: invalid Lightning invoice.".to_string(),
+        "IsNotYourOrder" => "Order rejected: this order does not belong to you.".to_string(),
+        "NotAllowedByStatus" => "Action rejected: not allowed in the current order status.".to_string(),
+        "OrderAlreadyCanceled" => "Order is already canceled.".to_string(),
+        // mostro-core 0.14.6: the node is draining (e.g. before a
+        // Lightning node migration) and refuses new orders and takes;
+        // actions on existing orders keep working. Marker only, no
+        // prose: Dart maps `MaintenanceMode` to a localized message.
+        "MaintenanceMode" => "MaintenanceMode".to_string(),
+        // The local trade-key counter is behind the daemon's (the seed
+        // traded elsewhere, or was imported without a restore). Marker
+        // only: create/take resync and retry once on it
+        // (mostro::trade_index), and Dart localizes it if that fails.
+        crate::mostro::trade_index::INVALID_TRADE_INDEX => {
+            crate::mostro::trade_index::INVALID_TRADE_INDEX.to_string()
+        }
+        // Any other reason: a stable marker, never prose naming the enum.
+        // Dart matches the reason by substring and falls back to the
+        // screen's own localized failure (#719).
+        other => format!("CantDo:{other}"),
+    }
 }
 
 /// Dispatch a Mostro `Message` recovered from a kind-14 NIP-44 reply.
@@ -4204,6 +4244,9 @@ async fn dispatch_mostro_message(
             if status_arm_gate(&row_state, &kind.action, &order_id) {
                 return;
             }
+            if kind.action == Action::RateReceived {
+                close_rating_step(&order_id, event_ts).await;
+            }
             // A verdict also closes the dispute, whatever the row's status
             // write decides below: a replay the row no longer needs can still
             // be the first news of it here.
@@ -4407,28 +4450,7 @@ async fn dispatch_mostro_message(
                 Some(mostro_core::message::Payload::CantDo(None)) => "unknown".to_string(),
                 _ => "unknown".to_string(),
             };
-            let message = match reason.as_str() {
-                "OutOfRangeSatsAmount" => "Order rejected: sats amount is out of the allowed range.".to_string(),
-                "OutOfRangeFiatAmount" => "Order rejected: fiat amount is out of the allowed range.".to_string(),
-                "InvalidAmount" => "Order rejected: invalid amount.".to_string(),
-                "InvalidInvoice" => "Order rejected: invalid Lightning invoice.".to_string(),
-                "IsNotYourOrder" => "Order rejected: this order does not belong to you.".to_string(),
-                "NotAllowedByStatus" => "Action rejected: not allowed in the current order status.".to_string(),
-                "OrderAlreadyCanceled" => "Order is already canceled.".to_string(),
-                // mostro-core 0.14.6: the node is draining (e.g. before a
-                // Lightning node migration) and refuses new orders and takes;
-                // actions on existing orders keep working. Marker only, no
-                // prose: Dart maps `MaintenanceMode` to a localized message.
-                "MaintenanceMode" => "MaintenanceMode".to_string(),
-                // The local trade-key counter is behind the daemon's (the seed
-                // traded elsewhere, or was imported without a restore). Marker
-                // only: create/take resync and retry once on it
-                // (mostro::trade_index), and Dart localizes it if that fails.
-                crate::mostro::trade_index::INVALID_TRADE_INDEX => {
-                    crate::mostro::trade_index::INVALID_TRADE_INDEX.to_string()
-                }
-                other => format!("Order rejected by Mostro: {other}"),
-            };
+            let message = cant_do_message(&reason);
 
             // A refused escrow submission (phase C5) has its own record, for
             // the same reason: the seller's key may hold another request's.
@@ -5065,7 +5087,11 @@ async fn persist_restored_bond_rows(info: &mostro_core::message::RestoreSessionI
                 crate::api::logging::short_id(&order_id),
             ),
         );
-        emit_trade_update(&order_id, status);
+        emit_trade_update_with(
+            &order_id,
+            status,
+            Some(crate::api::types::TradeUpdateReason::Replayed),
+        );
     }
 }
 
@@ -5283,7 +5309,11 @@ async fn persist_restored_trade_row(
             crate::api::logging::short_id(&order_id),
         ),
     );
-    emit_trade_update(&order_id, row.order.status);
+    emit_trade_update_with(
+        &order_id,
+        row.order.status,
+        Some(crate::api::types::TradeUpdateReason::Replayed),
+    );
     true
 }
 
@@ -5332,7 +5362,11 @@ async fn apply_restored_status(
             existing.order.status,
         ),
     );
-    emit_trade_update(order_id, status);
+    emit_trade_update_with(
+        order_id,
+        status,
+        Some(crate::api::types::TradeUpdateReason::Replayed),
+    );
     true
 }
 
@@ -6555,7 +6589,10 @@ async fn trade_row_state(order_id: &str, trade_index: u32) -> RowState {
             .await
         {
             Ok(Some(value)) if tombstone_covers(&value, trade_index) => RowState::Wiped,
-            Ok(Some(_)) | Ok(None) => RowState::NeverWritten,
+            Ok(Some(_)) | Ok(None) => {
+                let snapshot = applicable_restore_snapshot(db).await;
+                unwritten_row_state(snapshot.as_ref(), order_id, trade_index)
+            }
             Err(e) => {
                 crate::api::logging::blog_warn(
                     "orders",
@@ -6571,6 +6608,24 @@ async fn trade_row_state(order_id: &str, trade_index: u32) -> RowState {
             );
             RowState::Unknown
         }
+    }
+}
+
+/// A message for an order with no row and no tombstone: the replay of a
+/// trade from before the last restore that the daemon no longer counts as
+/// in progress reads as a wiped trade's — dropped whole, so history never
+/// becomes a row, a session or a subscription (`mostro::restore_history`).
+/// Anything else is the recovery signal [`RowState::NeverWritten`] stands
+/// for.
+fn unwritten_row_state(
+    snapshot: Option<&crate::mostro::restore_history::RestoreSnapshot>,
+    order_id: &str,
+    trade_index: u32,
+) -> RowState {
+    if snapshot.is_some_and(|s| s.is_history(order_id, trade_index)) {
+        RowState::Wiped
+    } else {
+        RowState::NeverWritten
     }
 }
 
@@ -6712,6 +6767,7 @@ async fn persist_trade_row_in(
     crate::api::push::request_reconcile();
     saved
 }
+
 
 /// Writes `status` / `hold_invoice` / `amount_sats` to the trade row only when
 /// at least one *provided* field differs from what the row already holds, and
@@ -7174,7 +7230,7 @@ async fn apply_peer_reveal(
 /// completion only from this event.
 async fn apply_single_order_update(mut order: OrderInfo, revision_at: Option<i64>) {
     order_book().note_wire_order(&order);
-    if wipe_on_public_cancel(&order.id, &order.status).await {
+    if wipe_on_public_cancel(&order.id, &order.status, revision_at).await {
         return;
     }
     if is_hard_terminal(&order.status) {
@@ -7637,6 +7693,34 @@ async fn confirm_payout_completion(order_id: String) {
     }
 }
 
+/// Records that this identity rated `trade`, from the daemon's
+/// `rate-received`: mostrod sends it to the rater alone, once the rating is
+/// stored (mostro `app/rate_user.rs`). After a restore its replay is the only
+/// trace of a rating made on another device, and without it every completed
+/// trade asks to be rated again. A rating made here keeps its own time.
+///
+/// Reads the row afresh rather than the dispatch's snapshot: the prologue may
+/// have just rebuilt it, and a rating submitted meanwhile must not be
+/// overwritten.
+async fn close_rating_step(order_id: &str, rated_at: i64) {
+    let Some(db) = crate::db::app_db::db() else {
+        return;
+    };
+    match db.get_trade_by_order_id(order_id).await {
+        Ok(Some(trade)) if trade.rated_at.is_none() => {}
+        Ok(_) => return,
+        Err(e) => {
+            log::warn!("[orders] rate-received for {order_id}: row lookup failed: {e}");
+            return;
+        }
+    }
+    if let Err(e) = db.mark_trade_rated(order_id, rated_at).await {
+        log::warn!("[orders] rate-received for {order_id} not recorded: {e}");
+        return;
+    }
+    crate::api::trade_touch::touch_trade(order_id);
+}
+
 /// Applies the payout completion the public book reported for a trade this
 /// client still held at `SettledHoldInvoice`.
 ///
@@ -7680,13 +7764,20 @@ async fn apply_payout_completed(order_id: &str, completed_at: Option<i64>) {
             crate::api::logging::short_id(order_id)
         ),
     );
-    emit_trade_update(order_id, status);
+    // Dated like the completion: found after a restore, the payout is old
+    // news and must not read as "just now" in Notifications.
+    emit_trade_update_at(
+        order_id,
+        status,
+        None,
+        completed_at.unwrap_or_else(crate::rt::unix_now),
+    );
 }
 
-/// Settle the rows a restore's history replay rebuilt for trades the daemon
+/// Drop the rows a restore's history replay rebuilt for trades the daemon
 /// no longer counts as in progress (`mostro::restore_history`). Uses the
 /// snapshot the last restore stored; does nothing without one. Returns the
-/// order ids it looked up on the relays.
+/// order ids it dropped.
 async fn reconcile_restored_history() -> std::collections::HashSet<String> {
     let Some(db) = crate::db::app_db::db() else {
         return Default::default();
@@ -7725,10 +7816,7 @@ async fn reconcile_restored_history() -> std::collections::HashSet<String> {
         return Default::default();
     }
     apply_restored_peers(&snapshot).await;
-    reconcile_history_with(&snapshot, |oid: String| async move {
-        fetch_public_order_status(&oid).await
-    })
-    .await
+    reconcile_history_with(&snapshot).await
 }
 
 /// Give every restored trade that still has no peer the one the daemon's
@@ -7826,82 +7914,57 @@ fn restored_chat_relevant(trade: &crate::api::types::TradeInfo, peer: &str) -> b
     })
 }
 
-/// [`reconcile_restored_history`] with the public-status lookup injected.
-///
-/// A history row whose order the public book shows as `success` becomes a
-/// completed trade; any other ending wipes it, leaving the tombstone that
-/// keeps the next replay from rebuilding it; no answer leaves it for the next
-/// pass. Rows are only rung (`touch_trade`), never announced: this is history
-/// being filed, not a trade moving, so it must not raise notices. Returns the
-/// order ids it looked up, whatever their outcome.
-async fn reconcile_history_with<F, Fut>(
+/// Drop every row a restore's replay rebuilt for a trade the daemon no
+/// longer counts as in progress (`mostro::restore_history`), whatever it
+/// reads: an imported account shows only what is still live. Each wipe
+/// leaves the tombstone that mutes the order's later replays, and announces
+/// nothing — history is not news. Returns the order ids it dropped, which
+/// the stale sweep then leaves alone.
+async fn reconcile_history_with(
     snapshot: &crate::mostro::restore_history::RestoreSnapshot,
-    public_status: F,
-) -> std::collections::HashSet<String>
-where
-    F: Fn(String) -> Fut,
-    Fut: std::future::Future<Output = Option<crate::api::types::OrderStatus>>,
-{
-    use crate::mostro::restore_history::{history_action, reads_in_progress, HistoryAction};
-    let mut looked_up = std::collections::HashSet::new();
+) -> std::collections::HashSet<String> {
     let Some(db) = crate::db::app_db::db() else {
-        return looked_up;
+        return Default::default();
     };
-    let trades = match db.list_trades().await {
-        Ok(trades) => trades,
+    match db.list_trades().await {
+        Ok(trades) => drop_history_rows(snapshot, trades).await,
         Err(e) => {
             log::warn!("[orders] history pass: list_trades failed: {e}");
-            return looked_up;
+            Default::default()
         }
-    };
-    let (mut completed, mut wiped) = (0usize, 0usize);
+    }
+}
+
+/// The wipes of [`reconcile_history_with`], over the rows it is handed: a
+/// test hands it only its own, so the pass cannot reach the rows of the
+/// tests running beside it in the shared store.
+async fn drop_history_rows(
+    snapshot: &crate::mostro::restore_history::RestoreSnapshot,
+    trades: Vec<crate::api::types::TradeInfo>,
+) -> std::collections::HashSet<String> {
+    let mut dropped = std::collections::HashSet::new();
     for trade in trades {
         let oid = trade.order.id.clone();
-        if !reads_in_progress(&trade.order.status)
-            || !snapshot.is_history(&oid, trade.trade_key_index)
-        {
+        if !snapshot.is_history(&oid, trade.trade_key_index) {
             continue;
         }
-        looked_up.insert(oid.clone());
-        match history_action(public_status(oid.clone()).await.as_ref()) {
-            HistoryAction::MarkSuccess => {
-                let _order = lock_order(&oid).await;
-                let status = crate::api::types::OrderStatus::Success;
-                if let Err(e) = db
-                    .update_trade_fields(&oid, Some(status.clone()), None, None)
-                    .await
-                {
-                    log::warn!("[orders] history pass: {oid} not marked completed: {e}");
-                    continue;
-                }
-                order_book().update_order_status(&oid, status).await;
-                crate::api::trade_touch::touch_trade(&oid);
-                completed += 1;
+        let _order = lock_order(&oid).await;
+        match wipe_never_active_trade(&oid, false, crate::rt::unix_now(), trade.trade_key_index)
+            .await
+        {
+            Ok(()) => {
+                dropped.insert(oid);
             }
-            HistoryAction::Wipe => {
-                // Never a take handed back to the book: the order is over.
-                match wipe_never_active_trade(
-                    &oid,
-                    false,
-                    crate::rt::unix_now(),
-                    trade.trade_key_index,
-                )
-                .await
-                {
-                    Ok(()) => wiped += 1,
-                    Err(e) => log::warn!("[orders] history pass: {oid} not wiped: {e}"),
-                }
-            }
-            HistoryAction::Retry => {}
+            Err(e) => log::warn!("[orders] history pass: {oid} not dropped: {e}"),
         }
     }
-    if completed + wiped > 0 {
+    if !dropped.is_empty() {
         crate::api::logging::blog_info(
             "restore",
-            format!("history settled: {completed} completed, {wiped} dropped"),
+            format!("history dropped: {} trade(s)", dropped.len()),
         );
     }
-    looked_up
+    dropped
 }
 
 /// Store what a restore reported as in progress, then settle the history
@@ -7998,9 +8061,23 @@ async fn fetch_public_success_time(order_id: &str) -> Option<i64> {
         .map(|(at, _)| at)
 }
 
+/// Public `d`-tag lookups allowed in flight at once. A restore's replay
+/// starts one per rebuilt trade within the same second (payout checks,
+/// history passes), and relays cap concurrent REQs: relay.mostro.network
+/// answered `CLOSED: exceeds limit` and nos.lol `too many concurrent REQs`,
+/// so those lookups failed and their trades waited for the next pass.
+const PUBLIC_LOOKUP_CONCURRENCY: usize = 2;
+
+fn public_lookup_slots() -> &'static tokio::sync::Semaphore {
+    static SLOTS: OnceLock<tokio::sync::Semaphore> = OnceLock::new();
+    SLOTS.get_or_init(|| tokio::sync::Semaphore::new(PUBLIC_LOOKUP_CONCURRENCY))
+}
+
 /// The daemon's newest public event for `order_id`, as an order with the time
 /// of that revision.
 async fn fetch_public_order_revision(order_id: &str) -> Option<(i64, OrderInfo)> {
+    // Never closed, so acquiring only waits.
+    let _slot = public_lookup_slots().acquire().await.ok()?;
     let pool = crate::api::nostr::get_pool().ok()?;
     let mostro_pubkey = nostr_sdk::prelude::PublicKey::from_hex(&active_mostro_pubkey()).ok()?;
     let filter = crate::nostr::order_events::trade_order_filter(&mostro_pubkey, order_id);
@@ -8023,6 +8100,7 @@ async fn fetch_public_order_revision(order_id: &str) -> Option<(i64, OrderInfo)>
 /// restore needs to know which side a taker took (§6.5). `None` without a
 /// pool, on a relay failure, or when the daemon never published the order.
 async fn fetch_public_order(order_id: &str) -> Option<OrderInfo> {
+    let _slot = public_lookup_slots().acquire().await.ok()?;
     let pool = crate::api::nostr::get_pool().ok()?;
     let mostro_pubkey = nostr_sdk::prelude::PublicKey::from_hex(&active_mostro_pubkey()).ok()?;
     let filter = crate::nostr::order_events::trade_order_filter(&mostro_pubkey, order_id);
@@ -8165,6 +8243,8 @@ async fn run_stale_sweep_once() {
             .await
             {
                 Ok(()) => {
+                    // The daemon's `Canceled`, learned late: news, not a
+                    // re-statement (#781 review).
                     emit_trade_update(&oid, crate::api::types::OrderStatus::Canceled);
                     log::info!("[orders] sweep: wiped stale waiting trade order={oid}");
                     wiped += 1;
@@ -8557,11 +8637,9 @@ pub(crate) async fn refresh_subscriptions_for_active_node() {
     // rate applied to another's order is a lock the daemon rejects.
     crate::mostro::node_fee::clear();
 
-    // And the wallet, which is bound to the old node's mint. Proofs stay on
-    // disk; only the binding is dropped.
-    if let Err(e) = crate::api::cashu::cashu_disconnect().await {
-        log::warn!("[orders] failed to disconnect the Cashu wallet on node switch: {e}");
-    }
+    // The Cashu wallet stays bound: its mint is the user's, not the node's
+    // (docs/cashu/README.md §1.2). An escrow checks the two match before it
+    // locks anything.
 
     let Ok(pool) = crate::api::nostr::get_pool() else {
         log::warn!(
@@ -8949,7 +9027,7 @@ async fn classify_ingested_order(
     // sync or to hold the entry at (`wipe_on_public_cancel`; one more
     // indexed row lookup, for `canceled` events only).
     if info.status != crate::api::types::OrderStatus::Pending
-        && !wipe_on_public_cancel(&info.id, &info.status).await
+        && !wipe_on_public_cancel(&info.id, &info.status, revision_at).await
     {
         let local = local_trade_status(&info.id).await;
         let applies = wire_status_applies(local.as_ref(), &info.status);
@@ -9282,7 +9360,13 @@ async fn persist_peer_reputation(
         }
     }
     if let Some(info) = order_book().get_order(order_id).await {
-        emit_trade_update_at(order_id, info.status, None, occurred_at);
+        // A re-read, not a step: the status is the book's (#770).
+        emit_trade_update_at(
+            order_id,
+            info.status,
+            Some(crate::api::types::TradeUpdateReason::Replayed),
+            occurred_at,
+        );
     }
 }
 
@@ -9796,9 +9880,43 @@ pub async fn list_trades() -> Result<Vec<crate::api::types::TradeInfo>> {
     let Some(db) = crate::db::app_db::db() else {
         return Ok(vec![]);
     };
-    let mut trades = db.list_trades().await?;
+    let snapshot = applicable_restore_snapshot(db).await;
+    let mut trades = visible_trades(db.list_trades().await?, snapshot.as_ref());
     trades.sort_by_key(|t| std::cmp::Reverse(t.started_at));
     Ok(trades)
+}
+
+/// The trades the list shows, given the last restore's snapshot: all of
+/// them but history. Rows of it are not written any more, and a history pass
+/// drops the ones that were; until it runs, none of them shows.
+fn visible_trades(
+    trades: Vec<crate::api::types::TradeInfo>,
+    snapshot: Option<&crate::mostro::restore_history::RestoreSnapshot>,
+) -> Vec<crate::api::types::TradeInfo> {
+    let Some(snapshot) = snapshot else {
+        return trades;
+    };
+    trades
+        .into_iter()
+        .filter(|t| !snapshot.is_history(&t.order.id, t.trade_key_index))
+        .collect()
+}
+
+/// The last restore's snapshot, when it describes the identity loaded now
+/// ([`RestoreSnapshot::applies_to`](crate::mostro::restore_history::RestoreSnapshot::applies_to)).
+/// Read-only: [`reconcile_restored_history`] owns dropping one that does not.
+async fn applicable_restore_snapshot(
+    db: &impl Storage,
+) -> Option<crate::mostro::restore_history::RestoreSnapshot> {
+    let json = db
+        .get_setting(crate::mostro::restore_history::SNAPSHOT_KEY)
+        .await
+        .ok()
+        .flatten()?;
+    let snapshot: crate::mostro::restore_history::RestoreSnapshot =
+        serde_json::from_str(&json).ok()?;
+    let current = crate::api::identity::get_identity().await.ok().flatten();
+    snapshot.applies_to(current.as_ref()).then_some(snapshot)
 }
 
 /// Return the persisted [`TradeRole`] for the given `order_id`.
@@ -10446,6 +10564,12 @@ mod tests {
         assert_eq!(
             event.occurred_at, 1000,
             "replayed reputation must not appear new"
+        );
+        // The status it carries is the book's, re-stated for a re-read: not
+        // a step anything may announce (#770).
+        assert_eq!(
+            event.reason,
+            Some(crate::api::types::TradeUpdateReason::Replayed)
         );
     }
 
@@ -12200,6 +12324,52 @@ mod tests {
         assert_eq!(row.order.status, OrderStatus::FiatSent);
     }
 
+    #[tokio::test]
+    async fn a_restore_announces_its_rows_as_replayed_not_as_steps() {
+        use mostro_core::order::{Kind, Status};
+        let db = bond_test_db().await;
+        let own = nostr_sdk::prelude::Keys::generate().public_key().to_hex();
+        let peer = nostr_sdk::prelude::Keys::generate().public_key().to_hex();
+        let order = own_order(Kind::Sell, Status::Active, Some(&peer), Some(&own));
+        let order_id = order.id.unwrap().to_string();
+        // Subscribes when called, so it sees only what follows the call.
+        let next_update = || {
+            let mut rx = trade_updates_tx().subscribe();
+            let order_id = order_id.clone();
+            async move {
+                tokio::time::timeout(std::time::Duration::from_secs(5), async {
+                    loop {
+                        if let Ok(update) = rx.recv().await {
+                            if update.order_id == order_id {
+                                break update;
+                            }
+                        }
+                    }
+                })
+                .await
+                .expect("restore update")
+            }
+        };
+
+        // A new row, and a later restore moving its status on: both are a
+        // trade filed from history, dated now, which only the reason marks
+        // as old news (#770).
+        let first = next_update();
+        assert!(persist_restored_trade_row(db, &order, &own, 11, 2000).await);
+        assert_eq!(
+            first.await.reason,
+            Some(crate::api::types::TradeUpdateReason::Replayed)
+        );
+        let mut later = own_order(Kind::Sell, Status::FiatSent, Some(&peer), Some(&own));
+        later.id = order.id;
+        let moved = next_update();
+        assert!(persist_restored_trade_row(db, &later, &own, 11, 3000).await);
+        assert_eq!(
+            moved.await.reason,
+            Some(crate::api::types::TradeUpdateReason::Replayed)
+        );
+    }
+
     #[test]
     fn a_restored_status_follows_the_rule_of_any_daemon_message() {
         use OrderStatus::*;
@@ -12396,6 +12566,15 @@ mod tests {
         // A different action never matches, even with the right nonce.
         let other = MessageKind::new(None, Some(42), Some(7), Action::RestoreSession, None);
         assert!(!is_matching_last_trade_index_reply(&other, 42));
+    }
+
+    /// A reason without its own arm reaches the caller as a stable marker the
+    /// screens can localize, never as English prose naming the enum (#719).
+    #[test]
+    fn an_unmapped_cant_do_reason_reaches_the_caller_as_a_marker() {
+        let message = cant_do_message("InvalidOrderStatus");
+        assert_eq!(message, "CantDo:InvalidOrderStatus");
+        assert!(!message.contains("Order rejected"));
     }
 
     #[test]
@@ -12804,30 +12983,31 @@ mod tests {
         assert!(!pending_requests().lock().unwrap().contains_key(key));
     }
 
-    /// After a restore, a replayed row the daemon no longer counts as in
-    /// progress is settled against its order's public status: `success`
-    /// keeps it as completed, any other ending drops it (with a tombstone, so
-    /// the next replay does not bring it back), and no answer leaves it for
-    /// the next pass. Rows the daemon returned, and trades started after the
-    /// restore, are never looked up.
+    /// After a restore, every row the daemon no longer counts as in progress
+    /// is dropped, whatever it reads — an imported account shows only what is
+    /// still live — with a tombstone, so the next replay does not bring it
+    /// back. Rows the daemon returned, and trades started after the restore,
+    /// stay.
     #[tokio::test]
-    async fn restored_history_is_settled_against_the_public_status() {
+    async fn restored_history_never_keeps_a_row() {
         use crate::api::types::OrderStatus as S;
         use crate::mostro::restore_history::RestoreSnapshot;
         let db = bond_test_db().await;
         let id = |tag: &str| format!("{tag}-{}", uuid::Uuid::new_v4());
-        let (done, dead, silent, live, fresh) =
-            (id("done"), id("dead"), id("silent"), id("live"), id("fresh"));
+        let (done, dead, settled, live, fresh) =
+            (id("done"), id("dead"), id("settled"), id("live"), id("fresh"));
+        let mut rows = Vec::new();
         for (oid, status, index) in [
-            (&done, S::Pending, 40),
+            (&done, S::Success, 40),
             (&dead, S::Pending, 41),
-            (&silent, S::SettledHoldInvoice, 42),
+            (&settled, S::SettledHoldInvoice, 42),
             (&live, S::Dispute, 16),
             (&fresh, S::Pending, 98),
         ] {
             let mut row = seam_trade_row(oid, status);
             row.trade_key_index = index;
             db.save_trade(&row).await.unwrap();
+            rows.push(row);
         }
         let snapshot = RestoreSnapshot {
             floor: 97,
@@ -12835,44 +13015,45 @@ mod tests {
             peers: Default::default(),
             identity: None,
         };
-        let asked = std::sync::Mutex::new(Vec::<String>::new());
 
-        let looked_up = reconcile_history_with(&snapshot, |oid: String| {
-            asked.lock().unwrap().push(oid.clone());
-            let public = if oid == done {
-                Some(S::Success)
-            } else if oid == dead {
-                Some(S::Canceled)
-            } else {
-                None
-            };
-            async move { public }
-        })
-        .await;
+        // Only this test's rows: the store is shared, and the floor covers
+        // the low indices of every row the tests beside it write.
+        let dropped = drop_history_rows(&snapshot, rows).await;
 
-        let status = |oid: &String| {
-            let oid = oid.clone();
-            async move { db.get_trade_by_order_id(&oid).await.unwrap().map(|t| t.order.status) }
-        };
-        assert_eq!(status(&done).await, Some(S::Success));
-        assert_eq!(status(&dead).await, None, "an ended order drops its row");
-        assert!(db
-            .get_setting(&crate::db::settings_keys::trade_wiped(&dead))
-            .await
-            .unwrap()
-            .is_some());
-        assert_eq!(status(&silent).await, Some(S::SettledHoldInvoice));
-        assert_eq!(status(&live).await, Some(S::Dispute));
-        assert_eq!(status(&fresh).await, Some(S::Pending));
-        let asked = asked.into_inner().unwrap();
-        assert!(!asked.contains(&live) && !asked.contains(&fresh));
-        // What it looked up is reported, so the sweep that runs the pass does
-        // not query the same orders again (PR #524 review). The store is
-        // shared with other tests, so only this test's rows are checked.
-        for oid in [&done, &dead, &silent] {
-            assert!(looked_up.contains(oid), "{oid} looked up");
+        for oid in [&done, &dead, &settled] {
+            assert!(trade_row_gone(oid).await, "{oid}: history keeps no row");
+            assert!(db
+                .get_setting(&crate::db::settings_keys::trade_wiped(oid))
+                .await
+                .unwrap()
+                .is_some());
+            assert!(dropped.contains(oid), "{oid} reported");
         }
-        assert!(!looked_up.contains(&live) && !looked_up.contains(&fresh));
+        for oid in [&live, &fresh] {
+            assert!(!trade_row_gone(oid).await, "{oid} stays");
+            assert!(!dropped.contains(oid));
+        }
+    }
+
+    /// A replayed message for a history order with no row reads as the
+    /// replay of a wiped trade: dropped whole, so no row, session or
+    /// subscription comes back for it — on the restore or on any restart.
+    #[test]
+    fn an_unwritten_history_order_reads_as_wiped() {
+        use crate::mostro::restore_history::RestoreSnapshot;
+        let snapshot = RestoreSnapshot {
+            floor: 97,
+            live: ["live-order".to_string()].into_iter().collect(),
+            peers: Default::default(),
+            identity: None,
+        };
+        let wiped = |s: Option<&RestoreSnapshot>, oid: &str, idx: u32| {
+            matches!(unwritten_row_state(s, oid, idx), RowState::Wiped)
+        };
+        assert!(wiped(Some(&snapshot), "old-order", 40));
+        assert!(!wiped(Some(&snapshot), "live-order", 40));
+        assert!(!wiped(Some(&snapshot), "new-order", 98));
+        assert!(!wiped(None, "old-order", 40), "no restore, no history");
     }
 
     /// #614: a restore snapshot left by another identity — or stored before
@@ -13385,6 +13566,64 @@ mod tests {
         let row = db.get_trade_by_order_id(&unknown).await.unwrap().unwrap();
         assert_eq!(row.order.status, OrderStatus::Success);
         assert_eq!(row.completed_at, None, "an unknown time is not made up");
+    }
+
+    /// A payout found on the book after a restore is old news: its update is
+    /// dated by the book's revision, so Notifications files it under the
+    /// past it is rather than as "just now".
+    fn restore_snapshot_at(floor: u32) -> crate::mostro::restore_history::RestoreSnapshot {
+        crate::mostro::restore_history::RestoreSnapshot {
+            floor,
+            live: ["live-order".to_string()].into_iter().collect(),
+            peers: Default::default(),
+            identity: Some("owner".into()),
+        }
+    }
+
+    fn history_row(order_id: &str, index: u32, status: OrderStatus) -> crate::api::types::TradeInfo {
+        let mut row = seam_trade_row(order_id, status);
+        row.trade_key_index = index;
+        row
+    }
+
+    /// History stays out of the trade list, settled or not: between the
+    /// replay that may still write one and the pass that drops it, a row
+    /// flashed weeks-old trades through `pending` and `active`.
+    #[test]
+    fn the_trade_list_leaves_out_history() {
+        let snapshot = restore_snapshot_at(50);
+        let trades = vec![
+            history_row("old-pending", 40, OrderStatus::Pending),
+            history_row("old-success", 41, OrderStatus::Success),
+            history_row("live-order", 42, OrderStatus::Active),
+            history_row("new-order", 51, OrderStatus::Pending),
+        ];
+
+        let shown: Vec<_> = visible_trades(trades.clone(), Some(&snapshot))
+            .into_iter()
+            .map(|t| t.order.id)
+            .collect();
+        assert_eq!(shown, vec!["live-order", "new-order"]);
+        assert_eq!(visible_trades(trades, None).len(), 4, "no restore hides nothing");
+    }
+
+    #[tokio::test]
+    async fn a_payout_completion_is_announced_at_its_own_time() {
+        let db = bond_test_db().await;
+        let published = crate::rt::unix_now() - 3_600;
+        let order_id = uuid::Uuid::new_v4().to_string();
+        saved_settled_seller_row(db, &order_id, true).await;
+        let mut rx = trade_updates_tx().subscribe();
+
+        apply_payout_completed(&order_id, Some(published)).await;
+
+        let mut dated = Vec::new();
+        while let Ok(update) = rx.try_recv() {
+            if update.order_id == order_id {
+                dated.push((update.status, update.occurred_at));
+            }
+        }
+        assert_eq!(dated, vec![(OrderStatus::Success, published)]);
     }
 
     /// #642: a buyer who missed the dispute replays the backlog newest-first:
@@ -15438,6 +15677,78 @@ mod tests {
             trade_row_gone(&order_id).await,
             "the Canceled that follows must not bring the row back"
         );
+    }
+
+    /// The `canceled` that wipes a never-active trade may be weeks old — a
+    /// restore replays it with the rest of the history. Its update carries
+    /// the event's time, so it does not read as news.
+    #[tokio::test]
+    async fn a_public_canceled_wipe_is_announced_at_the_event_time() {
+        let path = std::env::temp_dir()
+            .join(format!("mostro_public_canceled_dated_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+
+        let order_id = uuid::Uuid::new_v4().to_string();
+        let taken = wire_order(&order_id, OrderStatus::WaitingBuyerInvoice);
+        db.save_trade(&cancel_test_row(taken))
+            .await
+            .expect("save the trade row");
+        let mut rx = trade_updates_tx().subscribe();
+
+        apply_single_order_update(wire_order(&order_id, OrderStatus::Canceled), Some(1_234))
+            .await;
+
+        let mut dated = Vec::new();
+        while let Ok(update) = rx.try_recv() {
+            if update.order_id == order_id {
+                dated.push((update.status, update.occurred_at));
+            }
+        }
+        assert!(trade_row_gone(&order_id).await, "precondition: the take is wiped");
+        assert_eq!(dated, vec![(OrderStatus::Canceled, 1_234)]);
+    }
+
+    /// mostrod answers a rating with `rate-received`, sent to the rater
+    /// alone (mostro `app/rate_user.rs`). Replayed after a restore, it is the
+    /// only record that this identity already rated the trade, and it closes
+    /// the rating step; a rating made on this device keeps its own time.
+    #[tokio::test]
+    async fn a_rate_received_closes_the_rating_step() {
+        use mostro_core::message::Action;
+        let path = std::env::temp_dir()
+            .join(format!("mostro_rate_received_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+
+        let replayed = uuid::Uuid::new_v4();
+        db.save_trade(&cancel_test_row(wire_order(
+            &replayed.to_string(),
+            OrderStatus::Success,
+        )))
+        .await
+        .expect("save the trade row");
+        dispatch_daemon_action_at(replayed, Action::RateReceived, "test-rate-received", 1_000)
+            .await;
+        let row = db
+            .get_trade_by_order_id(&replayed.to_string())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(row.rated_at, Some(1_000));
+
+        let rated_here = uuid::Uuid::new_v4();
+        let mut row = cancel_test_row(wire_order(&rated_here.to_string(), OrderStatus::Success));
+        row.rated_at = Some(500);
+        db.save_trade(&row).await.expect("save the trade row");
+        dispatch_daemon_action_at(rated_here, Action::RateReceived, "test-rate-received-2", 1_000)
+            .await;
+        let row = db
+            .get_trade_by_order_id(&rated_here.to_string())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(row.rated_at, Some(500), "the first rating time is kept");
     }
 
     /// Only a trade that never went active is wiped by the event. Past

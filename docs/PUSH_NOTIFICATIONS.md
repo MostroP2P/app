@@ -1,6 +1,6 @@
 # Push Notifications — Client Implementation Spec & Phased Plan
 
-**Status:** Implemented — Phases 0–4 and PR-6 merged (#463, #464, #466–#468, #470–#473, #479, #483–#485); Phase 5 conditional and not scheduled; T6.3 (UnifiedPush) optional. Closed: [#308](https://github.com/MostroP2P/app/issues/308) app lifecycle, [#133](https://github.com/MostroP2P/app/issues/133) web VAPID key (client side). Open: [#147](https://github.com/MostroP2P/app/issues/147) (desktop half). Pending in other repositories: dispute chat **must** wake ([mostrix#177](https://github.com/MostroP2P/mostrix/issues/177), §7.3), and web push stays off until the server accepts `web` and answers CORS ([mostro-push-server#44](https://github.com/MostroP2P/mostro-push-server/issues/44), §3.5). The build takes its switch from the repository variable `PUSH_WEB_ENABLED`, and Settings already says on the web when push stops (§9.1). Operator tasks: the `FCM_VAPID_KEY` and, once the server accepting web is deployed, `PUSH_WEB_ENABLED=true` repository variables, and the APNs key in Firebase (`docs/firebase-setup.md`). Not yet verified: an iOS build (no iOS CI job). Measurements still open: §14 items 3, 5 and 11
+**Status:** Implemented — Phases 0–4 and PR-6 merged (#463, #464, #466–#468, #470–#473, #479, #483–#485); Phase 5 conditional and not scheduled; T6.3 (UnifiedPush) optional. Closed: [#308](https://github.com/MostroP2P/app/issues/308) app lifecycle, [#133](https://github.com/MostroP2P/app/issues/133) web VAPID key (client side). Open: [#147](https://github.com/MostroP2P/app/issues/147) (desktop half). Pending in other repositories: dispute chat **must** wake ([mostrix#177](https://github.com/MostroP2P/mostrix/issues/177), §7.3), and web push stays off until the server that accepts `web` and answers CORS is deployed (merged in [mostro-push-server#48](https://github.com/MostroP2P/mostro-push-server/pull/48), closing [#44](https://github.com/MostroP2P/mostro-push-server/issues/44), §3.5). The build takes its switch from the repository variable `PUSH_WEB_ENABLED`, and Settings already says on the web when push stops (§9.1). Operator tasks: the `FCM_VAPID_KEY` and, once the server accepting web is deployed, `PUSH_WEB_ENABLED=true` repository variables, and the APNs key in Firebase (`docs/firebase-setup.md`). Not yet verified: an iOS build (no iOS CI job). Measurements still open: §14 items 3, 5 and 11
 **Goal:** let this client be woken by [`mostro-push-server`](https://github.com/MostroP2P/mostro-push-server) when a daemon message, a payout claim or a peer's chat message reaches one of its trade keys while the app is in the background or not running, with the same privacy properties the server was designed for: nobody outside the device ever sees message content, sender or order
 **Audience:** contributors implementing push support in this client (appv2), human and AI reviewers of the PRs that land it
 **Upstream reference:** [`MostroP2P/mostro-push-server`](https://github.com/MostroP2P/mostro-push-server) — `docs/api.md`, `docs/architecture.md`, `SECURITY.md` (the server-side contract, the single source of truth for what a push carries); [MIP-05](https://github.com/MostroP2P/MIPs) (the privacy model it is inspired by)
@@ -346,7 +346,8 @@ Consequences the client must design around:
 ### 3.5 Server changes web needs
 
 Both are small, and both are prerequisites this client cannot work around. Proposed
-upstream as [mostro-push-server#44](https://github.com/MostroP2P/mostro-push-server/issues/44):
+upstream as [mostro-push-server#44](https://github.com/MostroP2P/mostro-push-server/issues/44)
+and merged in [mostro-push-server#48](https://github.com/MostroP2P/mostro-push-server/pull/48); they take effect once that server is deployed:
 
 1. **Accept `platform: "web"`** in `/api/register` (`Platform` enum, the
    `android`/`ios` validation in `routes.rs`, the `/api/status` counts). The FCM v1
@@ -357,8 +358,8 @@ upstream as [mostro-push-server#44](https://github.com/MostroP2P/mostro-push-ser
    `/api/notify`: answer `OPTIONS` preflights and send `Access-Control-Allow-Origin`
    for `https://mostro.network` (and a configurable list for forks and local runs),
    with `Content-Type` as an allowed header. Without it the browser blocks the call
-   before it leaves, and the isolated page's COEP makes the block absolute. The
-   server today has no CORS layer (`actix-web` without `actix-cors`).
+   before it leaves, and the isolated page's COEP makes the block absolute. #48
+   adds it as a small middleware (`actix-web` without `actix-cors`).
 
 ---
 
@@ -705,6 +706,14 @@ in which conversation. The wake stays the sender's duty, in both chats.
   earlier. A denied check suspends refresh handoffs and clears the Rust token;
   granting permission retries without installing duplicate listeners. Master
   opt-out remains a separate gate and is never undone by a permission grant.
+- **Web permission not asked yet**: a browser shows the permission prompt only
+  from a user gesture (Safari, including an installed PWA, and Firefox ignore one
+  asked for at startup, and the token request after it fails). So on the web
+  `initialize()` never asks: while `Notification.permission` is `default` it stops
+  before the prompt, like a denial, and 10d offers the tap instead
+  (`requestPermissionFromGesture()`). That call reaches `Notification.requestPermission()`
+  before anything is awaited, while the tap's user activation lasts, and a grant runs
+  `retryInitialize()`. Mobile is unchanged: the OS shows its prompt at startup.
 - **Unsupported platform** (desktop; web when the browser lacks `Notification` /
   `PushManager`, or until the server accepts `web`): `set_push_token` is never
   called; the settings screen shows the unsupported state instead of the toggle.
@@ -788,7 +797,8 @@ refusals, now) → Vec<Action>` (`Register`, `Unregister`, `NoteUnwanted`, `Note
 
 HTTP in `api/push.rs` behind a `PushServer` trait (`register`, `unregister`,
 `notify`) so tests inject a fake. The wasm build uses the same `reqwest` client for
-registration; `notify` is unused there until the server answers CORS (§3.5).
+registration and for `notify`, which the server answers with CORS once
+mostro-push-server#48 is deployed (§3.5).
 
 ### 8.2 Bridge surface — `rust/src/api/push.rs`
 
@@ -838,6 +848,10 @@ first row and the contract is rewritten (T1.4).
   `PushServerUnreachable` (*"Push server unreachable — retrying"*), `PushNodeRefused`
   (*"This Mostro node is not accepted by the push server"*), `PushRateLimited`.
 - The **denied banner** (exists) is unchanged.
+- **Web, permission not asked yet** (`notificationPermissionUnaskedProvider`), while
+  push is on and not denied: the same banner shape, *"This browser has not been
+  allowed to show notifications yet."*, with the action *"Allow notifications"*, whose
+  tap shows the browser's prompt (§7.4).
 - **Unsupported platform** (desktop, or a browser without push, from `isSupported`,
   checked first): the master row is replaced by an info row *"Push notifications are
   not available on this platform"*; the event rows stay. On a supported browser the

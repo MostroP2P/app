@@ -2,7 +2,7 @@ name: mostro
 description: "Mostro Mobile v2 — P2P Bitcoin Lightning exchange"
 publish_to: 'none'
 
-version: 2.0.13+20013
+version: 2.0.15+20015
 
 environment:
   sdk: ">=3.7.0 <4.0.0"
@@ -34,8 +34,10 @@ dependencies:
   # Preferences (first-run flag, settings)
   shared_preferences: ^2.5.3
 
-  # Onboarding walkthrough
-  introduction_screen: ^3.1.14
+  # Onboarding walkthrough illustrations (static SVG assets; the motion is
+  # Flutter's, since flutter_svg runs no CSS)
+  # 2.2.3 needs Dart 3.8; this app still supports Dart 3.7 (environment above).
+  flutter_svg: ">=2.2.2 <2.2.3"
 
   # QR code display and scanning
   qr_flutter: ^4.1.0
@@ -118,9 +120,12 @@ flutter:
     - assets/data/fiat.json
     - assets/data/payment_methods.json
     - assets/images/
+    - assets/images/mascot/
+    - assets/images/walkthrough/
     - assets/fonts/outfit/OFL.txt
     - assets/fonts/manrope/OFL.txt
     - assets/fonts/nym_animals/LICENSE.txt
+    - assets/fonts/noto_flags/LICENSE.txt
 
   # Brand typography (drawer and order-book handoffs), bundled so the app never
   # fetches fonts at runtime. Outfit is the UI face; Manrope sets the figures
@@ -151,6 +156,12 @@ flutter:
     - family: NymAnimals
       fonts:
         - asset: assets/fonts/nym_animals/NymAnimals.ttf
+    # The flags of Noto Color Emoji (OFL), a fallback in both themes: Linux
+    # and Windows ship no flag glyphs (DS-TYP-8). Built by
+    # tool/flags_font/build_font.py.
+    - family: NotoFlags
+      fonts:
+        - asset: assets/fonts/noto_flags/NotoFlags.ttf
 
 # Launcher icons. Mirrors the v1 app's configuration (MostroP2P/mobile) and its
 # mascot, plus a gold ring inside the disc so the two apps can be told apart

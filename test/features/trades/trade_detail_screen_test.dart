@@ -25,6 +25,9 @@ import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/features/trades/screens/trade_detail_screen.dart';
 import 'package:mostro/features/trades/widgets/cancel_request_notice.dart';
 import 'package:mostro/features/trades/widgets/trade_chat_card.dart';
+import 'package:mostro/features/chat/models/chat_list_rules.dart';
+import 'package:mostro/features/chat/providers/chat_list_provider.dart';
+import 'package:mostro/features/chat/providers/chat_providers.dart';
 import 'package:mostro/features/trades/widgets/trade_completed_card.dart';
 import 'package:mostro/features/trades/widgets/trade_step_block.dart';
 import 'package:mostro/features/trades/widgets/trade_timeline.dart';
@@ -66,9 +69,14 @@ Future<ProviderContainer> _pumpTradeDetail(
   bool roleKnown = true,
   bool privacyMode = false,
   NotificationsNotifier? notifications,
+  ChatRowState? chatState,
+  List<Override> extraOverrides = const [],
 }) async {
   final container = createContainer(
     overrides: [
+      ...extraOverrides,
+      if (chatState != null)
+        chatRowStateProvider(orderId).overrideWithValue(chatState),
       if (notifications != null)
         notificationsProvider.overrideWith((_) => notifications),
       if (privacyMode)
@@ -338,6 +346,16 @@ void main() {
           orderId: 'order-8a',
           isBuyer: true,
           status: OrderStatus.waitingPayment,
+          // A buy order: the seller who owes the payment took it, so expiry
+          // puts the order back in the book.
+          trades: [
+            fakeTrade(
+              id: 'order-8a',
+              orderId: 'order-8a',
+              status: OrderStatus.waitingPayment,
+              kind: OrderKind.buy,
+            ),
+          ],
         );
 
         expect(find.text(_en.tradeScreenTitle), findsOneWidget);
@@ -347,10 +365,7 @@ void main() {
         expect(find.byType(TradeChatLockedLine), findsOneWidget);
         expect(find.byType(TradeChatCard), findsNothing);
         expect(find.text(_en.tradeTimerTheyHave), findsOneWidget);
-        expect(
-          find.text(_en.tradeTimerWaitingInvoiceConsequence),
-          findsOneWidget,
-        );
+        expect(find.text(_en.tradeTimerExpiryBackToBook), findsOneWidget);
         expect(_outlinedButtonWithText(_en.cancelTradeButton), findsOneWidget);
         expect(_outlinedButtonWithText(_en.openDisputeButton), findsNothing);
         expect(
@@ -884,6 +899,28 @@ void main() {
       expect(find.text(_en.tradeHeadlinePayoutPending), findsNothing);
     });
 
+    // DS-CMP-20: skipping the rating undoes nothing, so it is a neutral
+    // link, not an outlined button as heavy as sending the rating.
+    testWidgets('skipping the rating is a neutral link', (tester) async {
+      await _pumpTradeDetail(
+        tester,
+        orderId: 'order-seller-skips',
+        isBuyer: false,
+        status: OrderStatus.settledHoldInvoice,
+        ratingRoute: true,
+      );
+      expect(
+        find.widgetWithText(OutlinedButton, _en.closeRatingButton),
+        findsNothing,
+      );
+      final link = find.widgetWithText(TextButton, _en.closeRatingButton);
+      expect(link, findsOneWidget);
+      final label = tester.widget<RichText>(
+        find.descendant(of: link, matching: find.byType(RichText)),
+      );
+      expect(label.text.style?.color, OrderBookPalette.dark.textSecondary);
+    });
+
     testWidgets('who already rated is not offered the form again', (
       tester,
     ) async {
@@ -1406,7 +1443,7 @@ void main() {
           ),
         );
         // The visible id is shortened around an ellipsis.
-        expect(find.text('a-ver…0123', skipOffstage: false), findsOneWidget);
+        expect(find.text('a-very-l…0123', skipOffstage: false), findsOneWidget);
       } finally {
         semantics.dispose();
       }
@@ -1460,6 +1497,42 @@ void main() {
         );
         expect(tester.takeException(), isNull);
       });
+    }
+
+    // DS-A11Y-4: 320 dp, 2× text, German. The id row (label, shortened id,
+    // copy icon and, with the order in the book, its creation date) is the
+    // one this screen's own code lays out; the step block header has its own
+    // debt, so these statuses are the ones whose header fits.
+    for (final status in [OrderStatus.waitingPayment, OrderStatus.success]) {
+      for (final inBook in [false, true]) {
+        testWidgets('the id row fits 320 dp at 2× text in German '
+            '($status, ${inBook ? 'with' : 'without'} the creation date)', (
+          tester,
+        ) async {
+          tester.view.physicalSize = const Size(320, 760);
+          tester.view.devicePixelRatio = 1.0;
+          tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+          addTearDown(tester.view.reset);
+          addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+          await _pumpTradeDetail(
+            tester,
+            orderId: 'order-de-narrow',
+            isBuyer: true,
+            status: status,
+            locale: const Locale('de'),
+            book: inBook ? [fakeOrder(id: 'order-de-narrow')] : const [],
+          );
+          // The row closes the scroll: bring it on screen so its last
+          // layout is the one checked, with the date when the order is in
+          // the book.
+          await tester.scrollUntilVisible(find.text('ID'), 200);
+          if (inBook) {
+            expect(find.textContaining('erstellt'), findsOneWidget);
+          }
+          expect(tester.takeException(), isNull);
+        });
+      }
     }
 
     // DS-A11Y-4: the disputed bar gained the buyer's Cancel; the seller's
@@ -2075,5 +2148,465 @@ void main() {
       // Let the button's and the snackbar's timers run out.
       await tester.pump(const Duration(seconds: 5));
     });
+  });
+
+  group('the chat card stays pinned above the scroll', () {
+    Finder inList(Type type) =>
+        find.descendant(of: find.byType(ListView), matching: find.byType(type));
+
+    testWidgets('scrolling to the bottom leaves it in place, tappable', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(360, 560);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      await _pumpTradeDetail(
+        tester,
+        orderId: 'order-pinned',
+        isBuyer: true,
+        status: OrderStatus.active,
+      );
+      expect(inList(TradeChatCard), findsNothing);
+      final before = tester.getTopLeft(find.byType(TradeChatCard));
+
+      await tester.scrollUntilVisible(
+        find.text(_en.tradeIdLabel),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      await _settle(tester);
+
+      expect(tester.getTopLeft(find.byType(TradeChatCard)), before);
+      expect(find.byType(TradeChatCard).hitTestable(), findsOneWidget);
+    });
+
+    testWidgets('the lock note before the trade is active scrolls with the '
+        'content', (tester) async {
+      await _pumpTradeDetail(
+        tester,
+        orderId: 'order-locked',
+        isBuyer: true,
+        status: OrderStatus.waitingPayment,
+      );
+      expect(inList(TradeChatLockedLine), findsOneWidget);
+      expect(find.byType(TradeChatCard), findsNothing);
+    });
+
+    const room = ChatRoomState(
+      orderId: 'order-done',
+      peerPubkey: 'peer',
+      peerHandle: 'bright-fox-41',
+      peerIconIndex: 3,
+      peerColorHue: 120,
+      isSelling: false,
+    );
+
+    for (final (name, chatState, closed) in [
+      (
+        'keeps it open during its hour',
+        const ChatRowState(
+          group: ChatGroup.active,
+          tone: ChatAvatarTone.waiting,
+        ),
+        false,
+      ),
+      (
+        'keeps it, closed, once the hour is over',
+        const ChatRowState(
+          group: ChatGroup.closed,
+          tone: ChatAvatarTone.closed,
+        ),
+        true,
+      ),
+    ]) {
+      testWidgets('a completed trade $name (#642)', (tester) async {
+        final container = await _pumpTradeDetail(
+          tester,
+          orderId: 'order-done',
+          isBuyer: true,
+          status: OrderStatus.success,
+          chatState: chatState,
+        );
+        container.read(chatRoomsNotifierProvider.notifier).upsertRoom(room);
+        await _settle(tester);
+
+        expect(find.byType(TradeChatCard), findsOneWidget);
+        expect(inList(TradeChatCard), findsNothing);
+        expect(
+          find.text(_en.tradeChatClosed),
+          closed ? findsOneWidget : findsNothing,
+        );
+      });
+    }
+
+    testWidgets('a trade cancelled after it was active keeps it, closed', (
+      tester,
+    ) async {
+      final container = await _pumpTradeDetail(
+        tester,
+        orderId: 'order-done',
+        isBuyer: true,
+        status: OrderStatus.canceled,
+        chatState: const ChatRowState(
+          group: ChatGroup.closed,
+          tone: ChatAvatarTone.closed,
+        ),
+      );
+      container
+          .read(chatRoomsNotifierProvider.notifier)
+          .upsertRoom(room.copyWith(unreadCount: 3));
+      await _settle(tester);
+
+      expect(find.text(_en.tradeChatClosed), findsOneWidget);
+      // Unread until the room is opened, as the chat list and the Chat tab
+      // count them: closing the conversation does not read its messages.
+      expect(find.text('3'), findsOneWidget);
+    });
+
+    testWidgets('a trade cancelled before it was active has no card', (
+      tester,
+    ) async {
+      await _pumpTradeDetail(
+        tester,
+        orderId: 'order-never-active',
+        isBuyer: true,
+        status: OrderStatus.canceled,
+      );
+      expect(find.byType(TradeChatCard), findsNothing);
+    });
+
+    testWidgets('the card turns closed when the conversation ends on screen', (
+      tester,
+    ) async {
+      final chatState = StateProvider(
+        (_) => const ChatRowState(
+          group: ChatGroup.active,
+          tone: ChatAvatarTone.waiting,
+        ),
+      );
+      final container = await _pumpTradeDetail(
+        tester,
+        orderId: 'order-done',
+        isBuyer: true,
+        status: OrderStatus.success,
+        extraOverrides: [
+          chatRowStateProvider(
+            'order-done',
+          ).overrideWith((ref) => ref.watch(chatState)),
+        ],
+      );
+      container.read(chatRoomsNotifierProvider.notifier).upsertRoom(room);
+      await _settle(tester);
+      expect(find.text(_en.tradeChatEncrypted), findsOneWidget);
+
+      container.read(chatState.notifier).state = const ChatRowState(
+        group: ChatGroup.closed,
+        tone: ChatAvatarTone.closed,
+      );
+      await _settle(tester);
+      expect(find.text(_en.tradeChatClosed), findsOneWidget);
+    });
+
+    testWidgets('the end of the conversation is announced once, on screen', (
+      tester,
+    ) async {
+      final semantics = tester.ensureSemantics();
+      final chatState = StateProvider(
+        (_) => const ChatRowState(
+          group: ChatGroup.active,
+          tone: ChatAvatarTone.waiting,
+        ),
+      );
+      final container = await _pumpTradeDetail(
+        tester,
+        orderId: 'order-done',
+        isBuyer: true,
+        status: OrderStatus.success,
+        extraOverrides: [
+          chatRowStateProvider(
+            'order-done',
+          ).overrideWith((ref) => ref.watch(chatState)),
+        ],
+      );
+      container.read(chatRoomsNotifierProvider.notifier).upsertRoom(room);
+      await _settle(tester);
+      expect(tester.takeAnnouncements(), isEmpty);
+
+      container.read(chatState.notifier).state = const ChatRowState(
+        group: ChatGroup.closed,
+        tone: ChatAvatarTone.closed,
+      );
+      await _settle(tester);
+      // A rebuild with the conversation still closed says nothing more.
+      container
+          .read(chatRoomsNotifierProvider.notifier)
+          .upsertRoom(room.copyWith(unreadCount: 1));
+      await _settle(tester);
+
+      expect(
+        [for (final a in tester.takeAnnouncements()) a.message],
+        [_en.tradeChatClosedAnnouncement],
+      );
+      semantics.dispose();
+    });
+
+    testWidgets('a conversation already closed when the screen opens is not '
+        'announced', (tester) async {
+      final semantics = tester.ensureSemantics();
+      final container = await _pumpTradeDetail(
+        tester,
+        orderId: 'order-done',
+        isBuyer: true,
+        status: OrderStatus.canceled,
+        chatState: const ChatRowState(
+          group: ChatGroup.closed,
+          tone: ChatAvatarTone.closed,
+        ),
+      );
+      container.read(chatRoomsNotifierProvider.notifier).upsertRoom(room);
+      await _settle(tester);
+
+      expect(tester.takeAnnouncements(), isEmpty);
+      semantics.dispose();
+    });
+
+    testWidgets('turning active, the lock note never fades over the step '
+        'block, which crossfades', (tester) async {
+      final updates = StreamController<OrderStatus>();
+      addTearDown(() => unawaited(updates.close()));
+      updates.add(OrderStatus.waitingPayment);
+      await _pumpTradeDetail(
+        tester,
+        orderId: 'order-turns-active',
+        isBuyer: true,
+        status: OrderStatus.waitingPayment,
+        statusUpdates: updates.stream,
+      );
+      expect(inList(TradeChatLockedLine), findsOneWidget);
+
+      updates.add(OrderStatus.active);
+      await tester.pump();
+      var crossfaded = false;
+      for (var frame = 0; frame < 15; frame++) {
+        await tester.pump(const Duration(milliseconds: 20));
+        final blocks = find.byType(TradeStepBlock);
+        crossfaded |= blocks.evaluate().length == 2;
+        for (final note in find.byType(TradeChatLockedLine).evaluate()) {
+          final noteRect = tester.getRect(find.byWidget(note.widget));
+          for (final block in blocks.evaluate()) {
+            expect(
+              noteRect.overlaps(tester.getRect(find.byWidget(block.widget))),
+              isFalse,
+              reason: 'frame $frame: the lock note is drawn over a step block',
+            );
+          }
+        }
+      }
+      expect(crossfaded, isTrue, reason: 'the step block did not crossfade');
+      expect(find.byType(TradeChatLockedLine), findsNothing);
+      expect(find.byType(TradeChatCard), findsOneWidget);
+    });
+
+    testWidgets('with animations off, the card takes the top at once', (
+      tester,
+    ) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(
+        tester.platformDispatcher.clearAccessibilityFeaturesTestValue,
+      );
+      final updates = StreamController<OrderStatus>();
+      addTearDown(() => unawaited(updates.close()));
+      updates.add(OrderStatus.waitingPayment);
+      await _pumpTradeDetail(
+        tester,
+        orderId: 'order-no-motion',
+        isBuyer: true,
+        status: OrderStatus.waitingPayment,
+        statusUpdates: updates.stream,
+      );
+
+      updates.add(OrderStatus.active);
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.byType(TradeChatLockedLine), findsNothing);
+      final fades = tester.widgetList<FadeTransition>(
+        find.ancestor(
+          of: find.byType(TradeChatCard),
+          matching: find.byType(FadeTransition),
+        ),
+      );
+      expect([for (final f in fades) f.opacity.value], everyElement(1.0));
+      final slides = tester.widgetList<SlideTransition>(
+        find.ancestor(
+          of: find.byType(TradeChatCard),
+          matching: find.byType(SlideTransition),
+        ),
+      );
+      expect([
+        for (final s in slides) s.position.value,
+      ], everyElement(Offset.zero));
+    });
+
+    testWidgets('the line under the card goes once nothing scrolls beneath '
+        'it', (tester) async {
+      tester.view.physicalSize = const Size(360, 760);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+      final updates = StreamController<OrderStatus>.broadcast();
+      addTearDown(() => unawaited(updates.close()));
+      final container = await _pumpTradeDetail(
+        tester,
+        orderId: 'order-done',
+        isBuyer: false,
+        status: OrderStatus.fiatSent,
+        statusUpdates: updates.stream,
+        chatState: const ChatRowState(
+          group: ChatGroup.active,
+          tone: ChatAvatarTone.waiting,
+        ),
+      );
+      container.read(chatRoomsNotifierProvider.notifier).upsertRoom(room);
+      updates.add(OrderStatus.fiatSent);
+      await _settle(tester);
+      final book = OrderBookPalette.of(
+        tester.element(find.byType(TradeChatCard)),
+      );
+      Color chatLine() {
+        final box = tester.widget<DecoratedBox>(
+          find
+              .ancestor(
+                of: find.byType(TradeChatCard),
+                matching: find.byWidgetPredicate(
+                  (w) =>
+                      w is DecoratedBox &&
+                      w.decoration is BoxDecoration &&
+                      (w.decoration as BoxDecoration).border is Border,
+                ),
+              )
+              .first,
+        );
+        return ((box.decoration as BoxDecoration).border! as Border)
+            .bottom
+            .color;
+      }
+
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, -2000));
+      await _settle(tester);
+      expect(chatLine(), book.navBorder);
+
+      updates.add(OrderStatus.success);
+      await _settle(tester);
+
+      expect(find.byType(TradeChatCard), findsOneWidget);
+      expect(chatLine(), Colors.transparent);
+    });
+
+    // DS-A11Y-4: the pinned card leaves the rest reachable at 320 dp, 2x text,
+    // in German.
+    for (final status in [
+      OrderStatus.active,
+      OrderStatus.fiatSent,
+      OrderStatus.dispute,
+    ]) {
+      testWidgets('German, 320dp, 2x text: the content still scrolls under it '
+          '($status)', (tester) async {
+        tester.view.physicalSize = const Size(320, 760);
+        tester.view.devicePixelRatio = 1.0;
+        tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+        addTearDown(tester.view.reset);
+        addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+
+        await _pumpTradeDetail(
+          tester,
+          orderId: 'order-pinned-de-$status',
+          // The buyer's active step header still overflows here (its chip,
+          // #712); the seller's does not, and the card is the same.
+          isBuyer: status != OrderStatus.active,
+          status: status,
+          locale: const Locale('de'),
+        );
+        expect(tester.takeException(), isNull);
+
+        await tester.scrollUntilVisible(
+          find.text(lookupAppLocalizations(const Locale('de')).tradeIdLabel),
+          200,
+          scrollable: find.byType(Scrollable).first,
+        );
+        expect(tester.takeException(), isNull);
+        expect(find.byType(TradeChatCard).hitTestable(), findsOneWidget);
+      });
+    }
+  });
+
+  // Issue #724, DS-CMP-22: the trade's id row reads the same short form as
+  // every other screen (8 + 4, not 5 + 4), beside the copy icon of 16.
+  testWidgets('the id row reads the short id with the copy icon', (
+    tester,
+  ) async {
+    const id = '09150348-1a2b-4c3d-8e9f-0a1b2c3d99b5';
+    await _pumpTradeDetail(
+      tester,
+      orderId: id,
+      isBuyer: true,
+      status: OrderStatus.active,
+    );
+
+    expect(find.text('09150348…99b5', skipOffstage: false), findsOneWidget);
+    final icon = tester.widget<Icon>(
+      find.byIcon(Icons.copy_rounded, skipOffstage: false),
+    );
+    expect(icon.size, 16);
+  });
+
+  // DS-CMP-22: the id row sits in a card of the screen, not bare on the
+  // scroll after the timeline.
+  testWidgets('the id row sits in a card', (tester) async {
+    const id = '09150348-1a2b-4c3d-8e9f-0a1b2c3d99b5';
+    await _pumpTradeDetail(
+      tester,
+      orderId: id,
+      isBuyer: true,
+      status: OrderStatus.active,
+    );
+
+    final card = find.ancestor(
+      of: find.text('09150348…99b5', skipOffstage: false),
+      matching: find.byWidgetPredicate(
+        (w) =>
+            w is Container &&
+            w.decoration is BoxDecoration &&
+            (w.decoration! as BoxDecoration).border != null &&
+            (w.decoration! as BoxDecoration).borderRadius ==
+                BorderRadius.circular(18),
+        skipOffstage: false,
+      ),
+    );
+    expect(card, findsOneWidget);
+  });
+
+  // DS-CMP-6 and DS-A11Y-1: the id card is a copy button at least 48 high.
+  testWidgets('the id row is a button of at least 48 dp', (tester) async {
+    const id = '09150348-1a2b-4c3d-8e9f-0a1b2c3d99b5';
+    final semantics = tester.ensureSemantics();
+    await _pumpTradeDetail(
+      tester,
+      orderId: id,
+      isBuyer: true,
+      status: OrderStatus.active,
+    );
+
+    final row = find.ancestor(
+      of: find.text('09150348…99b5', skipOffstage: false),
+      matching: find.byType(InkWell, skipOffstage: false),
+    );
+    expect(row, findsOneWidget);
+    expect(tester.getSize(row).height, greaterThanOrEqualTo(48));
+    expect(
+      tester.getSemantics(row),
+      isSemantics(isButton: true, hasTapAction: true),
+    );
+    semantics.dispose();
   });
 }

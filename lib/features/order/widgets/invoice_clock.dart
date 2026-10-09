@@ -3,7 +3,7 @@ import 'dart:async';
 import 'package:clock/clock.dart';
 import 'package:flutter/widgets.dart';
 
-import 'package:mostro/features/order/models/invoice_rules.dart';
+import 'package:mostro/shared/utils/countdown.dart';
 
 /// The one ticker of an invoice screen: the time band, its pulse and the
 /// expired state all read [invoiceRemaining], so they can never disagree.
@@ -36,7 +36,7 @@ mixin InvoiceClock<T extends StatefulWidget> on State<T> {
     final left = Duration(seconds: deadline > now ? deadline - now : 0);
     invoiceRemaining.value = left;
     if (left == Duration.zero) return;
-    _invoiceTick = Timer(invoiceCountdownTick(left), () {
+    _invoiceTick = Timer(countdownTick(left), () {
       if (mounted) _refreshInvoiceClock();
     });
   }

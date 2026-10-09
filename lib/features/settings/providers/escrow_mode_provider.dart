@@ -23,13 +23,13 @@ final escrowModeProvider = StreamProvider<EscrowModeInfo>((ref) async* {
   }
 });
 
-/// Whether a Cashu path may run against the active node.
+/// Whether a Cashu escrow may run against the active node.
 ///
-/// The single question the rest of the app asks. Mirrors Rust's
-/// `is_cashu_mode()`: the mode must be Cashu **and** the node must pin a single
-/// mint for the wallet to bind to (one that accepts several, or any, does not
-/// yet). False while loading and on error, so every Cashu path stays shut
-/// unless the node was positively identified.
+/// Mirrors Rust's `is_cashu_mode()`: the mode must be Cashu **and** the node
+/// must pin a single mint for an escrow to lock at (one that accepts several,
+/// or any, does not yet). False while loading and on error, so a Cashu trade
+/// flow stays shut unless the node was positively identified. It never gates
+/// the Cashu wallet, which is always available (docs/cashu/README.md §1.2).
 final isCashuAvailableProvider = Provider<bool>((ref) {
   return ref.watch(escrowModeProvider).valueOrNull?.isCashuAvailable ?? false;
 });

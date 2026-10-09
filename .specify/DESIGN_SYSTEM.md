@@ -20,24 +20,27 @@ information architecture. It does not keep v1's look.
     marks the line. It reads the code the pull request touches under `lib/` (outside
     `lib/core/`, where tokens are defined): every top-level declaration (a class, mixin, enum,
     extension, function or variable) with an added or changed line, **read whole**, so a
-    button whose `icon:` changed is checked for its `style:`. It judges literal values and
+    button whose `icon:` changed is checked for its `style:`. A **screen** (a file under a
+    `screens/` directory) is read whole instead: a rename or any added, changed or removed line
+    checks the entire file. It judges literal values and
     named v1 tokens only: a value derived from a token is left to review. Run it locally with
     `dart tool/design_check.dart`.
   - *test*: an existing test fails.
   - *review*: a reviewer reads the diff and the screenshots.
 - **Scope.** The rules apply to every line a pull request adds or changes under `lib/`, and the
-  *auto* rules to every class it touches (above). Code that predates them is listed in §14 as
+  *auto* rules to every class it touches and every screen file it touches (above). Code that predates them is listed in §14 as
   known gaps. A gap is debt to pay down, never a precedent: "the next screen already does it"
   does not answer a break.
 - **Redesigned and legacy areas.** Most screens are built on the redesign palettes (§2.2). A few
   still run on the v1 layer, `AppColors` and the theme's defaults: the chat room and its message
-  bubbles, disputes, notifications, the walkthrough, rating and the Cashu wallet. That code is
+  bubbles, disputes, notifications, rating and the Cashu wallet. That code is
   §14 debt, not a style to match. **New code is v2 everywhere**, a legacy screen included: it
   reads a redesign palette (DS-COL-11) and never leans on the theme's v1 defaults (§1,
-  principle 7). A change that touches a class of a legacy screen **MUST** leave that class
-  free of *auto* breaks, which CI enforces (#657 changed one icon of the Cashu wallet and
-  shipped its v1 scaffold, app bar and buttons with a green check), and SHOULD migrate the
-  rest of the screen.
+  principle 7). A change that touches a screen file **MUST** leave the whole file free of
+  *auto* breaks, and one that touches a class elsewhere (a widget) MUST leave that class
+  free of them; CI enforces both (#657 changed one icon of the Cashu wallet and shipped its
+  v1 scaffold, app bar and buttons with a green check, then its dialogs' breaks once the
+  check read only the classes it touched).
 
 ---
 
@@ -142,9 +145,10 @@ New tokens take these values (DS-COL-8). Format: dark / light.
 
 | ID | Rule | Check |
 |---|---|---|
-| DS-TYP-1 | **MUST.** Two families, both through `AppFonts`: `AppFonts.ui` (Outfit) for interface text, which is the theme default and needs no setting, and `AppFonts.figures` (Manrope). No family is named as a string literal. Machine strings (invoices, keys, hashes, event ids) MAY use `'monospace'`. | auto |
+| DS-TYP-1 | **MUST.** Two families, both through `AppFonts`: `AppFonts.ui` (Outfit) for interface text, which is the theme default and needs no setting, and `AppFonts.figures` (Manrope). A third, `AppFonts.flags`, is a fallback for flags only (DS-TYP-8). No family is named as a string literal. Machine strings (invoices, keys, hashes, event ids) MAY use `'monospace'`. | auto |
 | DS-TYP-2 | **MUST.** Figures that line up or get compared use `AppFonts.figures`, with tabular digits: amounts, sats, fiat, premiums, ratings, counters, countdowns. | review |
 | DS-TYP-3 | **MUST.** Manrope always sets `fontWeight` explicitly to 500, 600 or 700. Only those weights are bundled; an unset (400) weight renders as Medium. | review |
+| DS-TYP-8 | **MUST.** A flag (a currency's, a node's region) is drawn from `AppFonts.flags`, the flags of Noto Color Emoji bundled with the app, never left to the OS: Linux and Windows have no flag glyphs and print two boxed letters (`AR`). Both themes carry it as `fontFamilyFallback`, so text that inherits the theme needs nothing; a style with `inherit: false` or its own `fontFamilyFallback` adds `flagFontFallback`. iOS and macOS are the exception: Core Text cannot draw the font's bitmaps (CBDT), and their own emoji font has every flag. The font is built by `tool/flags_font/build_font.py`, never edited by hand. | test (`flag_font_test.dart`) |
 
 ### 3.2 Scale
 
@@ -220,17 +224,19 @@ Reuse before building (principle 4). These are the parts a new screen is assembl
 |---|---|---|
 | DS-CMP-1 | **MUST.** Every dialog and bottom sheet goes through `showMostroDialog` / `showMostroSheet` with `MostroDialog` / `MostroSheet` (`lib/shared/widgets/mostro_modal.dart`). Buttons are `ModalAction`s and links are `ModalLink`s. | test (`modal_guard_test.dart`) |
 | DS-CMP-2 | **MUST.** A modal has at most one primary action, "the answer", on the right or on top when the actions stack. The secondary is "the way out". An irreversible answer uses `ModalTone.destructive`. While it runs, the action shows `busy`; the modal is not swapped for a spinner. | review |
+| DS-CMP-26 | **MUST.** The answer of a modal opened by a named action repeats that action's verb, in a key of its own: the range dialog opened from "Take order" answers "Take order", not "Submit"; a cancel confirmation answers "Yes, cancel". A generic answer ("OK", "Yes", "Confirm", "Continue", "Submit") is kept for a modal that only informs. The answer's key holds the same wording as the opener in every language, so a translator can keep them together. | review |
 
 ### 6.2 Buttons
 
 | ID | Rule | Check |
 |---|---|---|
 | DS-CMP-3 | **MUST.** A screen state has at most **one** primary call to action: filled lime, `onLime` ink, radius 16, 15/w600, vertical padding 14. When the user can only wait, it has none (`TradeActionBar`). Reuse `OrderPrimaryButton`, `TradeActionBar` or `InvoicePrimaryButton`. | review |
-| DS-CMP-4 | **MUST.** Secondary actions are outlined (`border` token, `textBody` ink) with the same radius as their primary. Cancel and dispute are never two red buttons of the same weight. A dismissal ("Close", "Not now") is a text link. | review |
-| DS-CMP-5 | **MUST.** A filled red button is used only for the answer to an irreversible question inside a modal (DS-CMP-2). On a page, danger is an outlined or link action in `danger` ink. | review |
-| DS-CMP-6 | **MUST.** Every tappable target is at least **48 × 48** dp. A small glyph is padded out to it, as `_OrderBookAppBar` does with `_target = 48`. | review |
+| DS-CMP-4 | **MUST.** Secondary actions are outlined (`border` token, `textBody` ink) with the same radius as their primary. Cancel and dispute are never two red buttons of the same weight. A way out (a dismissal, a cancel) is placed and weighted as DS-CMP-20 says. | review |
+| DS-CMP-5 | **MUST.** A filled red button is used only for the answer to an irreversible question inside a modal (DS-CMP-2). On a page, danger is an outlined or link action in `danger` ink, chosen as DS-CMP-20 says. | review |
+| DS-CMP-6 | **MUST.** Every tappable target is at least **48 × 48** dp. A small glyph is padded out to it, as `TabAppBar` does with `_target = 48`. | review |
 | DS-CMP-7 | **MUST.** An icon-only button has a `tooltip` or a semantic label. | review |
 | DS-CMP-17 | **MUST.** A `FilledButton`, `OutlinedButton` or `ElevatedButton` always passes `style:` (radius and palette colors as DS-CMP-3 and DS-CMP-4 say), or comes from a shared component that does (`OrderPrimaryButton`, `ModalAction`). Without one it is the theme's stadium in v1 colors. A `TextButton` used as a link colors its label from the palette, or is a `ModalLink`. | auto |
+| DS-CMP-20 | **MUST.** A screen's way out is weighted by what it undoes. **Leaving without consequence** (discarding a form, closing a finished screen, "Not now", skipping) is a text link in `textSecondary` under the screen's actions (`InvoiceCancelLink` with `danger: false`), or the back arrow alone. It is never an outlined button beside the primary, which would give leaving the weight of acting. **Cancelling something that exists** (a published order, a trade, a bond window) is in `danger` ink and always asks first, through a `MostroDialog` whose answer is `ModalTone.destructive` (DS-CMP-2). It is an outlined button when it shares the action bar with the primary (`TradeActionBar`'s secondary, `_CancelButton` on `/my_order`), and a link when it sits under the screen's actions (`InvoiceCancelLink` with `danger: true`). | review |
 
 ### 6.3 Cards, rows and chips
 
@@ -238,6 +244,11 @@ Reuse before building (principle 4). These are the parts a new screen is assembl
 |---|---|---|
 | DS-CMP-8 | **MUST.** A card or row sits on `surface`, has radius 18, padding 14 and no elevation. When tappable, it is `Material` + `InkWell`, so the ripple follows the radius. | review |
 | DS-CMP-9 | **MUST.** A status chip is a pill: 6-px dot, upper-case 10-sp label, padding 8 × 4 (horizontal × vertical), 6 between dot and label, with a tinted fill and border from the area's `chip*` tokens (`TradeListChip`, `TradeStatusChip`). The legacy `StatusChip` / `RoleBadge` with `AppColors.status*` is not used in new code. | review |
+| DS-CMP-22 | **MUST.** An order or trade id reads `shortOrderId`: the first 8 characters, `…`, the last 4 (`09150348…99b5`), in `AppFonts.figures`. It sits in an "ID" row of the screen's card, never in the app bar. The whole row copies the full id: it shows a visible `copy_rounded` icon, 16, in the area's lime icon ink, and confirms with the "Copied" snackbar (DS-CMP-15). The full id is shown only where it must be read whole, in the dispute info card. A mention that is not a control (a notification line) uses the same short form, without copy. `OrderIdRow` is the reference. | review |
+| DS-CMP-25 | **MUST.** A note that explains what a step does with the user's sats (an escrow, a hold, a deposit) is an `ExplanatoryNote` (`lib/features/order/widgets/explanatory_note.dart`), on every screen: the invoice palette's `subtleFill` with a `subtleBorder` hairline, radius 12, padding 14 × 12, a 14-dp icon 8 before 11-sp `textSecondary` text at height 1.45. The icon says what the note is about, and the lock (`Icons.lock_outline`) always means "your sats are held". The note sits in the body, after the content it explains, never in an action bar: the bar holds only actions. | review |
+| DS-CMP-23 | **MUST.** The amount a screen is about, its hero, is one `HeroAmountCard` (`lib/features/order/widgets/hero_amount_card.dart`; `InvoiceHeroCard` is the same card for a sats figure). It is left-aligned on a card. A sentence-case label sits above (12 sp, `textSecondary`), never upper-cased. The figure is `AppFonts.figures` 38/w700, and its unit (`ARS`, `sats`) sits on the figure's baseline at 15/w600 in `textSecondary`, never in a chip. A figure that does not fit at 38 drops to 26 and then wraps; it is never truncated. When the screen trades one amount for another (take order: you pay → you receive), the second stacks under a divider: its label, then its figure at 19/w600 in `limeInk` with the rest of its line at 13. An optional context line (12 sp, `textSecondary`) closes the card. A QR, when there is one, sits below it in the same card. | review |
+| DS-CMP-24 | **MUST.** Facts read as label → value (an order's data, the counterpart, the fiat side of a trade, a deposit's context) are rows of one card: `OrderDataCard` holding `OrderDataRow`s (`lib/features/order/widgets/order_detail_cards.dart`). A row has a leading 16-dp icon in `textTertiary` (DS-ICO-3), 10 to the label at 12 sp in `textSecondary`, and the value flush right at 12 sp, w500, in `textStrong` (`OrderDataValue`, in `AppFonts.figures` when it is an amount or a count), with 14 above and below (DS-SPC-2). A hairline `rowDivider` separates the rows. Something said about the value (the counterpart's reputation) trails it at 11 sp in `textSecondary`. A row that copies or opens something is tappable as a whole (`onTap`). No screen draws its own label → value list. | review |
+| DS-CMP-27 | **MUST.** A value the user can change in place says so: the value in `limeInk` with a trailing `expand_more` chevron (16, `sortLabel`), the whole value a target of at least 48 × 48 dp (DS-CMP-6), wrapped in `Semantics(button: true)` with a hint that names the change ("Select currency"). The same value read-only is neutral, in `textStrong` or the `currencyChipFill` chip, with no chevron. References: `CurrencyInlineSelector` and `CurrencyRowSelector` (editable, create order) against `OrderCurrencyChip` (read-only, take order). A list edited in place is lime-ink chips with a remove control (`payment_method_section.dart`); read-only it is plain text. A color that already means something (the premium's favour, DS-COL-9) keeps it and takes no chevron. A row that opens another screen or sheet is a row, not an editable value: neutral value and a trailing `chevron_right` (`settings_section.dart`). | review |
 
 ### 6.4 Inputs
 
@@ -251,12 +262,13 @@ Reuse before building (principle 4). These are the parts a new screen is assembl
 
 | ID | Rule | Check |
 |---|---|---|
-| DS-CMP-12 | **MUST.** A pushed screen uses `redesignAppBar()`. A tab root uses `TabAppBar`. The bottom bar is `BottomNavBar`. An `AppBar` built in place sets `backgroundColor` and its icon and title colors from the palette (as `add_order_screen.dart` does); one that leaves them to the theme is v1. | auto, review |
+| DS-CMP-12 | **MUST.** A pushed screen uses `redesignAppBar()`. A tab root uses `TabAppBar`, the same bar in every tab: menu, the Mostro mascot (`HeaderMascot`), bell (#770). The bottom bar is `BottomNavBar`. An `AppBar` built in place sets `backgroundColor` and its icon and title colors from the palette (as `add_order_screen.dart` does); one that leaves them to the theme is v1. | auto, review |
 | DS-CMP-18 | **MUST.** A `Scaffold` sets `backgroundColor` from the palette (`bg`). The theme's is v1's `#1B1E28`. | auto |
 | DS-CMP-13 | **MUST.** A list that loads shows a shimmer skeleton in the shape of its rows (`OrderListSkeleton`), never a centered spinner. A button that works shows its own spinner and keeps its size. | review |
 | DS-CMP-14 | **MUST.** An empty list explains itself: the mascot, a title, the reason, and the action that fixes it when there is one (`OrderListEmpty`). | review |
 | DS-CMP-15 | **SHOULD.** A snackbar confirms something that already happened ("Copied"). It is floating, on `surface`, radius 12, about 2 s (`showOrderDetailSnackBar`). It never carries an error the user must act on; that belongs in the screen or a modal. | review |
 | DS-CMP-16 | **MUST.** A pseudonym avatar is `NymAvatar`, with the glyph always white on its hue (FR-011c). | review |
+| DS-CMP-21 | **MUST.** A time left says what runs out: a label ("The invoice expires in", "You have", "Expires in") stands with the figure, never a bare figure. It sits in the body (a banner, a step block or a card row), never in the app bar. One formatter, `formatCountdown` (`lib/shared/utils/countdown.dart`), prints it: `12:40` (mm:ss) under an hour, the localized `1 h 05` / `23 h 12` from an hour up, never `23:12` for hours. One tone function, `countdownTone`, colors it: calm is lime while it is the user's turn and amber while they wait; warning is amber under an hour; urgent is coral under 5 minutes, or under 1 minute when the whole window lasts 15 minutes or less. Turning urgent while on screen is announced once, with the label and the time left (`CountdownUrgencyAnnouncer`, `lib/shared/widgets/countdown_urgency_announcer.dart`, DS-A11Y-2); a countdown already urgent when it first shows is not announced, since its label is read on focus. The ticking figure is never a `liveRegion`: its label changes every second, so a screen reader would read every tick. The figure is `AppFonts.figures` with tabular digits (DS-TYP-2). | review |
 
 ### 6.6 Icons
 
@@ -285,7 +297,7 @@ DS-CMP-7), and text scaling in §3 (DS-TYP-7). In addition:
 
 | ID | Rule | Check |
 |---|---|---|
-| DS-A11Y-1 | **MUST.** A custom tappable widget (an `InkWell` or `GestureDetector` that is not a Material button) is wrapped in `Semantics(button: true, label: …)`, with `enabled` reflecting its state. | review |
+| DS-A11Y-1 | **MUST.** A custom tappable widget (an `InkWell` or `GestureDetector` that is not a Material button) is wrapped in `Semantics(button: true, label: …)`, with `enabled` reflecting its state. The exception is a gesture on decoration that only plays itself or shows a seasonal greeting (the mascot's tap and long press, `MostroMascot`): it changes nothing in the app and tells nothing the user needs, so it stays under `ExcludeSemantics` with the decoration (DS-A11Y-3), and the gesture detector sets `excludeFromSemantics: true`. A gesture that navigates, changes a setting or shows any other information is not an exception. | review |
 | DS-A11Y-2 | **MUST.** A status that changes while the user watches (a countdown result, a payment received) is announced through `liveRegion` or `SemanticsService`. | review |
 | DS-A11Y-3 | **MUST.** Focus and reading order follow the visual order. Decoration is excluded with `ExcludeSemantics`. | review |
 | DS-A11Y-4 | **MUST.** A new screen, or a changed action bar or modal, has a widget test at 2× text scale and 320 dp wide in German that expects no overflow (`tester.takeException()` is null). Precedents: `order_detail_golden_test.dart`, `trade_detail_screen_test.dart`. | test |
@@ -299,6 +311,25 @@ DS-CMP-7), and text scaling in §3 (DS-TYP-7). In addition:
 | DS-L10N-1 | **MUST.** Every user-facing string comes from `AppLocalizations`, in all six ARB files (en, es, fr, de, it, nl). CI fails on an untranslated key. | test |
 | DS-L10N-2 | **MUST.** A layout is sized for the longest translation, usually German, never for English. A button label fits or scales down, and never truncates a verb. | review |
 | DS-L10N-3 | **MUST.** Numbers, amounts and dates are formatted for the locale, never by hand. | review |
+| DS-L10N-4 | **MUST.** One word per concept, in every locale: a string names a trade concept with the word the glossary below gives it, and a new concept joins the glossary in the same change that first uses it. Protocol jargon ("hold", "bolt11", "NIP") is not shown to the user as a term to know; the string says what it does in plain words. | review |
+
+**Glossary.** The words the app uses, in English and Spanish; the other locales keep the same
+one-to-one choice in their ARB files.
+
+| Concept | en | es | Not |
+|---|---|---|---|
+| An offer in the book | order | orden | oferta |
+| Accepting someone else's order | take | tomar | aceptar |
+| The two sides | seller, buyer | vendedor, comprador | — |
+| The other person in a trade | counterpart | contraparte | — |
+| A taken order, until it ends | trade | operación | intercambio |
+| The anti-abuse amount a node asks for | deposit | depósito | fianza, garantía |
+| Paying the invoice that keeps sats in escrow | lock (the sats) | bloquear (los sats) | — |
+| Sats a hold invoice keeps in the payer's wallet | held | retenidos | "hold" as a term |
+| The seller handing the sats over | release | liberar | — |
+| A Lightning payment request | invoice | factura | — |
+| A trade a solver decides | dispute | disputa | — |
+| Payment methods the user ticked | selected | seleccionado(s) | elegido(s), chosen |
 
 ---
 
@@ -351,20 +382,28 @@ color: Colors.black,
 Without a reason the comment silences nothing. The reviewer judges the reason; it is not a way
 around a rule the change could keep.
 
+**Standing exception: the startup failure screen.** `lib/core/startup_failure.dart` is shown
+when startup fails before the app can run, and localization, the app theme and the area
+palettes can be the very thing that failed (#389). So it hard-codes its English and its colors:
+DS-L10N-1 and DS-COL-2 do not apply to it. Its four colors are named constants on
+`StartupFailureApp`, and `test/core/startup_failure_contrast_test.dart` asserts each text color
+at 4.5:1 on its background (DS-COL-6 still applies: a test needs nothing at runtime). It still
+follows every other rule that needs nothing at runtime, such as DS-TYP-1 and DS-A11Y-4.
+
 ---
 
 ## 14. Known gaps (code that predates this guide)
 
 Each gap below is debt. A change in the same code SHOULD close it, and MUST NOT copy it. The
-CI check reports a gap once a pull request touches its class (or, outside a class, the
-top-level function or variable it sits in), and a change in that class MUST close every *auto*
-gap in it (§0). `dart tool/design_check.dart --all`
+CI check reports a gap once a pull request touches its screen file, or elsewhere its class (or,
+outside a class, the top-level function or variable it sits in), and that change MUST close
+every *auto* gap there (§0). `dart tool/design_check.dart --all`
 lists every one the check can see (595 when the theme-default rules were added, 640 once
 DS-SHP-4 and the `textTheme` roles of DS-TYP-4 joined them).
 
 | Gap | Where | Rule |
 |---|---|---|
-| About 50 `Color(0x…)` literals in 21 files and about 86 `Colors.<name>` in 30 files. Many are v1 fallbacks (`#8CC63F`), mostly in notifications, chat attachments and the walkthrough. | §2.1 | DS-COL-1 |
+| About 50 `Color(0x…)` literals in 21 files and about 86 `Colors.<name>` in 30 files. Many are v1 fallbacks (`#8CC63F`), mostly in notifications and chat attachments. | §2.1 | DS-COL-1 |
 | `ThemeData` defines no button, chip, snackbar or switch theme; every button styles itself. | §6.2 | DS-CMP-3 |
 | `textTheme` (32/24/20/18/16/14/12) does not match the redesign scale. 13 half-point sizes and three 9-sp labels exist. | §3.2 | DS-TYP-4 |
 | `'Manrope'` is written as a literal in `tab_app_bar.dart`. | §3.1 | DS-TYP-1 |
@@ -376,11 +415,18 @@ DS-SHP-4 and the `textTheme` roles of DS-TYP-4 joined them).
 | `RestorePalette` redefines its own surfaces (`sheet` `#161C28`) instead of extending `OrderBookPalette`. | §2.2 | DS-COL-2 |
 | Chat: `AppColors.systemMessage` (`#2A2D35`) is used as a **text** color on the dark background, which is illegible. The dispute chat's received bubble is a literal `#2D3142`. Bubble colors have no contrast test. | §2 | DS-COL-1, DS-COL-6 |
 | `AppColors.status*` chip tuples are the same in light and dark and have no contrast test. `RoleBadge` is never used. | §6.3 | DS-CMP-9 |
+| My order's amount block (`_AmountBlock` in `my_order_screen.dart`) still puts the currency in a chip over a 34-sp `OrderAmountFigure` instead of a `HeroAmountCard`. | §6.3 | DS-CMP-23 |
 | Most of the 87 `showSnackBar` calls are not floating and are styled by hand; there is no shared helper. | §6.5 | DS-CMP-15 |
 | Only three widgets honour `disableAnimations` (restore sheet, invoice field, mascot). | §7 | DS-MOT-3 |
 | No test checks 3:1 for non-text, and none uses Flutter's `meetsGuideline` for tap targets or labels. | §8 | DS-COL-7, DS-CMP-6 |
 | `app_theme.dart` cites `test/core/accent_consistency_test.dart`, which does not exist. The check lives in `modal_contrast_test.dart`. | §2.1 | — |
 | About 100 reads of `AppColors` in the legacy areas and in a few redesigned files. | §2.2 | DS-COL-11 |
+| The create-order screen states the maker's deposit in `OrderPreviewBar` (`notice`), with a shield icon, inside the action bar rather than as an `ExplanatoryNote` in the body. | §6.3 | DS-CMP-25 |
+| Modal answers that do not repeat their opener: the open-dispute confirmation answers "Yes" (`dispute_confirmation_dialog.dart`), the Cashu send dialog "Confirm" (`cashu_wallet_screen.dart`) and the new-user dialog "Continue" (`account_screen.dart`). | §6.1 | DS-CMP-26 |
+| `ThemeData` holds v1's defaults: scaffold background `#1B1E28`, app bar, filled-underline input decoration, and no button themes (so a bare button is a stadium). 16 unstyled Material buttons, 11 app bars and 11 scaffolds on the theme background, and 13 text fields that leave part of their decoration to the theme rely on them, mostly in the Cashu, chat, dispute and notification screens and in error states. One redesigned field is among them: the premium field in `price_section.dart` sets only `border: InputBorder.none`, so the v1 fill shows behind the percentage. Moving the theme's defaults to the redesign values would make a bare widget look right and retire most of these. | §1 | DS-CMP-12, DS-CMP-17 to DS-CMP-19 |
+| Words the glossary (§9) retires are still in use: "intercambio" next to "operación" for a trade, "fianza" next to "depósito", and "hold invoice" / "factura hold" in the seller's waiting and payment steps and in About. | §9 | DS-L10N-4 |
+| The invoice time band (`InvoiceTimeBand`) and the bond pill (`BondAmountRow`) stay amber when calm, where the user's turn calls for lime: `InvoicePalette` has amber `time*` and red `error*` band tokens only. Only a maker's bond window can last over an hour. The chat header's countdown (`_CountdownChip`) keeps amber when calm because the header does not know whose turn it is, and takes that amber from the v1 header. | §6.5 | DS-CMP-21 |
+| The order-book sort control (`home_screen.dart`) is a value changed in place, shown in neutral `sortLabel` with a chevron, a target about 24 dp tall and no button semantics. | §6.3 | DS-CMP-27, DS-CMP-6, DS-A11Y-1 |
 | `ThemeData` holds v1's defaults: scaffold background `#1B1E28`, app bar, filled-underline input decoration, and no button themes (so a bare button is a stadium). 16 unstyled Material buttons, 11 app bars and 11 scaffolds on the theme background, and 14 text fields that leave part of their decoration to the theme rely on them, mostly in the Cashu, chat, dispute and notification screens and in error states. Redesigned fields are among them: `UnderlineAmountField` and the premium field in `price_section.dart` set only `border: InputBorder.none`, so the v1 fill shows behind the amount (`add_order_5b_single_fixed_dark.png`). Moving the theme's defaults to the redesign values would make a bare widget look right and retire most of these. | §1 | DS-CMP-12, DS-CMP-17 to DS-CMP-19 |
 
 ---

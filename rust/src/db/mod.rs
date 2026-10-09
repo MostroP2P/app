@@ -90,6 +90,16 @@ pub mod settings_keys {
     /// the one the node advertises.
     pub const CASHU_MINT_URL_OVERRIDE: &str = "cashu_mint_url_override";
 
+    /// The mint the Cashu wallet is bound to, chosen by the user. A device
+    /// preference, independent of the active node: a node switch never changes
+    /// it (docs/cashu/README.md §1.2, C2).
+    pub const CASHU_WALLET_MINT_URL: &str = "cashu_wallet_mint_url";
+
+    /// The identity (pubkey hex) an older install's shared Cashu proof store
+    /// belongs to: recorded at the first identity load after the upgrade, so
+    /// only that identity ever adopts it (`api::cashu::claim_legacy_store`).
+    pub const CASHU_LEGACY_STORE_OWNER: &str = "cashu_legacy_store_owner";
+
     /// Per-order chat `since` cursor — the `created_at` (unix seconds, decimal
     /// string) of the newest accepted outer chat event, clamped to the local
     /// clock. Full key is `chat_cursor:<order_id>`; build it with

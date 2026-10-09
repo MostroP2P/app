@@ -79,6 +79,8 @@ List<Override> _overrides({
   List<RelayInfo>? relays,
   NwcWalletState? wallet,
   bool permissionDenied = false,
+  bool permissionUnasked = false,
+  Future<void> Function()? requestPermission,
   bool pushSupported = true,
   bool pushExpiresWithTab = false,
   PushStatus? push,
@@ -101,6 +103,12 @@ List<Override> _overrides({
   appVersionProvider.overrideWith((ref) async => '2.0.1'),
   notificationPermissionDeniedProvider.overrideWith(
     (ref) async => permissionDenied,
+  ),
+  notificationPermissionUnaskedProvider.overrideWith(
+    (ref) async => permissionUnasked,
+  ),
+  requestNotificationPermissionProvider.overrideWithValue(
+    requestPermission ?? () async {},
   ),
   if (wallet != null)
     nwcProvider.overrideWith((ref) => _FixedNwc(wallet))
@@ -602,6 +610,54 @@ void main() {
       }
       // Turning push off still unregisters every trade from the server.
       expect(tester.widget<MostroToggle>(_masterToggle).onChanged, isNotNull);
+    });
+
+    testWidgets('an unasked browser permission is offered as a tap', (
+      tester,
+    ) async {
+      var asked = 0;
+      await _pump(
+        tester,
+        const NotificationSettingsScreen(),
+        overrides: _overrides(
+          permissionUnasked: true,
+          requestPermission: () async => asked++,
+        ),
+      );
+
+      expect(
+        find.textContaining('not been allowed to show notifications'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Allow notifications'));
+      await tester.pump();
+      expect(asked, 1);
+    });
+
+    testWidgets('no permission tap while push is off', (tester) async {
+      await _pump(
+        tester,
+        const NotificationSettingsScreen(),
+        overrides: _overrides(
+          permissionUnasked: true,
+          push: _push(enabled: false),
+        ),
+      );
+
+      expect(find.text('Allow notifications'), findsNothing);
+    });
+
+    testWidgets('a denied permission shows its own banner, not the tap', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        const NotificationSettingsScreen(),
+        overrides: _overrides(permissionUnasked: true, permissionDenied: true),
+      );
+
+      expect(find.text('Allow notifications'), findsNothing);
+      expect(find.text('Open settings'), findsOneWidget);
     });
 
     testWidgets('toggling an event persists it', (tester) async {

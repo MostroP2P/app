@@ -470,6 +470,20 @@ async fn store_info_best_effort(fresh: HashMap<String, CachedNodeInfo>, keep: Op
     }
 }
 
+/// The cache entry for one node's kind 38385 `event`: empty when its `d` tag
+/// is not its author ([`newest_info`]).
+fn info_of(event: &Event) -> HashMap<String, CachedNodeInfo> {
+    newest_info(&[event.pubkey.to_hex()], std::slice::from_ref(event))
+}
+
+/// Persist a kind 38385 event fetched live for one node
+/// (`nostr::fetch_mostro_instance_tags`), so the cache is never older than
+/// what the app already holds. The create-order form reads the node's
+/// accepted currencies from it right after that fetch lands. Best effort.
+pub(crate) async fn remember_info_event(event: &Event) {
+    store_info_best_effort(info_of(event), None).await;
+}
+
 fn parse_authors(pubkeys: &[String]) -> Result<Vec<PublicKey>> {
     pubkeys
         .iter()
@@ -1102,6 +1116,35 @@ mod tests {
         let pruned = load_info_cache(&db).await.unwrap();
         assert_eq!(pruned.len(), 1);
         assert!(pruned.contains_key(NODE_A));
+    }
+
+    #[tokio::test]
+    async fn a_live_info_event_is_read_back_from_the_cache() {
+        use nostr_sdk::prelude::{EventBuilder, FinalizeEvent, Tag};
+        let db = temp_store("live_event").await;
+        let node = nostr_sdk::prelude::Keys::generate();
+        let pk = node.public_key().to_hex();
+        let event = EventBuilder::new(Kind::from(KIND_INSTANCE), "")
+            .tags([
+                Tag::parse(["d", pk.as_str()]).unwrap(),
+                Tag::parse(["fiat_currencies_accepted", "ars,EUR"]).unwrap(),
+            ])
+            .custom_created_at(Timestamp::from_secs(100))
+            .finalize(&node)
+            .unwrap();
+
+        store_info(&db, info_of(&event), None).await.unwrap();
+
+        let cache = load_info_cache(&db).await.unwrap();
+        let rows = rows_from_cache(std::slice::from_ref(&pk), &cache);
+        assert_eq!(rows[0].accepted_currencies, vec!["ARS", "EUR"]);
+        assert_eq!(rows[0].info_seen_at, Some(100));
+    }
+
+    #[test]
+    fn info_of_skips_an_event_whose_d_tag_is_not_its_author() {
+        let node = nostr_sdk::prelude::Keys::generate();
+        assert!(info_of(&info_event(&node, "someone-else", "0.5", 100)).is_empty());
     }
 
     #[tokio::test]

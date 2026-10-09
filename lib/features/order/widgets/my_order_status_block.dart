@@ -13,6 +13,8 @@ import 'package:mostro/features/order/widgets/order_detail_cards.dart';
 import 'package:mostro/features/trades/screens/trade_detail_screen.dart'
     show TradeStatusMachineName, tradeStatusFromOrderStatus;
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/utils/countdown.dart';
+import 'package:mostro/shared/widgets/countdown_urgency_announcer.dart';
 
 /// The one coloured block of the maker's own order (handoff 6b): a dot, the
 /// status, and on the right what the state has to say — the time left while
@@ -101,8 +103,8 @@ class _MyOrderStatusBlockState extends State<MyOrderStatusBlock>
 
   /// A countdown runs while the order waits for a taker: `expiresAt` is the
   /// pending order's lifetime, not a trade-stage deadline, so it is shown for
-  /// no other status. It repaints once a minute above an hour, once a second
-  /// under it, and stops at zero.
+  /// no other status. It repaints when the displayed value changes
+  /// (`countdownTick`) and stops at zero.
   void _syncCountdown() {
     _tick?.cancel();
     _tick = null;
@@ -144,13 +146,14 @@ class _MyOrderStatusBlockState extends State<MyOrderStatusBlock>
     final family = statusFamily(status);
     final colors = statusColors(pal, family);
     final aside = _aside(l10n, status, colors.aside);
+    final countdown = _countdown(l10n, status, colors.aside, pal, book);
 
     return AnimatedSwitcher(
       duration: _fade,
       child: Container(
         key: ValueKey(family),
         width: double.infinity,
-        padding: const EdgeInsets.all(15),
+        padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
           color: colors.bg,
           borderRadius: BorderRadius.circular(18),
@@ -177,10 +180,11 @@ class _MyOrderStatusBlockState extends State<MyOrderStatusBlock>
                 if (aside != null) aside,
               ],
             ),
+            if (countdown != null) ...[const SizedBox(height: 12), countdown],
             if (_isWaiting) ...[
-              const SizedBox(height: 11),
+              const SizedBox(height: 12),
               _progressBar(pal),
-              const SizedBox(height: 11),
+              const SizedBox(height: 12),
               Text(
                 l10n.myOrderWaitingNote(
                   orderRelativeTime(l10n, widget.order.createdAt),
@@ -210,7 +214,7 @@ class _MyOrderStatusBlockState extends State<MyOrderStatusBlock>
     );
     if (!_isWaiting) return dot;
     return Container(
-      padding: const EdgeInsets.all(5),
+      padding: const EdgeInsets.all(4),
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         border: Border.all(color: pal.statusWaitRing),
@@ -242,21 +246,55 @@ class _MyOrderStatusBlockState extends State<MyOrderStatusBlock>
     );
   }
 
-  /// Right-hand text of the row: the countdown while alive, how long ago
-  /// the order expired once it did, nothing otherwise.
-  Widget? _aside(AppLocalizations l10n, OrderStatus status, Color color) {
-    if (_hasCountdown(status) && _remaining > Duration.zero) {
-      return Text(
-        formatRemaining(_remaining),
-        semanticsLabel: l10n.timeRemainingLabel(formatRemaining(_remaining)),
-        style: TextStyle(
-          fontFamily: AppFonts.figures,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          color: color,
+  /// `Expires in` and the countdown while the order waits for a taker
+  /// (DS-CMP-21), on a line of its own so a long label wraps instead of
+  /// crowding the status. The maker waits, so a calm figure is amber.
+  Widget? _countdown(
+    AppLocalizations l10n,
+    OrderStatus status,
+    Color color,
+    OrderDetailPalette pal,
+    OrderBookPalette book,
+  ) {
+    if (!_hasCountdown(status) || _remaining <= Duration.zero) return null;
+    final expiresAt = widget.order.expiresAt;
+    final tone = countdownTone(
+      _remaining,
+      window: expiresAt?.difference(widget.order.createdAt),
+    );
+    return CountdownUrgencyAnnouncer(
+      urgent: tone == CountdownTone.urgent,
+      message:
+          '${l10n.countdownExpiresInLabel} '
+          '${formatCountdown(_remaining, hours: l10n.invoiceCountdownHours)}',
+      child: Text.rich(
+        TextSpan(
+          children: [
+            TextSpan(text: '${l10n.countdownExpiresInLabel} '),
+            TextSpan(
+              text: formatCountdown(
+                _remaining,
+                hours: l10n.invoiceCountdownHours,
+              ),
+              style: TextStyle(
+                fontFamily: AppFonts.figures,
+                fontWeight: FontWeight.w600,
+                color: switch (tone) {
+                  CountdownTone.urgent => pal.danger,
+                  _ => book.yellowInk,
+                },
+              ),
+            ),
+          ],
         ),
-      );
-    }
+        style: TextStyle(fontSize: 12, color: color),
+      ),
+    );
+  }
+
+  /// Right-hand text of the status row: how long ago the order expired once
+  /// it did, nothing otherwise.
+  Widget? _aside(AppLocalizations l10n, OrderStatus status, Color color) {
     final expiresAt = widget.order.expiresAt;
     if (status == OrderStatus.expired && expiresAt != null) {
       return Text(

@@ -110,6 +110,8 @@ BondCancelCopy bondCancelCopy(TradeUpdateReason? reason) => switch (reason) {
   // the bond window; nothing to explain here.
   TradeUpdateReason.cooperativeCancelRequestedByMe ||
   TradeUpdateReason.cooperativeCancelRequestedByPeer ||
+  // A re-stated status (a restore, a re-read) says nothing new.
+  TradeUpdateReason.replayed ||
   null => BondCancelCopy.neutral,
 };
 

@@ -17,12 +17,15 @@ import 'package:mostro/features/about/providers/mostro_node_provider.dart';
 import 'package:mostro/features/order/models/invoice_rules.dart';
 import 'package:mostro/features/order/providers/invoice_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
+import 'package:mostro/features/order/widgets/explanatory_note.dart';
 import 'package:mostro/features/order/widgets/invoice_clock.dart';
 import 'package:mostro/features/order/widgets/invoice_widgets.dart';
+import 'package:mostro/features/order/widgets/order_detail_cards.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart'
     show refreshTrades, tradeInfoProvider;
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/mascot/mascot_cues.dart';
 import 'package:mostro/shared/utils/reputation_age.dart';
 import 'package:mostro/shared/widgets/mostro_modal.dart';
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
@@ -75,6 +78,13 @@ class _PayLightningInvoiceScreenState
     ref.listenManual<AsyncValue<int?>>(
       invoiceDeadlineProvider(widget.orderId),
       (_, next) => trackInvoiceDeadline(next.valueOrNull),
+      fireImmediately: true,
+    );
+    // Read as it stands, not only as it changes: an order the daemon ended
+    // while this screen was closed sends it no TradeUpdate.
+    ref.listenManual<AsyncValue<OrderStatus>>(
+      tradeStatusProvider(widget.orderId),
+      (_, next) => _leaveIfEnded(next.valueOrNull),
       fireImmediately: true,
     );
   }
@@ -132,6 +142,7 @@ class _PayLightningInvoiceScreenState
       context.go(AppRoute.home);
     } catch (e) {
       if (!mounted) return;
+      ref.read(mascotCueProvider.notifier).daemonRefused(e);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -181,15 +192,48 @@ class _PayLightningInvoiceScreenState
     }
   }
 
-  void _leaveHome(AppLocalizations l10n) {
+  void _leaveHome() {
+    if (_navigated || !mounted) return;
     _navigated = true;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(l10n.orderNoLongerActive)));
+    // The wiped trade must also disappear from the My Trades cache.
+    refreshTrades(ref);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(AppLocalizations.of(context).orderNoLongerActive)),
+    );
     context.go(AppRoute.home);
   }
 
-  void _listenForProgress(AppLocalizations l10n) {
+  /// Leave for home when the order's [status] says it is no longer the
+  /// user's to pay for. The QR stays at 00:00 (#569), so this is the way out
+  /// of an order that ended while the screen was closed — opened later from
+  /// a notification, say: cancelled, or `pending` again once mostrod put it
+  /// back in the book and wiped the trade.
+  void _leaveIfEnded(OrderStatus? status) {
+    if (status == null || _navigated) return;
+    if (invoiceOrderCancelled(status)) {
+      // Possibly from initState, where the screen cannot navigate yet.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _leaveHome());
+    } else if (status == OrderStatus.pending) {
+      unawaited(_leaveIfNoLongerTaking());
+    }
+  }
+
+  /// A maker's own order reads `pending` while it is theirs, so a `pending`
+  /// only ends the step once the trades confirm the user no longer takes
+  /// part. Read through the bridge, not the cached list, which can lag a
+  /// take that has just been saved; an unreadable store keeps the screen.
+  Future<void> _leaveIfNoLongerTaking() async {
+    final List<TradeInfo> trades;
+    try {
+      trades = await ref.read(tradeListReaderProvider)();
+    } catch (e) {
+      debugPrint('[PayLightningInvoiceScreen] reading the trades failed: $e');
+      return;
+    }
+    if (participatingRole(trades, widget.orderId) == null) _leaveHome();
+  }
+
+  void _listenForProgress() {
     // Listen to live status updates from mostrod. Once the hold invoice is
     // settled, mostrod broadcasts a BuyerTookOrder/HoldInvoicePaymentAccepted
     // message that the Rust handler writes as OrderStatus.active. We react
@@ -215,35 +259,20 @@ class _PayLightningInvoiceScreenState
           if (!_waiting) setState(() => _waiting = true);
           context.go(AppRoute.tradeDetailPath(widget.orderId));
           break;
-        case OrderStatus.canceled:
-        case OrderStatus.cooperativelyCanceled:
-        case OrderStatus.canceledByAdmin:
-        case OrderStatus.expired:
-          _leaveHome(l10n);
-          break;
+        // A cancelled or re-listed order: `_leaveIfEnded`.
         default:
           break;
       }
     });
 
-    // Push-based cancellation signal. The polling listener above cannot see
-    // a daemon cancel anymore: the wiped trade has no DB row left, and after
-    // a timeout republish the book reads `pending` — a status the switch
-    // above deliberately ignores.
+    // Push-based cancellation signal, for a cancel while the screen is open:
+    // the wiped trade has no DB row left, and after a timeout republish the
+    // book reads `pending`, which `_leaveIfEnded` has to confirm against the
+    // trades first.
     ref.listen<AsyncValue<TradeUpdate>>(tradeUpdatesProvider, (prev, next) {
       final update = next.valueOrNull;
-      if (update == null || _navigated || !mounted) return;
-      if (update.orderId != widget.orderId) return;
-      switch (update.status) {
-        case OrderStatus.canceled:
-        case OrderStatus.cooperativelyCanceled:
-        case OrderStatus.canceledByAdmin:
-        case OrderStatus.expired:
-          refreshTrades(ref);
-          _leaveHome(l10n);
-        default:
-          break;
-      }
+      if (update == null || update.orderId != widget.orderId) return;
+      if (invoiceOrderCancelled(update.status)) _leaveHome();
     });
   }
 
@@ -256,9 +285,6 @@ class _PayLightningInvoiceScreenState
     final canPop = Navigator.of(context).canPop();
     final appBar = InvoiceAppBar(
       title: l10n.invoiceLockTitle,
-      orderId: widget.orderId,
-      orderIdAutomationId: AutomationIds.payOrderId,
-      copiedMessage: l10n.invoiceOrderIdCopied,
       onBack: canPop ? () => Navigator.of(context).maybePop() : null,
     );
     final tradeAsync = ref.watch(tradeInfoStreamProvider(widget.orderId));
@@ -270,21 +296,21 @@ class _PayLightningInvoiceScreenState
     // Peer DM persists — and tradeInfoProvider refreshes on its TradeUpdate.
     final peerTrade = ref.watch(tradeInfoProvider(widget.orderId)).valueOrNull;
 
-    _listenForProgress(l10n);
+    _listenForProgress();
 
     return tradeAsync.when(
       loading:
           () => Scaffold(
             backgroundColor: book.bg,
             appBar: appBar,
-            body: const Center(child: CircularProgressIndicator()),
+            body: _withId(const Center(child: CircularProgressIndicator())),
           ),
       error: (e, st) {
         debugPrint('[PayLightningInvoiceScreen] load error: $e\n$st');
         return Scaffold(
           backgroundColor: book.bg,
           appBar: appBar,
-          body: Center(child: Text(l10n.tradeLoadError)),
+          body: _withId(Center(child: Text(l10n.tradeLoadError))),
         );
       },
       data: (trade) {
@@ -296,17 +322,19 @@ class _PayLightningInvoiceScreenState
           return Scaffold(
             backgroundColor: book.bg,
             appBar: appBar,
-            body: Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  CircularProgressIndicator(color: book.lime),
-                  const SizedBox(height: 16),
-                  Text(
-                    l10n.tradeWaitingForHoldInvoice,
-                    style: TextStyle(color: book.textSecondary),
-                  ),
-                ],
+            body: _withId(
+              Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: book.lime),
+                    const SizedBox(height: 16),
+                    Text(
+                      l10n.tradeWaitingForHoldInvoice,
+                      style: TextStyle(color: book.textSecondary),
+                    ),
+                  ],
+                ),
               ),
             ),
           );
@@ -317,43 +345,45 @@ class _PayLightningInvoiceScreenState
           return Scaffold(
             backgroundColor: book.bg,
             appBar: appBar,
-            body: Padding(
-              padding: const EdgeInsets.all(AppSpacing.lg),
-              child: Column(
-                children: [
-                  // The seller must see who took their order even when NWC
-                  // auto-pays the hold invoice — the app can settle without a
-                  // manual step, so this is where the decision matters (#305).
-                  if (peerTrade?.peerRating != null) ...[
-                    PeerReputationCard(
-                      rating: peerTrade!.peerRating!,
-                      reviews: peerTrade.peerReviews ?? 0,
-                      days: peerTrade.peerDaysOnMostro,
-                      counterpartIsBuyer: true,
+            body: _withId(
+              Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Column(
+                  children: [
+                    // The seller must see who took their order even when NWC
+                    // auto-pays the hold invoice — the app can settle without a
+                    // manual step, so this is where the decision matters (#305).
+                    if (peerTrade?.peerRating != null) ...[
+                      PeerReputationCard(
+                        rating: peerTrade!.peerRating!,
+                        reviews: peerTrade.peerReviews ?? 0,
+                        days: peerTrade.peerDaysOnMostro,
+                        counterpartIsBuyer: true,
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                    ],
+                    Expanded(
+                      child: Center(
+                        // Once the wallet reports the payment, the pay button
+                        // must go: the widget re-enables it on its way out, and
+                        // an already-settled bolt11 sent again fails and drops
+                        // the seller into the manual QR for an invoice they
+                        // already paid (#244). mostrod's confirmation is what
+                        // leaves this screen, and it can take tens of seconds.
+                        child:
+                            _waiting
+                                ? _waitingForConfirmation(l10n)
+                                : NwcPaymentWidget(
+                                  bolt11: invoice,
+                                  amountSats: amountSats,
+                                  onPaymentSuccess: _onPaymentDetected,
+                                  onFallbackToManual:
+                                      () => setState(() => _manualMode = true),
+                                ),
+                      ),
                     ),
-                    const SizedBox(height: AppSpacing.lg),
                   ],
-                  Expanded(
-                    child: Center(
-                      // Once the wallet reports the payment, the pay button
-                      // must go: the widget re-enables it on its way out, and
-                      // an already-settled bolt11 sent again fails and drops
-                      // the seller into the manual QR for an invoice they
-                      // already paid (#244). mostrod's confirmation is what
-                      // leaves this screen, and it can take tens of seconds.
-                      child:
-                          _waiting
-                              ? _waitingForConfirmation(l10n)
-                              : NwcPaymentWidget(
-                                bolt11: invoice,
-                                amountSats: amountSats,
-                                onPaymentSuccess: _onPaymentDetected,
-                                onFallbackToManual:
-                                    () => setState(() => _manualMode = true),
-                              ),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           );
@@ -362,19 +392,17 @@ class _PayLightningInvoiceScreenState
         return Scaffold(
           backgroundColor: book.bg,
           appBar: appBar,
+          // The QR stays at 00:00: the step ends when mostrod says so (#569).
           body: ValueListenableBuilder<Duration?>(
             valueListenable: invoiceRemaining,
             builder:
-                (context, remaining, _) =>
-                    remaining == Duration.zero && !_waiting
-                        ? _expired(l10n)
-                        : _payable(
-                          l10n,
-                          invoice: invoice,
-                          amountSats: amountSats,
-                          remaining: remaining,
-                          peer: peerTrade ?? trade,
-                        ),
+                (context, remaining, _) => _payable(
+                  l10n,
+                  invoice: invoice,
+                  amountSats: amountSats,
+                  remaining: remaining,
+                  peer: peerTrade ?? trade,
+                ),
           ),
         );
       },
@@ -393,7 +421,6 @@ class _PayLightningInvoiceScreenState
       nodeFee: ref.watch(mostroNodeProvider).valueOrNull?.fee,
     );
     final fiat = formatInvoiceFiat(l10n, peer);
-    final method = peer.order.paymentMethod.trim();
 
     return LayoutBuilder(
       builder:
@@ -420,11 +447,13 @@ class _PayLightningInvoiceScreenState
                       label: l10n.invoiceToPayLabel,
                       sats: amountSats,
                       semanticsLabel: l10n.invoicePaySemantics(
-                        amountSats.toString(),
+                        formatInvoiceSats(amountSats, l10n.localeName),
                       ),
                       contextLine:
                           fee != null && fee > 0
-                              ? l10n.invoiceFeeIncluded(formatInvoiceSats(fee))
+                              ? l10n.invoiceFeeIncluded(
+                                formatInvoiceSats(fee, l10n.localeName),
+                              )
                               : null,
                       // The invoice itself is only rendered as a QR, so the
                       // readout is what an automated driver can correlate
@@ -434,20 +463,23 @@ class _PayLightningInvoiceScreenState
                       child: _qr(l10n, invoice),
                     ),
                     if (remaining != null) ...[
-                      const SizedBox(height: 11),
+                      const SizedBox(height: 12),
                       InvoiceTimeBand(
                         remaining: remaining,
+                        window: ref.watch(invoiceStepWindowProvider),
                         sentence: l10n.invoiceExpiresIn,
                         hours: l10n.invoiceCountdownHours,
+                        elapsed: stepElapsedNotice(
+                          l10n,
+                          buyerStep: false,
+                          kind: peer.order.kind,
+                        ),
                       ),
                     ],
-                    const SizedBox(height: 11),
-                    InvoiceHoldNote(
-                      sentence: l10n.invoiceHoldNote,
-                      boldWord: 'hold',
-                    ),
-                    const SizedBox(height: 11),
-                    InvoiceCounterpartCard(
+                    const SizedBox(height: 12),
+                    ExplanatoryNote(text: l10n.invoiceHoldNote),
+                    const SizedBox(height: 12),
+                    OrderDataCard(
                       rows: [
                         invoiceCounterpartRow(
                           ref,
@@ -456,11 +488,15 @@ class _PayLightningInvoiceScreenState
                           l10n.invoiceBuyerLabel,
                         ),
                         if (fiat != null)
-                          (
-                            label: l10n.invoiceYouGetLabel,
-                            value: method.isEmpty ? fiat : '$fiat · $method',
-                            trailing: null,
+                          invoiceFiatRow(
+                            l10n.invoiceYouGetLabel,
+                            fiat,
+                            peer.order.paymentMethod,
                           ),
+                        OrderIdRow(
+                          orderId: widget.orderId,
+                          automationId: AutomationIds.payOrderId,
+                        ),
                       ],
                     ),
                     const Spacer(),
@@ -474,6 +510,14 @@ class _PayLightningInvoiceScreenState
     );
   }
 
+  /// [body] under the order's ID card, for the states without a counterpart
+  /// card: the id reads the same while the invoice loads (DS-CMP-22).
+  Widget _withId(Widget body) => InvoiceOrderIdBody(
+    orderId: widget.orderId,
+    automationId: AutomationIds.payOrderId,
+    child: body,
+  );
+
   /// 168 dp of code inside a 12 dp white quiet zone. The tight box also
   /// answers the page's intrinsic-height pass, which `QrImageView` (built on
   /// a `LayoutBuilder`) cannot.
@@ -483,6 +527,7 @@ class _PayLightningInvoiceScreenState
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
+          // design-check: ignore DS-COL-1 — a QR code must be pure black on white to scan
           color: Colors.white,
           borderRadius: BorderRadius.circular(14),
         ),
@@ -490,6 +535,7 @@ class _PayLightningInvoiceScreenState
           data: invoice,
           size: 168,
           padding: EdgeInsets.zero,
+          // design-check: ignore DS-COL-1 — a QR code must be pure black on white to scan
           backgroundColor: Colors.white,
           semanticsLabel: l10n.invoiceQrSemantics(invoice),
         ),
@@ -582,17 +628,4 @@ class _PayLightningInvoiceScreenState
       ).withAutomationId(AutomationIds.payCancel),
     ];
   }
-
-  /// Terminal state once the hold invoice ran out: the reason and a way
-  /// back, never a dead QR left on screen.
-  Widget _expired(AppLocalizations l10n) => InvoiceTimeUpView(
-    title: l10n.invoiceExpiredTitle,
-    body: l10n.invoiceExpiredBody,
-    actionLabel: l10n.invoiceBackToBook,
-    onAction: () {
-      _navigated = true;
-      refreshTrades(ref);
-      context.go(AppRoute.home);
-    },
-  );
 }

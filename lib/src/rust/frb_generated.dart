@@ -260,7 +260,7 @@ abstract class RustLibApi extends BaseApi {
 
   Future<void> crateApiOrdersCancelOrder({required String orderId});
 
-  Future<CashuWalletStatus> crateApiCashuCashuConnect();
+  Future<CashuWalletStatus> crateApiCashuCashuConnect({String? mintUrl});
 
   Future<String> crateApiCashuCashuCreateToken({required BigInt amountSats});
 
@@ -2402,11 +2402,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "cancel_order", argNames: ["orderId"]);
 
   @override
-  Future<CashuWalletStatus> crateApiCashuCashuConnect() {
+  Future<CashuWalletStatus> crateApiCashuCashuConnect({String? mintUrl}) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_opt_String(mintUrl, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -2419,14 +2420,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiCashuCashuConnectConstMeta,
-        argValues: [],
+        argValues: [mintUrl],
         apiImpl: this,
       ),
     );
   }
 
   TaskConstMeta get kCrateApiCashuCashuConnectConstMeta =>
-      const TaskConstMeta(debugName: "cashu_connect", argNames: []);
+      const TaskConstMeta(debugName: "cashu_connect", argNames: ["mintUrl"]);
 
   @override
   Future<String> crateApiCashuCashuCreateToken({required BigInt amountSats}) {

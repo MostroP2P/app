@@ -11,10 +11,10 @@ import 'package:mostro/shared/mascot/mostro_mood.dart';
 
 /// The Mostro mascot, with a pulse.
 ///
-/// Same artwork everywhere; only the motion changes. Reactions to a tap play
-/// once and are over ([MostroMood.happy], [MostroMood.dizzy]); ambient moods
-/// loop until they are replaced ([MostroMood.asleep],
-/// [MostroMood.impatient]).
+/// At rest it is the plain artwork; a mood moves it and dresses it in that
+/// mood's sticker ([moodSticker]), in the same box. Reactions to a tap play
+/// once and are over ([MostroMood.happy], [MostroMood.dizzy], and every trade
+/// step); ambient moods loop until they are replaced ([isLoopingMood]).
 ///
 /// The loops are gated behind the viewer's reduce-motion setting. That is an
 /// accessibility call first — decorative motion nobody asked for is exactly
@@ -35,8 +35,9 @@ class MostroMascot extends StatefulWidget {
   /// The ambient mood. A tap reaction overrides it while it plays.
   final MostroMood mood;
 
-  /// Whether tapping earns a reaction. Only the one in the order book's app
-  /// bar does, which is where v1 put its easter egg.
+  /// Whether tapping earns a reaction. Only the one in the tabs' app bar
+  /// ([HeaderMascot]) does: v1 put its easter egg in the order book's logo,
+  /// and since #770 every tab shows that same header.
   final bool interactive;
 
   final double opacity;
@@ -47,8 +48,22 @@ class MostroMascot extends StatefulWidget {
 
   static const String asset = 'assets/images/mostro_mascot.webp';
 
+  /// The asset of the sticker named [name] (see [moodSticker]).
+  static String stickerAsset(String name) =>
+      'assets/images/mascot/mostro-$name.webp';
+
+  /// How much taller than the box a sticker is drawn. Its arms, props and
+  /// confetti surround the same body, so at the box's height the body would
+  /// shrink; at this scale it stays the plain mascot's size, and the extra
+  /// spills over the box without moving anything around it.
+  static const double stickerScale = 1.2;
+
   /// The artwork is 199 × 288.
   static const double aspect = 199 / 288;
+
+  /// Smallest side of the area a tap lands on (DS-CMP-6). The header's
+  /// artwork is 18 × 26, so its target is padded out around it.
+  static const double minTapTarget = 48;
 
   @override
   State<MostroMascot> createState() => _MostroMascotState();
@@ -83,6 +98,24 @@ class _MostroMascotState extends State<MostroMascot>
     MostroMood.celebrating => const Duration(milliseconds: 900),
     MostroMood.asleep => const Duration(milliseconds: 2800),
     MostroMood.impatient => const Duration(milliseconds: 760),
+    MostroMood.escrowLocked => const Duration(milliseconds: 600),
+    MostroMood.fiatSent => const Duration(milliseconds: 600),
+    MostroMood.disputed => const Duration(milliseconds: 900),
+    MostroMood.canceled => const Duration(milliseconds: 1000),
+    MostroMood.offline => const Duration(milliseconds: 1400),
+    MostroMood.published => const Duration(milliseconds: 900),
+    MostroMood.loved ||
+    MostroMood.thankful => const Duration(milliseconds: 480),
+    MostroMood.refused => const Duration(milliseconds: 900),
+    MostroMood.greeting ||
+    MostroMood.backedUp ||
+    MostroMood.agreed => const Duration(milliseconds: 480),
+    MostroMood.orderTaken ||
+    MostroMood.invoiceAccepted => const Duration(milliseconds: 600),
+    MostroMood.cancelAsked => const Duration(milliseconds: 600),
+    MostroMood.laughing => const Duration(milliseconds: 1100),
+    MostroMood.cool => const Duration(milliseconds: 700),
+    MostroMood.onFire => const Duration(milliseconds: 900),
     MostroMood.neutral => Duration.zero,
   };
 
@@ -96,7 +129,21 @@ class _MostroMascotState extends State<MostroMascot>
   void didChangeDependencies() {
     super.didChangeDependencies();
     _syncAmbient();
+    if (!_stickersCached) {
+      _stickersCached = true;
+      // Decoded ahead, or the first switch to a mood draws one empty frame.
+      final stickers =
+          [
+            for (final mood in MostroMood.values) moodSticker(mood),
+            seasonSticker(_season),
+          ].nonNulls;
+      for (final sticker in stickers) {
+        precacheImage(AssetImage(MostroMascot.stickerAsset(sticker)), context);
+      }
+    }
   }
+
+  bool _stickersCached = false;
 
   @override
   void dispose() {
@@ -160,14 +207,23 @@ class _MostroMascotState extends State<MostroMascot>
       ..duration = _durationOf(mood)
       ..forward(from: 0);
 
-    if (mood == MostroMood.dizzy) {
-      HapticFeedback.mediumImpact();
-    } else {
+    if (mood == MostroMood.happy) {
       HapticFeedback.selectionClick();
+    } else {
+      HapticFeedback.mediumImpact();
     }
 
     // Once per streak, so insisting does not turn into a wall of snackbars.
     if (count == 1) _sayTheDate();
+  }
+
+  /// Held: shades on. Its own reaction, outside the tap streak.
+  void _onLongPress() {
+    setState(() => _reaction = MostroMood.cool);
+    _reactionPlayer
+      ..duration = _durationOf(MostroMood.cool)
+      ..forward(from: 0);
+    HapticFeedback.selectionClick();
   }
 
   void _sayTheDate() {
@@ -208,16 +264,14 @@ class _MostroMascotState extends State<MostroMascot>
             children: [
               _posed(child!, mood, t, height, width),
               ..._flourishes(mood, t, height, width),
-              MascotSeasonBadge(season: _season, mascotHeight: height),
+              // A season with its own sticker wears it instead of a badge.
+              if (seasonSticker(_season) == null)
+                MascotSeasonBadge(season: _season, mascotHeight: height),
             ],
           ),
         );
       },
-      child: Image.asset(
-        MostroMascot.asset,
-        height: height,
-        excludeFromSemantics: true,
-      ),
+      child: _artwork(height),
     );
 
     final opaque =
@@ -233,9 +287,38 @@ class _MostroMascotState extends State<MostroMascot>
     return ExcludeSemantics(
       child: GestureDetector(
         onTap: _onTap,
+        onLongPress: _onLongPress,
         behavior: HitTestBehavior.opaque,
         excludeFromSemantics: true,
-        child: opaque,
+        child: SizedBox(
+          width: math.max(width, MostroMascot.minTapTarget),
+          height: math.max(height, MostroMascot.minTapTarget),
+          child: Center(child: opaque),
+        ),
+      ),
+    );
+  }
+
+  /// The plain mascot at rest (or its season's sticker, [seasonSticker]), or
+  /// the sticker of the mood on show, drawn [MostroMascot.stickerScale]
+  /// taller and centred over the same box.
+  Widget _artwork(double height) {
+    final sticker = moodSticker(_mood) ?? seasonSticker(_season);
+    if (sticker == null) {
+      return Image.asset(
+        MostroMascot.asset,
+        height: height,
+        excludeFromSemantics: true,
+      );
+    }
+    final drawn = height * MostroMascot.stickerScale;
+    return OverflowBox(
+      maxWidth: double.infinity,
+      maxHeight: drawn,
+      child: Image.asset(
+        MostroMascot.stickerAsset(sticker),
+        height: drawn,
+        excludeFromSemantics: true,
       ),
     );
   }
@@ -255,7 +338,12 @@ class _MostroMascotState extends State<MostroMascot>
       MostroMood.neutral => image,
 
       // A springy nod: up, over, and back.
-      MostroMood.happy => Transform.rotate(
+      MostroMood.happy ||
+      MostroMood.loved ||
+      MostroMood.thankful ||
+      MostroMood.greeting ||
+      MostroMood.backedUp ||
+      MostroMood.agreed => Transform.rotate(
         angle: 0.12 * wave,
         child: Transform.scale(scale: 1 + 0.18 * arc, child: image),
       ),
@@ -267,7 +355,7 @@ class _MostroMascotState extends State<MostroMascot>
       ),
 
       // A jump, with the squash that sells it.
-      MostroMood.celebrating => Transform.translate(
+      MostroMood.celebrating || MostroMood.onFire => Transform.translate(
         offset: Offset(0, -height * 0.28 * arc),
         child: Transform.scale(
           scaleX: 1 - 0.06 * arc,
@@ -287,6 +375,69 @@ class _MostroMascotState extends State<MostroMascot>
         offset: Offset(width * 0.05 * wave, 0),
         child: Transform.rotate(angle: 0.05 * wave, child: image),
       ),
+
+      // Settles in, like a lid closing.
+      MostroMood.escrowLocked => Transform.scale(
+        scaleX: 1 + 0.05 * arc,
+        scaleY: 1 - 0.08 * arc,
+        child: image,
+      ),
+
+      // A small hop.
+      MostroMood.fiatSent ||
+      MostroMood.orderTaken ||
+      MostroMood.invoiceAccepted => Transform.translate(
+        offset: Offset(0, -height * 0.14 * arc),
+        child: image,
+      ),
+
+      // A stern side-to-side that dies down.
+      MostroMood.disputed => Transform.translate(
+        offset: Offset(width * 0.10 * math.sin(6 * math.pi * t) * (1 - t), 0),
+        child: image,
+      ),
+
+      // Sinks a little, and comes back up.
+      MostroMood.canceled => Transform.translate(
+        offset: Offset(0, height * 0.08 * arc),
+        child: Transform.scale(scale: 1 - 0.04 * arc, child: image),
+      ),
+
+      // A shiver.
+      MostroMood.offline => Transform.translate(
+        offset: Offset(width * 0.025 * math.sin(8 * math.pi * t), 0),
+        child: image,
+      ),
+
+      // Lifts off, and lands again.
+      MostroMood.published => Transform.translate(
+        offset: Offset(0, -height * 0.32 * arc),
+        child: Transform.scale(scaleY: 1 + 0.08 * arc, child: image),
+      ),
+
+      // Shakes its head, twice.
+      MostroMood.refused => Transform.rotate(
+        angle: 0.12 * math.sin(4 * math.pi * t) * (1 - t),
+        child: image,
+      ),
+
+      // Jumps back, wide-eyed.
+      MostroMood.cancelAsked => Transform.translate(
+        offset: Offset(0, -height * 0.08 * arc),
+        child: Transform.scale(scale: 1 + 0.14 * arc, child: image),
+      ),
+
+      // Shakes with laughter, bouncing.
+      MostroMood.laughing => Transform.translate(
+        offset: Offset(0, -height * 0.06 * arc),
+        child: Transform.rotate(
+          angle: 0.10 * math.sin(6 * math.pi * t) * (1 - t),
+          child: image,
+        ),
+      ),
+
+      // Leans back.
+      MostroMood.cool => Transform.rotate(angle: -0.10 * arc, child: image),
     };
   }
 

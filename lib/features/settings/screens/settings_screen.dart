@@ -9,6 +9,8 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/settings_palette.dart';
+import 'package:mostro/features/install/providers/pwa_install_provider.dart';
+import 'package:mostro/features/install/widgets/pwa_install_action.dart';
 import 'package:mostro/features/about/screens/about_screen.dart'
     show appVersionProvider;
 import 'package:mostro/features/settings/models/settings_rows.dart';
@@ -85,33 +87,33 @@ class SettingsScreen extends ConsumerWidget {
                 onTap: () => showCurrencySelector(context),
               ),
               _notificationsRow(context, ref, l10n),
+              // Web only, while the browser can install the app: for whoever
+              // answered "Not now" on the order book's card (#778).
+              if (ref.watch(pwaInstallProvider.select((s) => s.canInstall)))
+                SettingsRow(
+                  icon: Icons.install_mobile_outlined,
+                  label: l10n.pwaInstallSettingTitle,
+                  onTap: () => startPwaInstall(context, ref),
+                ),
             ],
           ),
           const SizedBox(height: settingsGroupGap),
           SettingsGroup(
             header: l10n.settingsGroupPayments,
-            // The rows follow the backend the active node settles over, never
-            // both: a Cashu node has no invoice step and no bond (bonds are
-            // Lightning-only, docs/ANTI_ABUSE_BOND.md), so a Lightning address
-            // or an NWC wallet does nothing there, and on a Lightning node
-            // there is no mint. A node that has not said yet reads as
-            // Lightning, as everywhere else.
+            // Lightning, NWC and the Cashu wallet are always here, whatever
+            // the active node runs (docs/cashu/README.md §1.2): the node's
+            // escrow mode decides how a trade settles, never which payment
+            // methods the app offers. A Cashu node adds the mints it accepts.
             rows: [
-              if (ref.watch(isCashuModeProvider)) ...[
+              _lightningAddressRow(context, ref, l10n, settings),
+              _walletRow(context, ref, l10n),
+              SettingsRow(
+                icon: Icons.savings_outlined,
+                label: l10n.cashuWalletTitle,
+                onTap: () => context.push(AppRoute.cashuWallet),
+              ),
+              if (ref.watch(isCashuModeProvider))
                 ..._mintRows(context, ref, l10n),
-                // The wallet binds to one mint: shown only on a node that
-                // pins one. On a node that accepts several, or any, each
-                // order names its own, which the wallet cannot follow yet.
-                if (ref.watch(isCashuAvailableProvider))
-                  SettingsRow(
-                    icon: Icons.savings_outlined,
-                    label: l10n.cashuWalletTitle,
-                    onTap: () => context.push(AppRoute.cashuWallet),
-                  ),
-              ] else ...[
-                _lightningAddressRow(context, ref, l10n, settings),
-                _walletRow(context, ref, l10n),
-              ],
             ],
           ),
           const SizedBox(height: settingsGroupGap),
@@ -426,14 +428,34 @@ class _LightningAddressDialogState
   @override
   Widget build(BuildContext context) {
     final l10n = AppLocalizations.of(context);
+    final book = OrderBookPalette.of(context);
+    final pal = SettingsPalette.of(context);
     return MostroDialog(
       title: l10n.lightningAddressDialogTitle,
       content: TextField(
         controller: _controller,
         keyboardType: TextInputType.emailAddress,
+        style: TextStyle(fontSize: 14, color: book.textPrimary),
+        // Every state set here, as `InvoiceInputField` does (DS-CMP-19): left
+        // to the theme, the field would paint v1's filled underline.
         decoration: InputDecoration(
           hintText: l10n.lightningAddressHintText,
+          hintStyle: TextStyle(fontSize: 14, color: pal.placeholder),
           errorText: _errorText,
+          errorStyle: TextStyle(fontSize: 12, color: pal.danger),
+          filled: false,
+          enabledBorder: UnderlineInputBorder(
+            borderSide: BorderSide(color: pal.fieldUnderline),
+          ),
+          focusedBorder: UnderlineInputBorder(
+            borderSide: BorderSide(color: pal.fieldUnderlineFocus, width: 1.5),
+          ),
+          errorBorder: UnderlineInputBorder(
+            borderSide: BorderSide(color: pal.danger),
+          ),
+          focusedErrorBorder: UnderlineInputBorder(
+            borderSide: BorderSide(color: pal.danger, width: 1.5),
+          ),
         ),
         onChanged: (_) {
           if (_errorText != null) setState(() => _errorText = null);

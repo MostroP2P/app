@@ -229,6 +229,17 @@ cancel, never a trade outcome, and wipes the row
 `InvalidRole`, `FiatAmountRequired`/`OutOfRange` (range orders),
 `NoDaemonResponse`, plus daemon `CantDo` reasons passed through as errors.
 
+**How a `CantDo` reason reaches the caller** (`cant_do_message` in
+`rust/src/api/orders.rs`, shared by every daemon-bound call: take, create,
+cancel, add-invoice, dispute…). `MaintenanceMode` and `InvalidTradeIndex` arrive
+as the bare marker. A reason without its own arm arrives as `CantDo:<Reason>`
+(`CantDo:InvalidOrderStatus`), never as prose naming the enum (#719). The
+reasons that still carry English prose (`OutOfRange*`, `InvalidAmount`,
+`InvalidInvoice`, `IsNotYourOrder`, `NotAllowedByStatus`,
+`OrderAlreadyCanceled`) keep it until #373 turns them into markers. Dart
+matches a reason by substring, so `CantDo:<Reason>` and the bare reason both
+match; a screen never shows the raw text as its fallback.
+
 ---
 
 ### cancel_order(order_id: String) → ()
@@ -298,7 +309,8 @@ answer decides the outcome, within 10 s.
   `BondAlreadyLocked`. With no evidence either way nothing is wiped: the call
   fails with `MakerCancelRefused`, and the user may drop the order from this
   device with `abandon_bonded_order` (see `contracts/bond.md`).
-- Any other `CantDo`: the call fails with the daemon's reason.
+- Any other `CantDo`: the call fails with the daemon's reason, in the form
+  described under `take_order` ("How a `CantDo` reason reaches the caller").
 - No answer: `NoDaemonResponse`, and the row stays. A late `canceled` still wipes
   it as the user's own cancel, including one answering an earlier attempt that a
   retry superseded.

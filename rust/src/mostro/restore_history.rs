@@ -11,9 +11,10 @@
 //! index above the resync floor, so "at or below the floor and not listed"
 //! singles out history without trusting any timestamp.
 //!
-//! History is then settled against the order's public Kind 38383 event: a
-//! seller learns of its own completion only there (the daemon sends
-//! `PurchaseCompleted` to the buyer alone).
+//! History never becomes a trade row: the replay of an old order is dropped
+//! like a wiped trade's, and a history pass drops any row that predates
+//! the snapshot. An imported account shows what the daemon still counts as
+//! in progress, and nothing that ended before this device knew it.
 
 use std::collections::{HashMap, HashSet};
 
@@ -165,27 +166,6 @@ pub fn restored_peer_for(
     (!named_elsewhere).then_some(peer)
 }
 
-/// What to do with a history row, given its order's public status.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HistoryAction {
-    /// The public book says `success`: keep the row, as completed.
-    MarkSuccess,
-    /// Ended any other way (canceled, expired, or still reading as live on
-    /// the book while the daemon says otherwise): drop the row.
-    Wipe,
-    /// No public answer: leave it for the next pass.
-    Retry,
-}
-
-/// Decide a history row's fate from its order's public status.
-pub fn history_action(public: Option<&OrderStatus>) -> HistoryAction {
-    match public {
-        Some(OrderStatus::Success) => HistoryAction::MarkSuccess,
-        Some(_) => HistoryAction::Wipe,
-        None => HistoryAction::Retry,
-    }
-}
-
 /// True for a row that still reads as in progress: the rows a history pass
 /// has to settle. Finished rows already say what happened.
 pub fn reads_in_progress(status: &OrderStatus) -> bool {
@@ -247,31 +227,6 @@ mod tests {
         let json = serde_json::to_string(&snapshot()).unwrap();
         let back: RestoreSnapshot = serde_json::from_str(&json).unwrap();
         assert_eq!(back, snapshot());
-    }
-
-    #[test]
-    fn a_public_success_keeps_the_row_as_completed() {
-        assert_eq!(
-            history_action(Some(&OrderStatus::Success)),
-            HistoryAction::MarkSuccess
-        );
-    }
-
-    #[test]
-    fn any_other_public_status_drops_the_row() {
-        for status in [
-            OrderStatus::Canceled,
-            OrderStatus::Expired,
-            OrderStatus::Pending,
-            OrderStatus::InProgress,
-        ] {
-            assert_eq!(history_action(Some(&status)), HistoryAction::Wipe);
-        }
-    }
-
-    #[test]
-    fn no_public_answer_leaves_the_row_for_the_next_pass() {
-        assert_eq!(history_action(None), HistoryAction::Retry);
     }
 
     /// A restore reply answers the identity that sent the request. One

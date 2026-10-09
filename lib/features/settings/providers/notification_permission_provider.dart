@@ -26,6 +26,28 @@ final notificationPermissionDeniedProvider = FutureProvider.autoDispose<bool>((
   return denied;
 });
 
+/// Whether the browser has not been asked for the notification permission
+/// yet. Its prompt only shows from a tap, so 10d offers one; until then no
+/// push can arrive. False wherever the prompt needs no gesture.
+final notificationPermissionUnaskedProvider = FutureProvider.autoDispose<bool>((
+  ref,
+) async {
+  final listener = AppLifecycleListener(onResume: ref.invalidateSelf);
+  ref.onDispose(listener.dispose);
+  return PushNotificationService.instance.awaitsPermissionFromGesture();
+});
+
+/// Asks for the notification permission. Call it straight from the tap's
+/// handler, before anything is awaited: the browser shows the prompt only
+/// while the tap's user activation lasts. Both answers are read again after.
+final requestNotificationPermissionProvider = Provider<Future<void> Function()>(
+  (ref) => () async {
+    await PushNotificationService.instance.requestPermissionFromGesture();
+    ref.invalidate(notificationPermissionUnaskedProvider);
+    ref.invalidate(notificationPermissionDeniedProvider);
+  },
+);
+
 /// Opens the OS settings page for this app, so the denied banner has
 /// somewhere to send the user.
 final openSystemSettingsProvider = Provider<Future<void> Function()>(

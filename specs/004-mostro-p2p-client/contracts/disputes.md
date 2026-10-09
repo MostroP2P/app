@@ -87,7 +87,8 @@ dispute or a daemon-side DB failure is an internal error it merely logs, so
 those surface as `NoDaemonResponse` rather than a precise reason.
 
 **Errors**: `TradeNotDisputable`, `DisputeAlreadyOpen`, `ProtocolError`,
-`NoDaemonResponse`, plus daemon `CantDo` reasons passed through as errors.
+`NoDaemonResponse`, plus daemon `CantDo` reasons passed through as errors, in the
+form `contracts/orders.md` describes ("How a `CantDo` reason reaches the caller").
 `DisputeAlreadyOpen` covers both refusals — a record already exists, or an open
 for this trade is still in flight — and Dart maps the marker to one localized
 message (`localizedDaemonError`).

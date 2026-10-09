@@ -24,6 +24,9 @@ String cashuErrorMessage(Object error, AppLocalizations l10n) {
 final Map<String, String Function(AppLocalizations)> _messages = {
   'CashuInsufficientFunds': (l) => l.lockEscrowInsufficientFunds,
   'CashuMintNotSupported': (l) => l.lockEscrowMintNotSupported,
+  // The wallet's mint is the user's and can differ from the node's: the fix
+  // is switching it in the wallet, not retrying.
+  'CashuWalletOnOtherMint': (l) => l.cashuErrorWalletOnOtherMint,
   // The daemon's answers to a submission (phase C5). Each reason says what
   // happened to the recorded escrow, which is what the seller must know.
   'CashuEscrowRejected: InvalidCashuToken': (l) => l.lockEscrowRejectedToken,
@@ -44,9 +47,9 @@ final Map<String, String Function(AppLocalizations)> _messages = {
   'CashuLockFailed': (l) => l.lockEscrowFailed,
   'CashuNotEnabled': (l) => l.cashuErrorNotEnabled,
   'CashuNotConnected': (l) => l.cashuErrorNotConnected,
-  // The wallet is bound to the previous node's mint: a node switch happened
-  // while this screen was open. Reconnecting is the fix, not retrying.
-  'CashuMintChanged': (l) => l.cashuErrorMintChanged,
+  // No mint was ever set: the wallet asks for one, or takes a token's.
+  'CashuNoMint': (l) => l.cashuErrorNoMint,
+  'InvalidMintUrl': (l) => l.cashuErrorInvalidMintUrl,
   'CashuMintUnreachable': (l) => l.cashuErrorMintUnreachable,
   'CashuMintUnusable': (l) => l.cashuErrorMintUnusable,
   'CashuUnsupportedOnWeb': (l) => l.cashuErrorUnsupportedOnWeb,

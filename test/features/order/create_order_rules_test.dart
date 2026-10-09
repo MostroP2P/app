@@ -5,6 +5,44 @@ import 'package:mostro/features/about/models/mostro_instance.dart'
 import 'package:mostro/features/order/models/create_order_rules.dart';
 
 void main() {
+  group('fiatRefused', () {
+    test('only a listed node can refuse a currency', () {
+      expect(fiatRefused('USD', ['ARS']), isTrue);
+      expect(fiatRefused('ARS', ['ARS']), isFalse);
+      expect(fiatRefused('USD', null), isFalse);
+    });
+  });
+
+  group('fiatForNode', () {
+    test('keeps an accepted currency', () {
+      expect(fiatForNode('USD', ['ARS', 'USD']), 'USD');
+    });
+
+    test('falls back to the node\'s first currency', () {
+      expect(fiatForNode('USD', ['ARS', 'EUR']), 'ARS');
+    });
+
+    test('no limit keeps the current currency', () {
+      expect(fiatForNode('USD', null), 'USD');
+    });
+  });
+
+  group('offeredFiatCodes', () {
+    const catalogue = ['USD', 'EUR', 'ARS'];
+
+    test('narrows the catalogue to the accepted codes, in its order', () {
+      expect(offeredFiatCodes(catalogue, ['ARS', 'USD']), ['USD', 'ARS']);
+    });
+
+    test('keeps an accepted code the catalogue does not know, last', () {
+      expect(offeredFiatCodes(catalogue, ['CUP', 'EUR']), ['EUR', 'CUP']);
+    });
+
+    test('no limit offers the whole catalogue', () {
+      expect(offeredFiatCodes(catalogue, null), catalogue);
+    });
+  });
+
   group('makerBondApplies', () {
     test('applies only to an enabled policy that bonds makers', () {
       expect(

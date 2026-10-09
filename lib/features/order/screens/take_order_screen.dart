@@ -22,12 +22,16 @@ import 'package:mostro/features/order/models/order_detail_rules.dart';
 import 'package:mostro/features/order/providers/bond_providers.dart';
 import 'package:mostro/features/order/providers/exchange_rate_provider.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
+import 'package:mostro/features/order/widgets/explanatory_note.dart';
+import 'package:mostro/features/order/widgets/hero_amount_card.dart';
 import 'package:mostro/features/order/widgets/order_detail_cards.dart';
 import 'package:mostro/features/order/widgets/range_amount_modal.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart'
     show refreshTrades;
 import 'package:mostro/l10n/app_localizations.dart';
-import 'package:mostro/shared/utils/fiat_currencies.dart';
+import 'package:mostro/shared/mascot/mascot_cues.dart';
+import 'package:mostro/shared/utils/countdown.dart';
+import 'package:mostro/shared/widgets/countdown_urgency_announcer.dart';
 import 'package:mostro/src/rust/api/settings.dart' as settings_api;
 import 'package:mostro/src/rust/api/types.dart';
 
@@ -64,7 +68,7 @@ class TakeOrderScreen extends ConsumerStatefulWidget {
 class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
   static const _rateRefresh = Duration(seconds: 30);
 
-  /// Drives only the app-bar countdown. A notifier rather than screen state:
+  /// Drives only the countdown row. A notifier rather than screen state:
   /// under an hour this ticks every second, and rebuilding the whole screen
   /// for it means re-running the entire order layout once a second.
   final ValueNotifier<Duration> _remaining = ValueNotifier(Duration.zero);
@@ -109,8 +113,8 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
     context.go(AppRoute.tradeDetailPath(widget.orderId));
   }
 
-  /// (Re)starts the countdown for [order]. Repaints once a minute above an
-  /// hour, once a second under it; at zero the button dies in place.
+  /// (Re)starts the countdown for [order]. Repaints when the displayed value
+  /// changes (`countdownTick`); at zero the button dies in place.
   void _syncCountdown(OrderItem order) {
     _countdown?.cancel();
     _countdown = null;
@@ -211,6 +215,8 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
       // reach `_showTakeError` (whose errors mean no trade was created): it
       // falls back to the Lightning routing, as before Cashu existed.
       final bondFirst = trade.order.status == OrderStatus.waitingTakerBond;
+      // Behind a bond the order is still anyone's until it locks.
+      if (!bondFirst) ref.read(mascotCueProvider.notifier).orderTaken();
       var cashu = false;
       if (!bondFirst) {
         try {
@@ -268,6 +274,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
       }
     } catch (e) {
       if (!mounted) return;
+      ref.read(mascotCueProvider.notifier).daemonRefused(e);
       _showTakeError(e);
     } finally {
       // The countdown holds its fire while a take is in flight, so an expiry
@@ -294,9 +301,21 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
       showOrderDetailSnackBar(context, l10n.orderAlreadyTaken);
       return;
     }
+    if (msg.contains('InvalidOrderStatus')) {
+      // The daemon says the order is no longer pending (taken, canceled or
+      // expired before the book caught up): it cannot be taken again.
+      setState(() => _cta = TakeOrderCta.unavailable);
+      showOrderDetailSnackBar(context, l10n.orderNoLongerActive);
+      return;
+    }
     // Every shared daemon marker (timeout, storage, node capability /
-    // protocol) maps centrally.
-    final display = localizedDaemonError(l10n, msg, fallback: msg);
+    // protocol) maps centrally. Anything else gets the localized generic
+    // failure, never the raw error text (#719).
+    final display = localizedDaemonError(
+      l10n,
+      msg,
+      fallback: l10n.takeOrderFailed,
+    );
     showOrderDetailSnackBar(context, display);
   }
 
@@ -356,15 +375,26 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
     final order = live ?? _lastOrder;
     final l10n = AppLocalizations.of(context);
 
+    final book = OrderBookPalette.of(context);
+    void back() => context.canPop() ? context.pop() : context.go(AppRoute.home);
+
     if (order == null) {
       return Scaffold(
-        appBar: AppBar(title: Text(l10n.orderNotFoundTitle)),
-        body: Center(child: Text(l10n.orderNotFoundMessage)),
+        backgroundColor: book.bg,
+        appBar: orderDetailAppBar(
+          context,
+          title: l10n.orderNotFoundTitle,
+          onBack: back,
+        ),
+        body: Center(
+          child: Text(
+            l10n.orderNotFoundMessage,
+            style: TextStyle(color: book.textBody),
+          ),
+        ),
       );
     }
 
-    final book = OrderBookPalette.of(context);
-    final flags = ref.watch(currencyFlagsProvider);
     final privacyMode = ref.watch(privacyModeProvider);
     // Not while a take is in flight: the user's own take moves the order out
     // of `pending` before it settles (Rust updates the book entry as soon as
@@ -384,14 +414,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
       appBar: orderDetailAppBar(
         context,
         title: widget.isBuying ? l10n.tabBuyBtc : l10n.tabSellBtc,
-        onBack:
-            () => context.canPop() ? context.pop() : context.go(AppRoute.home),
-        trailing: ValueListenableBuilder<Duration>(
-          valueListenable: _remaining,
-          builder:
-              (context, remaining, _) =>
-                  _Countdown(remaining: remaining, isClosed: isUnavailable),
-        ),
+        onBack: back,
       ),
       body: ListView(
         padding: const EdgeInsets.fromLTRB(
@@ -401,11 +424,7 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
           24,
         ),
         children: [
-          _AmountBlock(
-            order: order,
-            isBuying: widget.isBuying,
-            flag: flags[order.fiatCode] ?? '',
-          ),
+          _AmountBlock(order: order, isBuying: widget.isBuying),
           if (!privacyMode) ...[
             const SizedBox(height: orderDetailBlockGap),
             _CounterpartyCard(order: order),
@@ -425,62 +444,59 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
                 label: l10n.takeOrderPublishedLabel,
                 value: OrderDataValue(orderRelativeTime(l10n, order.createdAt)),
               ),
+              ValueListenableBuilder<Duration>(
+                valueListenable: _remaining,
+                builder:
+                    (context, remaining, _) => _CountdownRow(
+                      remaining: remaining,
+                      window: order.expiresAt?.difference(order.createdAt),
+                      isClosed: isUnavailable,
+                    ),
+              ),
               OrderIdRow(orderId: order.id),
             ],
+          ),
+          const SizedBox(height: orderDetailBlockGap),
+          ExplanatoryNote(
+            text: [
+              widget.isBuying
+                  ? l10n.takeOrderNoteBuyer
+                  : l10n.takeOrderNoteSeller,
+              _bondNotice(l10n, order),
+            ].nonNulls.join(' '),
           ),
         ],
       ),
       bottomNavigationBar: OrderDetailActionBar(
+        // A min-height column, so the dead CTA's centred label does not
+        // stretch the bar over the whole screen.
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 1),
-                  child: Icon(
-                    Icons.shield_outlined,
-                    size: 14,
-                    color: book.textTertiary,
-                  ),
-                ),
-                const SizedBox(width: 9),
-                Expanded(
-                  child: Text(
-                    [
-                      widget.isBuying
-                          ? l10n.takeOrderNoteBuyer
-                          : l10n.takeOrderNoteSeller,
-                      _bondNotice(l10n, order),
-                    ].nonNulls.join(' '),
-                    style: TextStyle(
-                      fontSize: 11,
-                      height: 1.5,
-                      color: book.textSecondary,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            _TakeButton(state: cta, onPressed: _onTakeOrder),
-          ],
+          children: [_TakeButton(state: cta, onPressed: _onTakeOrder)],
         ),
       ),
     );
   }
 }
 
-// ── App bar countdown ─────────────────────────────────────────────────────────
+// ── Countdown row ─────────────────────────────────────────────────────────────
 
-/// Clock + time left; amber under an hour, coral under five minutes.
-/// `Closed` once the order is gone, `Expired` once the clock ran out.
-class _Countdown extends StatelessWidget {
-  const _Countdown({required this.remaining, required this.isClosed});
+/// The order's time left as a row of the data card (DS-CMP-21): `Expires in`
+/// and the figure, toned by `countdownTone` — lime while the order is the
+/// user's to take, amber under an hour, coral at the end. Once the order is
+/// gone the row reads `Status · Closed` or `Status · Expired`.
+class _CountdownRow extends StatelessWidget {
+  const _CountdownRow({
+    required this.remaining,
+    required this.window,
+    required this.isClosed,
+  });
 
   final Duration remaining;
+
+  /// The order's whole lifetime, which sets when the figure turns urgent.
+  final Duration? window;
   final bool isClosed;
 
   @override
@@ -494,46 +510,50 @@ class _Countdown extends StatelessWidget {
       fontWeight: FontWeight.w600,
       color: book.textTertiary,
     );
-    if (isClosed) return Text(l10n.takeOrderClosed, style: figures);
-    if (remaining <= Duration.zero) {
-      return Text(l10n.orderStatusExpired, style: figures);
+    final ended = isClosed || remaining <= Duration.zero;
+    if (ended) {
+      return OrderDataRow(
+        icon: Icons.schedule_rounded,
+        label: l10n.statusLabel,
+        value: Text(
+          isClosed ? l10n.takeOrderClosed : l10n.orderStatusExpired,
+          style: figures,
+        ),
+      );
     }
-    final color = switch (countdownTone(remaining)) {
+    final tone = countdownTone(remaining, window: window);
+    final color = switch (tone) {
       CountdownTone.calm => book.limeIcon,
       CountdownTone.warning => book.yellowInk,
       CountdownTone.urgent => pal.danger,
     };
-    final text = formatRemaining(remaining);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(Icons.schedule_rounded, size: 13, color: color),
-        const SizedBox(width: 5),
-        Text(
-          text,
-          semanticsLabel: l10n.timeRemainingLabel(text),
+    return OrderDataRow(
+      icon: Icons.schedule_rounded,
+      label: l10n.countdownExpiresInLabel,
+      value: CountdownUrgencyAnnouncer(
+        urgent: tone == CountdownTone.urgent,
+        message:
+            '${l10n.countdownExpiresInLabel} '
+            '${formatCountdown(remaining, hours: l10n.invoiceCountdownHours)}',
+        child: Text(
+          formatCountdown(remaining, hours: l10n.invoiceCountdownHours),
           style: figures.copyWith(color: color),
         ),
-      ],
+      ),
     );
   }
 }
 
 // ── Amount block ──────────────────────────────────────────────────────────────
 
-/// `You pay 1,000 ARS` over `You receive ≈ 8,420 sats`, then the price
-/// line. The `≈` is not decorative: until the order is taken the market
+/// The hero (DS-CMP-23): `You pay 1,000 ARS` over `You receive ≈ 8,420
+/// sats`, then the price line. The `≈` is not decorative: until the order is taken the market
 /// price keeps moving.
 class _AmountBlock extends ConsumerWidget {
-  const _AmountBlock({
-    required this.order,
-    required this.isBuying,
-    required this.flag,
-  });
+  const _AmountBlock({required this.order, required this.isBuying});
 
   final OrderItem order;
   final bool isBuying;
-  final String flag;
 
   static const _fade = Duration(milliseconds: 150);
 
@@ -544,83 +564,56 @@ class _AmountBlock extends ConsumerWidget {
     final formats = OrderCardFormats.of(
       Localizations.localeOf(context).toString(),
     );
-    final label = TextStyle(fontSize: 11, color: book.textTertiary);
     // Watched so the estimate follows the node's rate; the screen refreshes
     // it every 30 s. Null while loading or when the node publishes none.
     final rate =
         order.hasFixedSats
             ? null
             : ref.watch(exchangeRateProvider(order.fiatCode)).valueOrNull;
+    final (sentence, figure) = _sats(l10n, formats, rate);
 
-    return OrderDetailCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                isBuying ? l10n.takeOrderYouPay : l10n.takeOrderYouReceive,
-                style: label,
+    return HeroAmountCard(
+      label: isBuying ? l10n.takeOrderYouPay : l10n.takeOrderYouReceive,
+      figure: formats.amount(order),
+      unit: order.fiatCode,
+      second: HeroAmountSecond(
+        label: isBuying ? l10n.takeOrderYouReceive : l10n.takeOrderYouSend,
+        value: AnimatedSwitcher(
+          duration: _fade,
+          layoutBuilder:
+              (current, previous) => Stack(
+                alignment: AlignmentDirectional.centerStart,
+                children: [...previous, if (current != null) current],
               ),
-              const Spacer(),
-              OrderCurrencyChip(flag: flag, code: order.fiatCode),
-            ],
+          child: HeroSecondFigure(
+            key: ValueKey(rate),
+            sentence: sentence,
+            figure: figure,
           ),
-          const SizedBox(height: 10),
-          OrderAmountFigure(text: formats.amount(order)),
-          const SizedBox(height: 12),
-          Divider(height: 1, thickness: 1, color: book.border),
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              Text(
-                isBuying ? l10n.takeOrderYouReceive : l10n.takeOrderYouSend,
-                style: label,
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Align(
-                  alignment: AlignmentDirectional.centerEnd,
-                  child: AnimatedSwitcher(
-                    duration: _fade,
-                    child: Text(
-                      _satsText(l10n, formats, rate),
-                      key: ValueKey(rate),
-                      textAlign: TextAlign.end,
-                      style: TextStyle(
-                        fontFamily: AppFonts.figures,
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                        color: book.limeInk,
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          _footer(l10n, formats, book),
-        ],
+        ),
       ),
+      footer: _footer(l10n, formats, book),
     );
   }
 
   /// `≈ 8,420 sats`; `from ≈ 8,420 sats` on a range (priced on its
-  /// minimum); the exact figure on a fixed-sats order; a dash without a rate.
-  String _satsText(
+  /// minimum); the exact figure on a fixed-sats order; a dash without a
+  /// rate. Returns the sentence and the figure inside it.
+  (String, String) _sats(
     AppLocalizations l10n,
     OrderCardFormats formats,
     double? rate,
   ) {
     if (order.hasFixedSats) {
-      return l10n.satsAmount(formats.decimal.format(order.amountSats!.toInt()));
+      final figure = formats.decimal.format(order.amountSats!.toInt());
+      return (l10n.satsAmount(figure), figure);
     }
     final fiat = order.isRange ? order.fiatAmountMin! : order.fiatAmount!;
     final sats = estimateSats(fiat: fiat, rate: rate, premium: order.premium);
-    if (sats == null) return '—';
-    final figure = '≈ ${l10n.satsAmount(formats.decimal.format(sats))}';
-    return order.isRange ? l10n.takeOrderSatsFrom(figure) : figure;
+    if (sats == null) return ('—', '—');
+    final figure = '≈ ${formats.decimal.format(sats)}';
+    final line = l10n.satsAmount(figure);
+    return (order.isRange ? l10n.takeOrderSatsFrom(line) : line, figure);
   }
 
   /// The premium is coloured from the taker's side, like the order-book
@@ -630,10 +623,11 @@ class _AmountBlock extends ConsumerWidget {
     OrderCardFormats formats,
     OrderBookPalette book,
   ) {
+    // The hero's context line (DS-CMP-23), with its figure styled.
     final style = TextStyle(
-      fontSize: 11,
+      fontSize: 12,
       height: 1.5,
-      color: book.textTertiary,
+      color: book.textSecondary,
     );
     if (order.hasFixedSats) {
       final sats = l10n.satsAmount(
@@ -743,7 +737,7 @@ class _CounterpartyCard extends StatelessWidget {
                       ),
                     ),
           ),
-          const SizedBox(width: 11),
+          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -768,7 +762,7 @@ class _CounterpartyCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 3),
+                const SizedBox(height: 4),
                 Text.rich(
                   TextSpan(
                     children: [
@@ -823,10 +817,10 @@ class _TakeButton extends StatelessWidget {
       TakeOrderCta.idle => OrderPrimaryButton(
         label: l10n.takeOrderButton,
         onPressed: onPressed,
-        verticalPadding: 15,
+        verticalPadding: 16,
       ),
       TakeOrderCta.loading => Container(
-        padding: const EdgeInsets.symmetric(vertical: 15),
+        padding: const EdgeInsets.symmetric(vertical: 16),
         decoration: BoxDecoration(
           color: pal.ctaLoadingBg,
           borderRadius: BorderRadius.circular(16),
@@ -852,7 +846,7 @@ class _TakeButton extends StatelessWidget {
         ),
       ),
       TakeOrderCta.unavailable => Container(
-        padding: const EdgeInsets.symmetric(vertical: 15),
+        padding: const EdgeInsets.symmetric(vertical: 16),
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: pal.ctaDeadBg,

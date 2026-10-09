@@ -149,7 +149,7 @@ test/
 └── rust/                     # Cargo unit tests (also in rust/src/**/*.rs)
 specs/                        # Planning artifacts (this directory)
 assets/
-├── images/                   # Walkthrough images (wt-1.webp … wt-6.webp), logos
+├── images/                   # Logos; walkthrough/ holds the walkthrough's SVG layers
 └── data/
     └── fiat.json             # Fiat currency + country flag data
 ```

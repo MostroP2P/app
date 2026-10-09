@@ -794,7 +794,8 @@ Same skeleton as `pay_lightning_invoice_screen.dart` (QR, amount, copy, share,
   bond-enabled node; the timeout risk is the node-policy switch).
 - Countdown to the bolt11 expiry when `expires_at` is known; nothing otherwise.
 - Taker: **Cancel** (daemon cancel). Maker: **Don't publish** (daemon cancel since
-  mostro#996). When the node refuses it with no sign of a lock
+  mostro#996). Either is a red link that asks first, through a destructive
+  confirmation (DS-CMP-20). When the node refuses it with no sign of a lock
   (`MakerCancelRefused`), the row stays and a dialog lets the user choose
   **Remove from this device** or **Keep waiting** (§6.2).
 - Restored without an invoice: "Request the invoice again" (taker) / countdown only

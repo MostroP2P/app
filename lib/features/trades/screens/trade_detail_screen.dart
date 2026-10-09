@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -13,6 +14,8 @@ import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/daemon_errors.dart';
 import 'package:mostro/features/about/providers/mostro_node_provider.dart';
 import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
+import 'package:mostro/features/chat/models/chat_list_rules.dart';
+import 'package:mostro/features/chat/providers/chat_list_provider.dart';
 import 'package:mostro/features/chat/providers/chat_providers.dart';
 import 'package:mostro/features/disputes/providers/disputes_providers.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
@@ -20,6 +23,9 @@ import 'package:mostro/features/notifications/providers/notifications_provider.d
 import 'package:mostro/features/order/providers/invoice_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/order/widgets/invoice_clock.dart';
+import 'package:mostro/features/order/widgets/invoice_widgets.dart';
+import 'package:mostro/features/order/widgets/order_detail_cards.dart'
+    show OrderIdValue, copyOrderId;
 import 'package:mostro/features/rate/providers/rating_providers.dart';
 import 'package:mostro/features/trades/providers/release_pending_provider.dart';
 import 'package:mostro/features/trades/models/trade_status.dart';
@@ -35,10 +41,13 @@ import 'package:mostro/features/trades/widgets/trade_countdown.dart';
 import 'package:mostro/features/trades/widgets/trade_step_block.dart';
 import 'package:mostro/features/trades/widgets/trade_timeline.dart';
 import 'package:mostro/features/order/models/bond_rules.dart';
+import 'package:mostro/features/order/models/invoice_rules.dart';
 import 'package:mostro/features/trades/widgets/bond_claim_banner.dart';
 import 'package:mostro/features/trades/widgets/bond_slashed_notice.dart';
 import 'package:mostro/features/trades/widgets/cancel_request_notice.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/mascot/mascot_cues.dart';
+import 'package:mostro/shared/utils/countdown.dart';
 import 'package:mostro/shared/utils/reputation_age.dart';
 import 'package:mostro/shared/widgets/mostro_modal.dart';
 import 'package:mostro/shared/utils/platform_int64.dart';
@@ -50,7 +59,7 @@ import 'package:mostro/src/rust/api/reputation.dart' as reputation_api;
 import 'package:mostro/features/cashu/seller_funding_route.dart';
 import 'package:mostro/features/settings/providers/escrow_mode_provider.dart';
 import 'package:mostro/src/rust/api/types.dart'
-    show CooperativeCancelState, TradeInfo, TradeRole;
+    show CooperativeCancelState, OrderKind, TradeInfo, TradeRole;
 
 export 'package:mostro/features/trades/models/trade_status.dart';
 
@@ -87,6 +96,10 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
     const Duration(seconds: _kCountdownSeconds),
   );
 
+  /// Whether the content has scrolled under the pinned chat card, which then
+  /// draws a line under itself. A notifier so a scroll repaints that line only.
+  final ValueNotifier<bool> _scrolledUnderChat = ValueNotifier(false);
+
   /// The window as measured when the screen loaded — the fallback for the
   /// countdown bar when the node does not advertise its expiration.
   Duration _loadedWindow = const Duration(seconds: _kCountdownSeconds);
@@ -122,6 +135,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
   void dispose() {
     _tick?.cancel();
     _remaining.dispose();
+    _scrolledUnderChat.dispose();
     super.dispose();
   }
 
@@ -174,13 +188,14 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
     }
   }
 
-  /// Repaints every second under an hour and once a minute above it: the
-  /// clock shows no seconds at that scale, so ticking faster decides nothing.
+  /// Repaints when the displayed value changes (`countdownTick`): every
+  /// second under an hour, on the minute above it, where the clock shows no
+  /// seconds and ticking faster decides nothing.
   void _scheduleTick() {
     _tick?.cancel();
     final remaining = _remaining.value;
     if (remaining <= Duration.zero) return;
-    final step = nextCountdownTick(remaining);
+    final step = countdownTick(remaining);
     _tick = Timer(step, () {
       if (!mounted) return;
       final next = _remaining.value - step;
@@ -455,6 +470,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
         score: _selectedRating,
       );
       if (!mounted) return;
+      ref.read(mascotCueProvider.notifier).rated(_selectedRating);
       ref.invalidate(tradeRatingProvider(widget.orderId));
     } catch (e, st) {
       debugPrint('[TradeDetailScreen] submitRating error: $e\n$st');
@@ -465,6 +481,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
 
   void _showFailure(Object e, String Function(AppLocalizations) fallback) {
     if (!mounted) return;
+    ref.read(mascotCueProvider.notifier).daemonRefused(e);
     final l10n = AppLocalizations.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -506,16 +523,6 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
   }
 
   void _close() => context.canPop() ? context.pop() : context.go(AppRoute.home);
-
-  void _copyId() {
-    Clipboard.setData(ClipboardData(text: widget.orderId));
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(AppLocalizations.of(context).orderIdCopied),
-        duration: const Duration(seconds: 1),
-      ),
-    );
-  }
 
   // ── Status resolution ────────────────────────────────────────────────────
 
@@ -710,6 +717,33 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
             .watch(chatRoomsNotifierProvider)
             .where((r) => r.orderId == widget.orderId)
             .firstOrNull;
+    // The chat card stays above the scroll: the counterpart is one tap away
+    // wherever the user scrolled to. A finished trade that had a chat keeps
+    // it, open during a completed trade's hour (#642), then closed — its
+    // messages still read. Open or closed is the chat list's own rule.
+    final chatClosed =
+        ref.watch(chatRowStateProvider(widget.orderId)).group ==
+        ChatGroup.closed;
+    // Said once when it closes on screen (DS-A11Y-2): the completed trade's
+    // hour ran out while the user watched. Already closed on arrival, the
+    // card's subtitle is read on focus instead.
+    ref.listen<bool>(
+      chatRowStateProvider(
+        widget.orderId,
+      ).select((state) => state.group == ChatGroup.closed),
+      (wasClosed, closed) {
+        if (closed && wasClosed == false) {
+          SemanticsService.sendAnnouncement(
+            View.of(context),
+            l10n.tradeChatClosedAnnouncement,
+            Directionality.of(context),
+          );
+        }
+      },
+    );
+    final finished = view.isCompleted || status == TradeStatus.cancelled;
+    final pinsChat = view.showsChat || (finished && room != null);
+    final locksChat = !pinsChat && !view.isCompleted && view.step >= 0;
 
     // No trade row and not the maker: this is no longer a trade of this
     // user's. A take lost before going active (its own cancel, a waiting
@@ -755,68 +789,85 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
         ),
         actions: [_buildOverflowMenu(book)],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(18, 4, 18, 16),
+      body: Column(
         children: [
-          _chatArea(view),
-          const SizedBox(height: 12),
-          AnimatedSwitcher(
-            duration: const Duration(milliseconds: 200),
-            child: KeyedSubtree(
-              key: ValueKey(status),
-              child:
-                  view.isCompleted
-                      ? _completedCard(
-                        l10n,
-                        status,
-                        canRate,
-                        order,
-                        amount,
-                        room?.displayHandle(l10n),
-                      )
-                      : _stepBlock(
-                        l10n,
-                        view,
-                        status,
-                        isBuyer,
-                        order,
-                        amount: amount,
-                        summary: summary,
-                        loadFailed: loadFailed,
+          _pinnedChat(pinsChat, book, closed: chatClosed),
+          Expanded(
+            child: NotificationListener<Notification>(
+              onNotification: _trackScrollUnderChat,
+              child: ListView(
+                // Under a pinned card, its 8 dp and these 4 dp make the
+                // 12 dp gap it had inside the scroll.
+                padding: const EdgeInsets.fromLTRB(18, 4, 18, 16),
+                // The first two children are always there, so the ones below
+                // keep their slots, and their state, when the card takes the
+                // top: the step block's crossfade included.
+                children: [
+                  _lockedChatNote(shown: locksChat),
+                  SizedBox(height: pinsChat || locksChat ? 0 : 12),
+                  AnimatedSwitcher(
+                    key: const ValueKey('step-block'),
+                    duration: const Duration(milliseconds: 200),
+                    child: KeyedSubtree(
+                      key: ValueKey(status),
+                      child:
+                          view.isCompleted
+                              ? _completedCard(
+                                l10n,
+                                status,
+                                canRate,
+                                order,
+                                amount,
+                                room?.displayHandle(l10n),
+                              )
+                              : _stepBlock(
+                                l10n,
+                                view,
+                                status,
+                                isBuyer,
+                                order,
+                                kind: trade?.order.kind,
+                                amount: amount,
+                                summary: summary,
+                                loadFailed: loadFailed,
+                              ),
+                    ),
+                  ),
+                  // The share of a slashed bond, when the daemon offered one
+                  // (docs/ANTI_ABUSE_BOND.md §8.3); nothing otherwise.
+                  BondClaimBanner(orderId: widget.orderId),
+                  // The node slashed this user's own bond: a fact that
+                  // outlives the notification (docs/ANTI_ABUSE_BOND.md §8.3).
+                  BondSlashedNotice(orderId: widget.orderId),
+                  // A pending cooperative-cancel request, this side's or the
+                  // counterparty's (protocol `cancel.md`); nothing otherwise.
+                  CancelRequestNotice(orderId: widget.orderId),
+                  if (view.showsReputation && peerRating != null) ...[
+                    const SizedBox(height: 12),
+                    CounterpartReputationRow(
+                      rating: peerRating,
+                      reviews: trade!.peerReviews ?? 0,
+                      days: trade.peerDaysOnMostro,
+                      counterpartIsBuyer: !isBuyer,
+                    ),
+                  ],
+                  if (view.step >= 0) ...[
+                    const SizedBox(height: 12),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 200),
+                      child: TradeTimeline(
+                        key: ValueKey(view.step),
+                        steps: _steps(l10n, isBuyer),
+                        current: view.step,
                       ),
-            ),
-          ),
-          // The share of a slashed bond, when the daemon offered one
-          // (docs/ANTI_ABUSE_BOND.md §8.3); nothing otherwise.
-          BondClaimBanner(orderId: widget.orderId),
-          // The node slashed this user's own bond: a fact that outlives the
-          // notification (docs/ANTI_ABUSE_BOND.md §8.3).
-          BondSlashedNotice(orderId: widget.orderId),
-          // A pending cooperative-cancel request, this side's or the
-          // counterparty's (protocol `cancel.md`); nothing otherwise.
-          CancelRequestNotice(orderId: widget.orderId),
-          if (view.showsReputation && peerRating != null) ...[
-            const SizedBox(height: 12),
-            CounterpartReputationRow(
-              rating: peerRating,
-              reviews: trade!.peerReviews ?? 0,
-              days: trade.peerDaysOnMostro,
-              counterpartIsBuyer: !isBuyer,
-            ),
-          ],
-          if (view.step >= 0) ...[
-            const SizedBox(height: 12),
-            AnimatedSwitcher(
-              duration: const Duration(milliseconds: 200),
-              child: TradeTimeline(
-                key: ValueKey(view.step),
-                steps: _steps(l10n, isBuyer),
-                current: view.step,
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  _idRow(l10n, book, order),
+                ],
               ),
             ),
-          ],
-          const SizedBox(height: 12),
-          _idRow(l10n, book, order),
+          ),
         ],
       ),
       bottomNavigationBar:
@@ -828,38 +879,95 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
 
   // ── Chat ─────────────────────────────────────────────────────────────────
 
-  /// The chat card slides in once the trade is active (fade + 8dp, 220 ms);
-  /// the lock line before it fades out (150 ms). Nothing in either state.
-  Widget _chatArea(TradeView view) {
-    final Widget child;
-    if (view.showsChat) {
-      child = TradeChatCard(
-        key: const ValueKey('chat'),
-        orderId: widget.orderId,
-      );
-    } else if (!view.isCompleted && view.step >= 0) {
-      child = const TradeChatLockedLine(key: ValueKey('locked'));
-    } else {
-      child = const SizedBox.shrink(key: ValueKey('none'));
-    }
+  /// The chat card, pinned above the scrolling content once the trade has a
+  /// chat, [closed] when the conversation has ended: it slides in (fade +
+  /// 8dp, 220 ms; at once with animations off) and draws a line under itself
+  /// while content sits beneath it. Nothing otherwise.
+  Widget _pinnedChat(
+    bool pinned,
+    OrderBookPalette book, {
+    required bool closed,
+  }) {
+    final Widget child =
+        pinned
+            ? ValueListenableBuilder<bool>(
+              key: const ValueKey('chat'),
+              valueListenable: _scrolledUnderChat,
+              // A border paints over the padding without adding height, so
+              // the line costs no layout.
+              builder:
+                  (context, scrolled, card) => DecoratedBox(
+                    decoration: BoxDecoration(
+                      border: Border(
+                        bottom: BorderSide(
+                          color: scrolled ? book.navBorder : Colors.transparent,
+                        ),
+                      ),
+                    ),
+                    child: card,
+                  ),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 4, 18, 8),
+                child: TradeChatCard(orderId: widget.orderId, closed: closed),
+              ),
+            )
+            : const SizedBox.shrink(key: ValueKey('none'));
+    return _chatSwitcher(child);
+  }
+
+  /// What stands in for the chat before the trade is active: a note that
+  /// scrolls with the content, never pinned. It fades out (150 ms) when the
+  /// trade turns active and the card takes the top, its gap with it, so the
+  /// 8 dp it slides on the way out stay inside that gap. Always in the list,
+  /// empty unless [shown], so the children below it keep their slots.
+  Widget _lockedChatNote({required bool shown}) => _chatSwitcher(
+    shown
+        ? const Padding(
+          key: ValueKey('locked'),
+          padding: EdgeInsets.only(bottom: 12),
+          child: TradeChatLockedLine(),
+        )
+        : const SizedBox.shrink(key: ValueKey('none')),
+  );
+
+  /// The card's and the note's swap: fade + slide, or none at all when the
+  /// platform asks for no animations.
+  Widget _chatSwitcher(Widget child) {
+    final animate = !MediaQuery.disableAnimationsOf(context);
     return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 220),
-      reverseDuration: const Duration(milliseconds: 150),
+      duration: animate ? const Duration(milliseconds: 220) : Duration.zero,
+      reverseDuration:
+          animate ? const Duration(milliseconds: 150) : Duration.zero,
       switchInCurve: Curves.easeOut,
-      transitionBuilder:
-          (child, animation) => FadeTransition(
-            opacity: animation,
-            child: SlideTransition(
-              position: Tween<Offset>(
-                begin: const Offset(0, 0.12),
-                end: Offset.zero,
-              ).animate(animation),
-              child: child,
-            ),
-          ),
+      transitionBuilder: _chatTransition,
       child: child,
     );
   }
+
+  /// Draws the line under the pinned card while content sits beneath it. A
+  /// status change that shrinks the content moves the position without a
+  /// scroll update, only a metrics notification, so both are read.
+  bool _trackScrollUnderChat(Notification notification) {
+    final metrics = switch (notification) {
+      ScrollNotification(depth: 0, :final metrics) => metrics,
+      ScrollMetricsNotification(depth: 0, :final metrics) => metrics,
+      _ => null,
+    };
+    if (metrics != null) _scrolledUnderChat.value = metrics.extentBefore > 0;
+    return false;
+  }
+
+  static Widget _chatTransition(Widget child, Animation<double> animation) =>
+      FadeTransition(
+        opacity: animation,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, 0.12),
+            end: Offset.zero,
+          ).animate(animation),
+          child: child,
+        ),
+      );
 
   // ── Step block ───────────────────────────────────────────────────────────
 
@@ -896,6 +1004,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
     TradeStatus status,
     bool isBuyer,
     OrderItem? order, {
+    required OrderKind? kind,
     required String? amount,
     required String? summary,
     required bool loadFailed,
@@ -914,7 +1023,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
               ? TextSpan(text: l10n.tradeLoadError)
               : _body(l10n, status, isBuyer, order?.paymentMethod),
       warning: view.showsReleaseWarning ? l10n.tradeReleaseIrreversible : null,
-      countdown: view.showsTimer ? _countdown(l10n, view, status) : null,
+      countdown: view.showsTimer ? _countdown(l10n, view, status, kind) : null,
       statusReadout: status.machineName,
     );
   }
@@ -1032,15 +1141,34 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
   }
 
   /// The per-tick repaint reaches this builder only.
-  Widget _countdown(AppLocalizations l10n, TradeView view, TradeStatus status) {
+  ///
+  /// [kind] is the order's side, from the trade row; while it is unknown a
+  /// waiting step names no outcome rather than guess one.
+  Widget _countdown(
+    AppLocalizations l10n,
+    TradeView view,
+    TradeStatus status,
+    OrderKind? kind,
+  ) {
     final label = switch (view.timer) {
       TradeTimerOwner.user => l10n.tradeTimerYouHave,
       TradeTimerOwner.counterpart => l10n.tradeTimerTheyHave,
       TradeTimerOwner.order => l10n.tradeTimerOrderHas,
       TradeTimerOwner.none => '',
     };
+    final expiry =
+        kind == null
+            ? null
+            : stepExpiry(
+              buyerStep: status == TradeStatus.waitingInvoice,
+              kind: kind,
+            );
     final note = switch (view.note) {
-      TradeTimerNote.expiresCancels => l10n.tradeTimerWaitingInvoiceConsequence,
+      TradeTimerNote.stepOutcome => switch (expiry) {
+        StepExpiry.backToBook => l10n.tradeTimerExpiryBackToBook,
+        StepExpiry.cancelled => l10n.tradeTimerExpiryCancelled,
+        null => null,
+      },
       TradeTimerNote.coordinateInChat => l10n.tradeTimerNoteCoordinate,
       TradeTimerNote.leavesBook => l10n.tradeTimerPendingConsequence,
       TradeTimerNote.none => null,
@@ -1063,7 +1191,16 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
                       total: total,
                       label: label,
                       isWaiting: isWaiting,
-                      note: note,
+                      // 00:00 is the client's estimate of the node's window:
+                      // the note says what mostrod is about to do (#569).
+                      note:
+                          remaining == Duration.zero
+                              ? stepElapsedNotice(
+                                l10n,
+                                buyerStep: status == TradeStatus.waitingInvoice,
+                                kind: kind,
+                              )
+                              : note,
                     ),
       );
     }
@@ -1092,7 +1229,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
     String? alias,
   ) {
     final rating = ref.watch(tradeRatingProvider(widget.orderId)).valueOrNull;
-    final mine = rating != null && rating.isMine ? rating.score : null;
+    final mine = myRatingScore(rating);
     final picking = status == TradeStatus.pendingRating && canRate;
     return TradeCompletedCard(
       amount: amount,
@@ -1119,66 +1256,66 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
 
   // ── ID and date ──────────────────────────────────────────────────────────
 
-  /// Last row of the scroll; tapping anywhere on it copies the id.
+  /// Last card of the scroll, the trade's ID row (DS-CMP-22); tapping
+  /// anywhere on it copies the id.
   Widget _idRow(
     AppLocalizations l10n,
     OrderBookPalette book,
     OrderItem? order,
   ) {
     final faint = TextStyle(fontSize: 11, color: book.textFaint);
-    return InkWell(
-      onTap: _copyId,
-      borderRadius: BorderRadius.circular(8),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 6),
-        // Id on the left, date on the right; the date takes a line of its
-        // own when both do not fit, and the id ellipsizes when even it alone
-        // does not (German at 2x text, 320dp: DS-A11Y-4).
-        child: Wrap(
-          alignment: WrapAlignment.spaceBetween,
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 8,
-          runSpacing: 4,
-          children: [
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(l10n.tradeIdLabel, style: faint),
-                const SizedBox(width: 8),
-                // The visible id is shortened; the readout carries the whole
-                // id.
-                Flexible(
-                  child: Text(
-                    _shortId(widget.orderId),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      fontFamily: AppFonts.figures,
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: book.textTertiary,
-                    ),
-                  ).withAutomationId(
-                    AutomationIds.orderId,
-                    label: widget.orderId,
+    return Container(
+      decoration: BoxDecoration(
+        color: book.surface,
+        border: Border.all(color: book.border),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Semantics(
+        button: true,
+        label: l10n.copyOrderIdTooltip,
+        child: Material(
+          type: MaterialType.transparency,
+          child: InkWell(
+            onTap: () => copyOrderId(context, widget.orderId),
+            borderRadius: BorderRadius.circular(18),
+            child: Container(
+              constraints: const BoxConstraints(minHeight: 48),
+              alignment: AlignmentDirectional.centerStart,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              // Id on the left, date on the right; the date takes a line of its
+              // own when both do not fit, and the id ellipsizes when even it alone
+              // does not (German at 2x text, 320dp: DS-A11Y-4).
+              child: Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                spacing: 8,
+                runSpacing: 4,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(l10n.tradeIdLabel, style: faint),
+                      const SizedBox(width: 8),
+                      // DS-CMP-22: the short id and the copy icon; the readout
+                      // carries the whole id.
+                      Flexible(
+                        child: OrderIdValue(
+                          orderId: widget.orderId,
+                          color: book.textTertiary,
+                        ),
+                      ),
+                    ],
                   ),
-                ),
-                const SizedBox(width: 8),
-                Icon(Icons.copy_outlined, size: 12, color: book.textTertiary),
-              ],
+                  if (order != null)
+                    Text(_createdLabel(l10n, order.createdAt), style: faint),
+                ],
+              ),
             ),
-            if (order != null)
-              Text(_createdLabel(l10n, order.createdAt), style: faint),
-          ],
+          ),
         ),
       ),
     );
   }
-
-  static String _shortId(String id) =>
-      id.length <= 12
-          ? id
-          : '${id.substring(0, 5)}…${id.substring(id.length - 4)}';
 
   /// `created today 17:41`, or `created 11 Sep 2026, 17:41` in the locale's
   /// own order — the same format as the own-order screen.

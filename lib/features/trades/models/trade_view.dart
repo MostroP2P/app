@@ -25,8 +25,9 @@ enum TradeSecondaryAction { cancel, dispute, release }
 /// Whose clock the countdown is: sets the `You have` / `They have` label.
 enum TradeTimerOwner { none, user, counterpart, order }
 
-/// The note under the countdown bar.
-enum TradeTimerNote { none, expiresCancels, coordinateInChat, leavesBook }
+/// The note under the countdown bar. [stepOutcome] is what expiry does to
+/// the order, which depends on who owes the step (`stepExpiry`).
+enum TradeTimerNote { none, stepOutcome, coordinateInChat, leavesBook }
 
 /// Number of steps on the timeline.
 const kTradeStepCount = 5;
@@ -175,7 +176,7 @@ class TradeView {
               isBuyer ? TradePrimaryAction.addInvoice : TradePrimaryAction.none,
           secondary: cancelOnly,
           timer: isBuyer ? TradeTimerOwner.user : TradeTimerOwner.counterpart,
-          note: TradeTimerNote.expiresCancels,
+          note: TradeTimerNote.stepOutcome,
           isCompleted: false,
         );
       case TradeStatus.waitingPayment:
@@ -190,7 +191,7 @@ class TradeView {
                   : TradePrimaryAction.payHoldInvoice,
           secondary: cancelOnly,
           timer: isBuyer ? TradeTimerOwner.counterpart : TradeTimerOwner.user,
-          note: TradeTimerNote.expiresCancels,
+          note: TradeTimerNote.stepOutcome,
           isCompleted: false,
         );
       case TradeStatus.waitingBond:

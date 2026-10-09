@@ -352,77 +352,161 @@ abstract class AppLocalizations {
   /// **'The dispute resolver canceled the order and returned the sats to the seller. You did not receive the sats.'**
   String get disputeLostFundsToSeller;
 
-  /// Title for walkthrough slide 1
+  /// Walkthrough slide 1: title
   ///
   /// In en, this message translates to:
-  /// **'Trade Bitcoin freely — no KYC'**
-  String get walkthroughSlideOneTitle;
+  /// **'P2P Bitcoin, no KYC'**
+  String get walkthroughWelcomeTitle;
 
-  /// Body text for walkthrough slide 1
+  /// Walkthrough slide 1: first paragraph
   ///
   /// In en, this message translates to:
-  /// **'Mostro is a peer-to-peer exchange that lets you trade Bitcoin for any currency and payment method — no KYC, and no need to give your data to anyone. It\'s built on Nostr, which makes it censorship-resistant. No one can stop you from trading.'**
-  String get walkthroughSlideOneBody;
+  /// **'Mostro is a peer-to-peer exchange that lets you trade Bitcoin for any currency and payment method, with no KYC and no need to give your data to anyone.'**
+  String get walkthroughWelcomeBody1;
 
-  /// Title for walkthrough slide 2
+  /// Walkthrough slide 1: second paragraph
+  ///
+  /// In en, this message translates to:
+  /// **'It\'s built on Nostr, which makes it censorship-resistant. No one can stop you from trading.'**
+  String get walkthroughWelcomeBody2;
+
+  /// Walkthrough slide 2: title
   ///
   /// In en, this message translates to:
   /// **'Privacy by default'**
-  String get walkthroughSlideTwoTitle;
+  String get walkthroughPrivacyTitle;
 
-  /// Body text for walkthrough slide 2
+  /// Walkthrough slide 2: first paragraph
   ///
   /// In en, this message translates to:
-  /// **'Mostro generates a new identity for every exchange, so your trades can\'t be linked. You can also decide how private you want to be:\n• Reputation mode – Lets others see your successful trades and trust level.\n• Full privacy mode – No reputation is built, but your activity is completely anonymous.\nSwitch modes anytime from the Account screen, where you should also save your secret words — they\'re the only way to recover your account.'**
-  String get walkthroughSlideTwoBody;
+  /// **'Mostro generates a new identity for every trade, so your trades can\'t be linked.'**
+  String get walkthroughPrivacyBody1;
 
-  /// Title for walkthrough slide 3
+  /// Walkthrough slide 2: second paragraph
+  ///
+  /// In en, this message translates to:
+  /// **'You can also decide how private you want to be:'**
+  String get walkthroughPrivacyBody2;
+
+  /// Walkthrough slide 2: mode card name
+  ///
+  /// In en, this message translates to:
+  /// **'Reputation mode'**
+  String get walkthroughReputationModeName;
+
+  /// Walkthrough slide 2: mode card description
+  ///
+  /// In en, this message translates to:
+  /// **'Lets others see your successful trades and trust level.'**
+  String get walkthroughReputationModeBody;
+
+  /// Walkthrough slide 2: mode card name
+  ///
+  /// In en, this message translates to:
+  /// **'Full privacy mode'**
+  String get walkthroughFullPrivacyModeName;
+
+  /// Walkthrough slide 2: mode card description
+  ///
+  /// In en, this message translates to:
+  /// **'No reputation is built, but your activity is completely anonymous.'**
+  String get walkthroughFullPrivacyModeBody;
+
+  /// Walkthrough slide 2: paragraph after the mode cards
+  ///
+  /// In en, this message translates to:
+  /// **'Switch modes anytime from the Account screen. That\'s also where you should save your secret words. They\'re the only way to recover your account.'**
+  String get walkthroughPrivacyFooter;
+
+  /// Walkthrough slide 3: title
   ///
   /// In en, this message translates to:
   /// **'Security at every step'**
-  String get walkthroughSlideThreeTitle;
+  String get walkthroughHeldTitle;
 
-  /// Body text for walkthrough slide 3
+  /// Walkthrough slide 3: first paragraph
   ///
   /// In en, this message translates to:
-  /// **'Mostro uses Hold Invoices: sats stay in the seller\'s wallet until the end of the trade. This protects both sides. The app is also designed to be intuitive and easy for all kinds of users.'**
-  String get walkthroughSlideThreeBody;
+  /// **'The seller\'s sats stay locked until the trade ends. This protects both sides.'**
+  String get walkthroughHeldBody1;
 
-  /// Title for walkthrough slide 4
+  /// Walkthrough slide 3: second paragraph
+  ///
+  /// In en, this message translates to:
+  /// **'The app is also designed to be intuitive and easy for all kinds of users.'**
+  String get walkthroughHeldBody2;
+
+  /// Walkthrough slide 4: title
   ///
   /// In en, this message translates to:
   /// **'Fully encrypted chat'**
-  String get walkthroughSlideFourTitle;
+  String get walkthroughChatTitle;
 
-  /// Body text for walkthrough slide 4
+  /// Walkthrough slide 4: first paragraph
   ///
   /// In en, this message translates to:
-  /// **'Each trade has its own private chat, end-to-end encrypted. Only the two users involved can read it. In case of a dispute, you can give the shared key to a dispute resolver to help resolve the issue.'**
-  String get walkthroughSlideFourBody;
+  /// **'Each trade has its own private chat, end-to-end encrypted. Only you and your counterpart can read it, unless one of you shares its key.'**
+  String get walkthroughChatBody1;
 
-  /// Title for walkthrough slide 5
+  /// Walkthrough slide 4: second paragraph
   ///
   /// In en, this message translates to:
-  /// **'Take an offer'**
-  String get walkthroughSlideFiveTitle;
+  /// **'In a dispute, sharing that key with a dispute resolver lets them read the chat and help settle it.'**
+  String get walkthroughChatBody2;
 
-  /// Body text for walkthrough slide 5
+  /// Walkthrough slide 5: title
   ///
   /// In en, this message translates to:
-  /// **'Browse the order book, choose an offer that works for you, and follow the trade flow step by step. You\'ll be able to check the other user\'s profile, chat securely, and complete the trade with ease.'**
-  String get walkthroughSlideFiveBody;
+  /// **'Take an order'**
+  String get walkthroughTakeTitle;
 
-  /// Title for walkthrough slide 6
+  /// Walkthrough slide 5: first paragraph
+  ///
+  /// In en, this message translates to:
+  /// **'Browse the order book, choose an order that works for you, and follow the trade step by step.'**
+  String get walkthroughTakeBody1;
+
+  /// Walkthrough slide 5: second paragraph
+  ///
+  /// In en, this message translates to:
+  /// **'You\'ll be able to check your counterpart\'s profile, chat securely, and complete the trade with ease.'**
+  String get walkthroughTakeBody2;
+
+  /// Walkthrough slide 6: title
   ///
   /// In en, this message translates to:
   /// **'Can\'t find what you need?'**
-  String get walkthroughSlideSixTitle;
+  String get walkthroughMakeTitle;
 
-  /// Body text for walkthrough slide 6
+  /// Walkthrough slide 6: first paragraph
   ///
   /// In en, this message translates to:
-  /// **'You can also create your own offer and wait for someone to take it. Set the amount and preferred payment method — Mostro handles the rest.'**
-  String get walkthroughSlideSixBody;
+  /// **'You can also create your own order and wait for someone to take it.'**
+  String get walkthroughMakeBody1;
+
+  /// Walkthrough slide 6: second paragraph
+  ///
+  /// In en, this message translates to:
+  /// **'Set the amount and your preferred payment method. Mostro handles the rest.'**
+  String get walkthroughMakeBody2;
+
+  /// Walkthrough: primary button that moves to the next slide
+  ///
+  /// In en, this message translates to:
+  /// **'Next'**
+  String get walkthroughNext;
+
+  /// Walkthrough: visible slide counter, current slide of total
+  ///
+  /// In en, this message translates to:
+  /// **'{current} / {total}'**
+  String walkthroughStepCounter(int current, int total);
+
+  /// Walkthrough: screen-reader form of the slide counter
+  ///
+  /// In en, this message translates to:
+  /// **'Step {current} of {total}'**
+  String walkthroughStepSemantics(int current, int total);
 
   /// Tab label for the buy Bitcoin order book
   ///
@@ -1090,11 +1174,29 @@ abstract class AppLocalizations {
   /// **'Not responding'**
   String get nodeStatusUnreachableNoSignal;
 
-  /// Two-line operator disclaimer at the foot of the node selector
+  /// First-run node choice, under the title: what the screen asks (v1 mostroNodeDescription)
   ///
   /// In en, this message translates to:
-  /// **'Each node is run by an independent third party. Mostro is not responsible for their conduct or for your trades.'**
-  String get nodeDisclaimerShort;
+  /// **'Select the Mostro node you want to trade on'**
+  String get nodeChoiceSubtitle;
+
+  /// First-run node choice: the full operator disclaimer of v1 (communityDisclaimerBody), in a warning note
+  ///
+  /// In en, this message translates to:
+  /// **'The Mostro development team is not responsible for how node operators use the platform. Each operator controls their own Mostro node and is solely responsible for their actions. By using Mostro, you accept full responsibility for your trades and acknowledge that the development team has no control over individual node operators.'**
+  String get nodeOperatorDisclaimer;
+
+  /// First-run node choice: primary button, enabled once a node card is picked
+  ///
+  /// In en, this message translates to:
+  /// **'Use this node'**
+  String get nodeChoiceConfirm;
+
+  /// First-run node choice: snackbar when the choice could not be saved on the device; both actions stay available
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t save your choice. Try again.'**
+  String get nodeChoiceSaveFailed;
 
   /// Warning box in the add-own-node dialog
   ///
@@ -2578,11 +2680,17 @@ abstract class AppLocalizations {
   /// **'If it expires, the order is removed from the book. It won\'t affect your reputation.'**
   String get tradeTimerPendingConsequence;
 
-  /// Timer consequence for the waiting-invoice/payment state
+  /// Trade screen countdown note on a waiting step the taker owes: mostrod puts the order back in the book when it runs out
   ///
   /// In en, this message translates to:
-  /// **'If it expires, the trade is cancelled and the order returns to the book.'**
-  String get tradeTimerWaitingInvoiceConsequence;
+  /// **'If it expires, the order goes back to the book.'**
+  String get tradeTimerExpiryBackToBook;
+
+  /// Trade screen countdown note on a waiting step the maker owes: mostrod cancels the order when it runs out
+  ///
+  /// In en, this message translates to:
+  /// **'If it expires, the order is cancelled.'**
+  String get tradeTimerExpiryCancelled;
 
   /// Timeline step: order taken
   ///
@@ -2866,11 +2974,11 @@ abstract class AppLocalizations {
   /// **'Enter invoice manually'**
   String get enterInvoiceManually;
 
-  /// Generic submit button label
+  /// Answer of the range amount dialog, opened from the take-order button. Same wording as takeOrderButton (DS-CMP-26).
   ///
   /// In en, this message translates to:
-  /// **'Submit'**
-  String get submitButton;
+  /// **'Take order'**
+  String get rangeAmountTakeAction;
 
   /// Title of the counterpart reputation card when the taker is the buyer
   ///
@@ -2902,17 +3010,17 @@ abstract class AppLocalizations {
   /// **'days active'**
   String get daysActiveStatLabel;
 
-  /// Countdown label below the take-order timer
-  ///
-  /// In en, this message translates to:
-  /// **'Time remaining: {time}'**
-  String timeRemainingLabel(String time);
-
   /// Shown when a fixed-sats order amount is outside the node min/max order amount
   ///
   /// In en, this message translates to:
   /// **'Amount must be between {min} and {max} sats for this Mostro node'**
   String orderAmountOutOfRange(int min, int max);
+
+  /// Shown in place of the order preview, with Publish disabled, when the active Mostro node does not list the selected currency in fiat_currencies_accepted and the user already picked that currency or entered an amount or payment methods
+  ///
+  /// In en, this message translates to:
+  /// **'This Mostro node does not accept {currency}. Pick another currency'**
+  String orderCurrencyNotAccepted(String currency);
 
   /// Shown when a market-price order amount converts outside the node min/max order amount, with the range expressed in the user's fiat currency
   ///
@@ -3004,10 +3112,10 @@ abstract class AppLocalizations {
   /// **'Maximum'**
   String get amountMaxLabel;
 
-  /// Counter in the payment-methods card header
+  /// Counter in the payment-methods card header. Says "selected" (glossary, DS-L10N-4); the key name predates the glossary
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =0{none chosen} =1{1 chosen} other{{count} chosen}}'**
+  /// **'{count, plural, =0{none selected} =1{1 selected} other{{count} selected}}'**
   String paymentMethodsChosenCount(int count);
 
   /// Chip that opens the payment-method picker; also the button that turns the custom text into a chip
@@ -3124,7 +3232,7 @@ abstract class AppLocalizations {
   /// **'Publish order'**
   String get publishOrder;
 
-  /// Accessibility label of the × on a chosen payment-method chip
+  /// Accessibility label of the × on a selected payment-method chip
   ///
   /// In en, this message translates to:
   /// **'Remove {method}'**
@@ -3826,6 +3934,18 @@ abstract class AppLocalizations {
   /// **'End-to-end encrypted chat'**
   String get tradeChatEncrypted;
 
+  /// Subtitle of the trade screen's chat card once the conversation has ended (trade cancelled, or completed more than an hour ago); tapping opens the conversation read-only
+  ///
+  /// In en, this message translates to:
+  /// **'Conversation closed · view messages'**
+  String get tradeChatClosed;
+
+  /// Screen-reader announcement when the trade screen's chat card turns closed while the user is on it (the completed trade's hour ran out); the messages stay readable
+  ///
+  /// In en, this message translates to:
+  /// **'The conversation is closed. You can still read its messages'**
+  String get tradeChatClosedAnnouncement;
+
   /// Step body for the buyer while the seller pays the hold invoice
   ///
   /// In en, this message translates to:
@@ -4162,7 +4282,13 @@ abstract class AppLocalizations {
   /// **'No longer available'**
   String get takeOrderUnavailable;
 
-  /// Replaces the countdown in the app bar once the order is gone
+  /// Snackbar when a take fails for a reason the app has no specific message for
+  ///
+  /// In en, this message translates to:
+  /// **'Could not take the order. Please try again.'**
+  String get takeOrderFailed;
+
+  /// Value of the take order's countdown row once the order is gone
   ///
   /// In en, this message translates to:
   /// **'Closed'**
@@ -4353,6 +4479,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Open settings'**
   String get openSystemSettingsAction;
+
+  /// Web only: banner above the push settings while the browser has not been asked for the notification permission
+  ///
+  /// In en, this message translates to:
+  /// **'This browser has not been allowed to show notifications yet.'**
+  String get notificationsPermissionNotAsked;
+
+  /// Web only: link in that banner that shows the browser's permission prompt
+  ///
+  /// In en, this message translates to:
+  /// **'Allow notifications'**
+  String get allowNotificationsAction;
 
   /// Footnote: what a push notification does not carry, and the one true sentence about how it travels. Must not claim the token is encrypted.
   ///
@@ -5035,7 +5173,7 @@ abstract class AppLocalizations {
   /// 14a hero label above the bond amount
   ///
   /// In en, this message translates to:
-  /// **'REFUNDABLE DEPOSIT'**
+  /// **'Refundable deposit'**
   String get bondRefundableLabel;
 
   /// 14a hero context line without a fiat rate
@@ -5116,11 +5254,11 @@ abstract class AppLocalizations {
   /// **'Mostro does not hold funds, so it cannot penalise whoever abandons a trade; the deposit does that job, and protects every user against scammers.'**
   String get bondWhyCustody;
 
-  /// 14b explainer paragraph 2; hold is the protocol term, rendered bold and left untranslated
+  /// 14b explainer paragraph 2: the wallet holds the deposit's sats without sending them. Plain words, no "hold" term (DS-L10N-4)
   ///
   /// In en, this message translates to:
-  /// **'It is a {hold} invoice: your wallet reserves the sats without sending them; when the trade completes, the reservation is cancelled on its own.'**
-  String bondWhyHold(String hold);
+  /// **'Your wallet holds the sats without sending them; when the trade completes, they are released on their own.'**
+  String get bondWhyHold;
 
   /// 14b explainer paragraph 3 on a node that does not slash on timeout
   ///
@@ -5236,6 +5374,30 @@ abstract class AppLocalizations {
   /// **'Remove from this device'**
   String get bondRemoveFromDevice;
 
+  /// Confirm dialog title before a maker drops an order still waiting for its deposit (DS-CMP-20)
+  ///
+  /// In en, this message translates to:
+  /// **'Don\'t publish this order?'**
+  String get bondLeaveMakerTitle;
+
+  /// Body of that dialog: what dropping the unpublished order does
+  ///
+  /// In en, this message translates to:
+  /// **'The order won\'t be published and its deposit invoice is cancelled.'**
+  String get bondLeaveMakerBody;
+
+  /// Confirm dialog title before a taker leaves an order whose deposit is not paid yet (DS-CMP-20)
+  ///
+  /// In en, this message translates to:
+  /// **'Don\'t take this order?'**
+  String get bondLeaveTakerTitle;
+
+  /// Body of that dialog: the order stays available to others
+  ///
+  /// In en, this message translates to:
+  /// **'The order stays in the book for others and the deposit invoice is cancelled.'**
+  String get bondLeaveTakerBody;
+
   /// Dialog action: keep the order and stay on the deposit screen
   ///
   /// In en, this message translates to:
@@ -5263,7 +5425,7 @@ abstract class AppLocalizations {
   /// Claim screen hero label, upper case
   ///
   /// In en, this message translates to:
-  /// **'YOUR SHARE'**
+  /// **'Your share'**
   String get bondClaimShareLabel;
 
   /// Semantics of the claim hero
@@ -5566,12 +5728,6 @@ abstract class AppLocalizations {
   /// **'The node did not resend the deposit invoice'**
   String get bondRequestFailed;
 
-  /// Snackbar after tapping the order id in the invoice app bar
-  ///
-  /// In en, this message translates to:
-  /// **'Order ID copied'**
-  String get invoiceOrderIdCopied;
-
   /// 13a hero card label above the amount (rendered uppercase)
   ///
   /// In en, this message translates to:
@@ -5758,11 +5914,11 @@ abstract class AppLocalizations {
   /// **'Open in my wallet'**
   String get invoiceOpenWallet;
 
-  /// 13b note explaining the hold invoice; hold is the protocol term 'hold', rendered bold and deliberately left untranslated in every locale (as in 'factura hold') — move the placeholder, do not replace it
+  /// 13b note: paying the invoice keeps the sats held in the seller's wallet until they confirm the buyer's payment. Plain words, no "hold" term (DS-L10N-4)
   ///
   /// In en, this message translates to:
-  /// **'This is a {hold} invoice: the sats are held, they don\'t leave your wallet until you confirm the buyer\'s payment.'**
-  String invoiceHoldNote(String hold);
+  /// **'The sats are held: they don\'t leave your wallet until you confirm the buyer\'s payment.'**
+  String get invoiceHoldNote;
 
   /// 13b screen reader label of the QR: the whole invoice
   ///
@@ -5770,35 +5926,29 @@ abstract class AppLocalizations {
   /// **'Lightning invoice QR code: {invoice}'**
   String invoiceQrSemantics(String invoice);
 
-  /// 13b terminal state when the hold invoice ran out
-  ///
-  /// In en, this message translates to:
-  /// **'The invoice expired'**
-  String get invoiceExpiredTitle;
-
-  /// 13b terminal state explanation
-  ///
-  /// In en, this message translates to:
-  /// **'It was not paid in time: Mostro cancels the trade and no sats left your wallet.'**
-  String get invoiceExpiredBody;
-
-  /// 13b terminal state action
+  /// Terminal state action of the bond invoice screens
   ///
   /// In en, this message translates to:
   /// **'Back to the order book'**
   String get invoiceBackToBook;
 
-  /// 13a terminal state when the buyer's invoice window ran out
+  /// Countdown at 00:00 on the invoice screens while the order side is not known yet: the local window ended, the daemon has not acted yet.
   ///
   /// In en, this message translates to:
-  /// **'Time is up'**
-  String get invoiceTimeUpTitle;
+  /// **'Time is up. Mostro will close this step shortly unless it is completed.'**
+  String get invoiceStepElapsed;
 
-  /// 13a terminal state explanation
+  /// Countdown at 00:00 on a waiting step the taker owes (trade and invoice screens): the daemon has not acted yet
   ///
   /// In en, this message translates to:
-  /// **'The invoice was not sent in time: Mostro cancels the trade. Nothing was committed on your side.'**
-  String get invoiceTimeUpBody;
+  /// **'Time is up. If it is not completed, Mostro will return the order to the book shortly.'**
+  String get stepElapsedBackToBook;
+
+  /// Countdown at 00:00 on a waiting step the maker owes (trade and invoice screens): the daemon has not acted yet
+  ///
+  /// In en, this message translates to:
+  /// **'Time is up. If it is not completed, Mostro will cancel the order shortly.'**
+  String get stepElapsedCancelled;
 
   /// 13a validation error: the invoice is for another chain than the node's; both are LND network names like mainnet or testnet
   ///
@@ -5806,11 +5956,23 @@ abstract class AppLocalizations {
   /// **'The invoice is for {invoice}, the node uses {node}'**
   String invoiceErrorWrongNetwork(String invoice, String node);
 
-  /// Invoice time band countdown above one hour; hours is a whole number, minutes is always two digits (e.g. 1 h 05). Keep it short: it sits inside a sentence
+  /// Every countdown above one hour (DS-CMP-21: invoice band, trade step, take order, my order, chat); hours is a whole number, minutes is always two digits (e.g. 1 h 05). Keep it short: it sits inside a sentence or a row
   ///
   /// In en, this message translates to:
   /// **'{hours} h {minutes}'**
   String invoiceCountdownHours(String hours, String minutes);
+
+  /// Label of an order's countdown (take order data row, own order status); the figure follows it, e.g. Expires in 23 h 12
+  ///
+  /// In en, this message translates to:
+  /// **'Expires in'**
+  String get countdownExpiresInLabel;
+
+  /// Label above the bond time pill in the compact amount row: the time left to pay the bond invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Pay within'**
+  String get bondPayWithinLabel;
 
   /// Notifications card title for a trade status change (issue #474); role-neutral, both sides see it
   ///
@@ -6040,6 +6202,12 @@ abstract class AppLocalizations {
   /// **'Your account is out of sync with this Mostro node, so it refused the order. Try again in a moment'**
   String get invalidTradeIndexError;
 
+  /// Error shown when the Mostro node refuses a new order with CantDo(InvalidFiatCurrency): its fiat_currencies_accepted list does not include the order's currency
+  ///
+  /// In en, this message translates to:
+  /// **'This Mostro node does not accept that currency, so it refused the order. Pick another currency'**
+  String get invalidFiatCurrencyError;
+
   /// Snackbar shown on the Account screen right after a mnemonic import, while the app asks Mostro for the identity's trades in progress
   ///
   /// In en, this message translates to:
@@ -6058,16 +6226,16 @@ abstract class AppLocalizations {
   /// **'Account imported, but Mostro did not answer, so your trades in progress were not recovered'**
   String get recoverTradesFailedMessage;
 
-  /// Label in front of the chips summarising the methods chosen so far on the payment-method picker screen
+  /// Label in front of the chips summarising the methods selected so far on the payment-method picker screen (glossary: selected, DS-L10N-4)
   ///
   /// In en, this message translates to:
-  /// **'Chosen'**
+  /// **'Selected'**
   String get paymentMethodsChosenLabel;
 
   /// Count line above the confirm button of the payment-method picker screen
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =0{Choose at least one method} =1{1 method selected} other{{count} methods selected}}'**
+  /// **'{count, plural, =0{Select at least one method} =1{1 method selected} other{{count} methods selected}}'**
   String paymentMethodsSelectedCount(int count);
 
   /// Button that saves the payment-method selection and closes the picker screen
@@ -6141,6 +6309,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Bond invoice still payable'**
   String get fundsAtRiskBondInvoicePending;
+
+  /// Funds-at-risk list entry: ecash in the current user's Cashu wallet, stranded if the user is replaced
+  ///
+  /// In en, this message translates to:
+  /// **'Ecash in the Cashu wallet'**
+  String get fundsAtRiskCashuBalance;
+
+  /// Funds-at-risk list entry, second line under the Cashu balance: only the current user's recovery words restore it
+  ///
+  /// In en, this message translates to:
+  /// **'Only this user\'s words bring it back'**
+  String get fundsAtRiskCashuHint;
 
   /// Safe, primary action of the funds-at-risk warning: abandon the generation or import
   ///
@@ -6496,6 +6676,72 @@ abstract class AppLocalizations {
   /// **'Not connected to a mint'**
   String get cashuNotConnected;
 
+  /// Cashu wallet — no mint was ever set; how to get one
+  ///
+  /// In en, this message translates to:
+  /// **'No mint set. Set one, or receive a token to use its mint.'**
+  String get cashuNoMintSet;
+
+  /// Cashu wallet — button that sets the wallet's mint when none is set
+  ///
+  /// In en, this message translates to:
+  /// **'Set mint'**
+  String get cashuSetMintButton;
+
+  /// Cashu wallet — button that changes the wallet's mint
+  ///
+  /// In en, this message translates to:
+  /// **'Change mint'**
+  String get cashuChangeMintButton;
+
+  /// Cashu wallet — title of the dialog where the user enters a mint URL
+  ///
+  /// In en, this message translates to:
+  /// **'Cashu mint'**
+  String get cashuMintDialogTitle;
+
+  /// Cashu wallet — label of the mint URL field
+  ///
+  /// In en, this message translates to:
+  /// **'Mint URL'**
+  String get cashuMintFieldLabel;
+
+  /// Cashu wallet — example mint URL shown in the empty field; not translated
+  ///
+  /// In en, this message translates to:
+  /// **'https://mint.example.com'**
+  String get cashuMintFieldHint;
+
+  /// Cashu wallet — title of the warning before changing the mint with a balance
+  ///
+  /// In en, this message translates to:
+  /// **'Change mint?'**
+  String get cashuChangeMintTitle;
+
+  /// Cashu wallet — the balance stays at the old mint when the wallet changes mint
+  ///
+  /// In en, this message translates to:
+  /// **'Your {sats} sats stay at {mint}. They come back when you connect to that mint again.'**
+  String cashuChangeMintWarning(String sats, String mint);
+
+  /// Cashu — an action needs the wallet's mint and none is set
+  ///
+  /// In en, this message translates to:
+  /// **'Set a mint in the Cashu wallet first.'**
+  String get cashuErrorNoMint;
+
+  /// Cashu wallet — the mint URL is not an https URL with a host (http only for a mint on this device)
+  ///
+  /// In en, this message translates to:
+  /// **'That is not a mint URL you can use. It must start with https://.'**
+  String get cashuErrorInvalidMintUrl;
+
+  /// Lock escrow — the wallet is bound to another mint than the node's
+  ///
+  /// In en, this message translates to:
+  /// **'Your Cashu wallet uses another mint. Switch it to this node\'s mint in Settings → Cashu wallet, then try again.'**
+  String get cashuErrorWalletOnOtherMint;
+
   /// Cashu wallet — button that scans or pastes a token to redeem
   ///
   /// In en, this message translates to:
@@ -6513,6 +6759,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Paste or scan a Cashu token'**
   String get cashuReceiveHint;
+
+  /// Cashu wallet — title of the Receive dialog, which takes the token by pasting or scanning
+  ///
+  /// In en, this message translates to:
+  /// **'Receive a token'**
+  String get cashuReceiveTitle;
+
+  /// Cashu wallet — label above the token field in the Receive dialog; shown in capitals
+  ///
+  /// In en, this message translates to:
+  /// **'Cashu token'**
+  String get cashuTokenFieldLabel;
+
+  /// Cashu wallet — dimmed placeholder of the token field; disappears once something is pasted or typed
+  ///
+  /// In en, this message translates to:
+  /// **'Paste a Cashu token'**
+  String get cashuPasteTokenHint;
+
+  /// Tooltip of a disabled Scan QR action (NWC wallet, Cashu wallet) where the device has no usable camera (desktop, web)
+  ///
+  /// In en, this message translates to:
+  /// **'Not available on this device'**
+  String get qrScanUnavailable;
 
   /// Cashu wallet — amount field when exporting a token
   ///
@@ -6565,7 +6835,7 @@ abstract class AppLocalizations {
   /// Cashu wallet — explanation of what the wallet is for
   ///
   /// In en, this message translates to:
-  /// **'This wallet holds ecash issued by the mint your Mostro node uses. It exists to fund and receive trades on that node — it is not a general-purpose wallet.'**
+  /// **'This wallet holds ecash from the mint you choose. It exists to fund and receive Cashu trades — it is not a general-purpose wallet.'**
   String get cashuWalletExplanation;
 
   /// Cashu error — the active node is not a Cashu node
@@ -6589,7 +6859,7 @@ abstract class AppLocalizations {
   /// Cashu error — the mint answered but lacks a required NUT or keyset
   ///
   /// In en, this message translates to:
-  /// **'This node\'s mint is missing features the escrow needs, so trading is not possible here.'**
+  /// **'This mint is missing features the wallet needs. Choose another mint.'**
   String get cashuErrorMintUnusable;
 
   /// Cashu error — the web build has no proof storage
@@ -6657,12 +6927,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This token is too large for a QR code. Copy it instead.'**
   String get cashuTokenTooLargeForQr;
-
-  /// Cashu wallet — the node was switched while the wallet was bound to the previous node's mint
-  ///
-  /// In en, this message translates to:
-  /// **'The active node changed and this wallet is bound to another mint. Go back and open the wallet again.'**
-  String get cashuErrorMintChanged;
 
   /// Cashu wallet — permanent: an nsec-imported identity has no seed
   ///
@@ -6951,6 +7215,60 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Mint URL copied'**
   String get settingsMintCopied;
+
+  /// Title of the card on the order book (web, mobile) that offers to install the app to the home screen
+  ///
+  /// In en, this message translates to:
+  /// **'Install Mostro'**
+  String get pwaInstallTitle;
+
+  /// Body of the install card: what installing gives the user
+  ///
+  /// In en, this message translates to:
+  /// **'Open it from your home screen, full screen, like any other app.'**
+  String get pwaInstallBody;
+
+  /// Install card action: installs the app (Android) or shows how to (iOS)
+  ///
+  /// In en, this message translates to:
+  /// **'Install'**
+  String get pwaInstallAction;
+
+  /// Install card way out: hides the card for good on this device
+  ///
+  /// In en, this message translates to:
+  /// **'Not now'**
+  String get pwaInstallNotNow;
+
+  /// Settings row (web only) that installs the app, for whoever dismissed the card
+  ///
+  /// In en, this message translates to:
+  /// **'Install app'**
+  String get pwaInstallSettingTitle;
+
+  /// Title of the sheet that explains how to add the app to the iOS home screen
+  ///
+  /// In en, this message translates to:
+  /// **'Add Mostro to your home screen'**
+  String get pwaInstallStepsTitle;
+
+  /// Step 1 on iOS: the Share button of Safari or of the browser
+  ///
+  /// In en, this message translates to:
+  /// **'Tap the Share button in your browser\'s toolbar.'**
+  String get pwaInstallStepShare;
+
+  /// Step 2 on iOS: the Share menu entry, named as iOS names it in this language
+  ///
+  /// In en, this message translates to:
+  /// **'Choose “Add to Home Screen”.'**
+  String get pwaInstallStepAdd;
+
+  /// Closes the iOS install steps sheet
+  ///
+  /// In en, this message translates to:
+  /// **'Got it'**
+  String get pwaInstallStepsDone;
 }
 
 class _AppLocalizationsDelegate

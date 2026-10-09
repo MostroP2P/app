@@ -80,7 +80,7 @@ class _FakeWallet extends CashuWalletController {
   const _FakeWallet();
 
   @override
-  Future<CashuWalletStatus> connect() async => CashuWalletStatus(
+  Future<CashuWalletStatus> connect({String? mintUrl}) async => CashuWalletStatus(
     connected: true,
     mintUrl: 'https://mint.example.com',
     balanceSats: BigInt.from(100000),

@@ -13,6 +13,7 @@ import 'package:mostro/features/order/screens/add_order_screen.dart';
 import 'package:mostro/features/order/widgets/currency_section.dart';
 import 'package:mostro/features/order/widgets/payment_method_section.dart';
 import 'package:mostro/features/order/widgets/price_section.dart';
+import 'package:mostro/features/settings/providers/node_stats_provider.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
 import '../../../support/provider_harness.dart';
@@ -37,6 +38,7 @@ Future<ProviderContainer> _pump(
   final container = createContainer(
     overrides: [
       mostroNodeProvider.overrideWith((ref) async => _node),
+      activeNodeCurrenciesProvider.overrideWith((ref) async => const []),
       exchangeRateProvider.overrideWith(
         (ref, code) async => switch (code) {
           'USD' => 100000.0,

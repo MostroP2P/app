@@ -145,6 +145,14 @@ void main() {
         _expectAA('$mode empty line', pal.textSecondary, pal.bg);
         _expectAA('$mode clear filters', pal.limeText, pal.bg);
       });
+
+      test('walkthrough slides and mode cards', () {
+        _expectAA('$mode slide title', pal.textPrimary, pal.bg);
+        _expectAA('$mode slide paragraph', pal.textBody, pal.bg);
+        _expectAA('$mode step counter and skip', pal.textSecondary, pal.bg);
+        _expectAA('$mode mode name', pal.limeText, pal.surface);
+        _expectAA('$mode mode description', pal.textSecondary, pal.surface);
+      });
     });
   }
 }

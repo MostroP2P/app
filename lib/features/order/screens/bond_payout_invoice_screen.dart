@@ -20,6 +20,7 @@ import 'package:mostro/features/order/providers/bond_providers.dart';
 import 'package:mostro/features/order/widgets/invoice_widgets.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/mascot/mascot_cues.dart';
 import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/shared/widgets/nwc_invoice_widget.dart';
 import 'package:mostro/shared/widgets/platform_aware_qr_scanner.dart';
@@ -90,6 +91,7 @@ class _BondPayoutInvoiceScreenState
       ).showSnackBar(SnackBar(content: Text(l10n.bondClaimSent)));
     } catch (e) {
       if (!mounted) return;
+      ref.read(mascotCueProvider.notifier).daemonRefused(e);
       if (fromWallet) _manualMode = true;
       ref.invalidate(bondClaimProvider(widget.orderId));
       setState(() {
@@ -160,23 +162,20 @@ class _BondPayoutInvoiceScreenState
     final canPop = Navigator.of(context).canPop();
     final appBar = InvoiceAppBar(
       title: l10n.bondClaimTitle,
-      orderId: widget.orderId,
-      orderIdAutomationId: AutomationIds.bondClaimOrderId,
-      copiedMessage: l10n.invoiceOrderIdCopied,
       onBack: canPop ? () => Navigator.of(context).maybePop() : null,
     );
     if (claimAsync.isLoading && claim == null) {
       return Scaffold(
         backgroundColor: book.bg,
         appBar: appBar,
-        body: const Center(child: CircularProgressIndicator()),
+        body: _withId(const Center(child: CircularProgressIndicator())),
       );
     }
     if (claim == null) {
       return Scaffold(
         backgroundColor: book.bg,
         appBar: appBar,
-        body: Center(child: Text(l10n.bondClaimMissing)),
+        body: _withId(Center(child: Text(l10n.bondClaimMissing))),
       );
     }
     final now = clock.now().millisecondsSinceEpoch ~/ 1000;
@@ -213,7 +212,7 @@ class _BondPayoutInvoiceScreenState
         icon: Icons.check_circle_outline,
         title: l10n.bondClaimCompletedTitle,
         body: l10n.bondClaimCompletedBody(
-          formatInvoiceSats(claim.amountSats.toInt()),
+          formatInvoiceSats(claim.amountSats.toInt(), l10n.localeName),
         ),
       ),
       BondClaimPhase.expired => InvoiceTimeUpView(
@@ -233,11 +232,13 @@ class _BondPayoutInvoiceScreenState
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SizedBox(width: 1, height: 1).withAutomationId(
-            AutomationIds.bondClaimStatus,
-            label: phase.name,
-          ),
-          Expanded(child: body),
+          const SizedBox(
+            width: 1,
+            height: 1,
+          ).withAutomationId(AutomationIds.bondClaimStatus, label: phase.name),
+          // The claim screen has no counterpart card: the order's ID card
+          // heads every phase (DS-CMP-22).
+          Expanded(child: _withId(body)),
         ],
       ),
     );
@@ -262,6 +263,13 @@ class _BondPayoutInvoiceScreenState
     ).add_Hm().format(DateTime.fromMillisecondsSinceEpoch(unixSecs * 1000));
   }
 
+  /// [body] under the order's ID card (DS-CMP-22).
+  Widget _withId(Widget body) => InvoiceOrderIdBody(
+    orderId: widget.orderId,
+    automationId: AutomationIds.bondClaimOrderId,
+    child: body,
+  );
+
   Widget _hero(AppLocalizations l10n, BondClaim claim, int deadlineAt) {
     final sats = claim.amountSats.toInt();
     final fiat = claim.fiatAmount;
@@ -272,7 +280,9 @@ class _BondPayoutInvoiceScreenState
     return InvoiceHeroCard(
       label: l10n.bondClaimShareLabel,
       sats: sats,
-      semanticsLabel: l10n.bondClaimShareSemantics(sats.toString()),
+      semanticsLabel: l10n.bondClaimShareSemantics(
+        formatInvoiceSats(sats, l10n.localeName),
+      ),
       contextLine: context_.isEmpty ? null : l10n.bondClaimContext(context_),
       automationId: AutomationIds.bondClaimAmount,
       automationLabel: sats.toString(),
@@ -344,7 +354,12 @@ class _BondPayoutInvoiceScreenState
               const SizedBox(height: 8),
               TextButton(
                 onPressed: () => setState(() => _manualMode = true),
-                child: Text(l10n.enterInvoiceManually),
+                child: Text(
+                  l10n.enterInvoiceManually,
+                  style: TextStyle(
+                    color: OrderBookPalette.of(context).limeText,
+                  ),
+                ),
               ).withAutomationId(AutomationIds.bondClaimManual),
             ],
           ] else ...[
@@ -490,7 +505,7 @@ class _BondPayoutInvoiceScreenState
       padding: const EdgeInsets.fromLTRB(16, 4, 4, 14),
       decoration: BoxDecoration(
         color: book.surface,
-        borderRadius: BorderRadius.circular(20),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
           color: _focus.hasFocus ? pal.fieldFocusBorder : pal.cardBorder,
         ),
