@@ -217,29 +217,44 @@ class BondExplainerBody extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 12),
-          InkWell(
-            onTap: onLink,
-            borderRadius: BorderRadius.circular(8),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  // Wraps rather than overflows: at 2x text the label does
-                  // not fit one line at 320 dp in every language (DS-A11Y-4).
-                  Flexible(
-                    child: Text(
-                      linkLabel,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
+          // A link the reader taps: announced as a button (DS-A11Y-1) and
+          // a 48 dp target (DS-CMP-6).
+          Semantics(
+            button: true,
+            label: linkLabel,
+            excludeSemantics: true,
+            child: InkWell(
+              onTap: onLink,
+              borderRadius: BorderRadius.circular(8),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 48),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Wraps rather than overflows: at 2x text the label
+                      // does not fit one line at 320 dp in every language
+                      // (DS-A11Y-4).
+                      Flexible(
+                        child: Text(
+                          linkLabel,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                            color: palette.validIcon,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.open_in_new,
+                        size: 12,
                         color: palette.validIcon,
                       ),
-                    ),
+                    ],
                   ),
-                  const SizedBox(width: 4),
-                  Icon(Icons.open_in_new, size: 12, color: palette.validIcon),
-                ],
+                ),
               ),
             ),
           ),

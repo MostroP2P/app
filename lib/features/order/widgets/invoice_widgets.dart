@@ -395,19 +395,17 @@ class InvoicePrimaryButton extends StatelessWidget {
                 else
                   Icon(icon, size: 16, color: ink),
                 const SizedBox(width: 8),
-                // One line, shrunk to fit at large text sizes, rather than
-                // breaking the word (DS-L10N-2).
+                // A second line rather than a smaller label: shrinking has no
+                // floor and undoes the user's text size (DS-L10N-2, DS-TYP-4).
                 Flexible(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
-                    child: Text(
-                      label,
-                      maxLines: 1,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: ink,
-                      ),
+                  child: Text(
+                    label,
+                    maxLines: 2,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: ink,
                     ),
                   ),
                 ),
@@ -437,44 +435,75 @@ class InvoiceSecondaryButton extends StatelessWidget {
   /// Overrides the ink of the icon (the copy check).
   final Color? iconColor;
 
+  static const _labelStyle = TextStyle(
+    fontSize: 12,
+    fontWeight: FontWeight.w600,
+  );
+
+  /// Whether [label] fits a button [width] wide at the user's text size:
+  /// two lines at most, and no word broken across them (DS-L10N-2).
+  static bool fits(BuildContext context, String label, double width) {
+    // Padding, icon and the gap after it.
+    final room = width - 2 * 12 - 14 - 6;
+    TextPainter painter(String text, {int? maxLines}) => TextPainter(
+      text: TextSpan(
+        text: text,
+        style: DefaultTextStyle.of(context).style.merge(_labelStyle),
+      ),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: maxLines,
+    );
+    final whole = painter(label, maxLines: 2)..layout(maxWidth: room);
+    final exceeds = whole.didExceedMaxLines;
+    whole.dispose();
+    if (exceeds) return false;
+    for (final word in label.split(' ')) {
+      final one = painter(word)..layout();
+      final wide = one.width > room;
+      one.dispose();
+      if (wide) return false;
+    }
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     final pal = InvoicePalette.of(context);
+    // The primary's radius (DS-CMP-4) and a 48 dp target (DS-CMP-6).
     final shape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(16),
       side: BorderSide(color: pal.secondaryBorder),
     );
-    return Material(
-      color: pal.secondaryFill,
-      shape: shape,
-      child: InkWell(
-        customBorder: shape,
-        onTap: onPressed,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: _kHitTarget),
-          child: Padding(
-            padding: const EdgeInsets.all(12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 14, color: iconColor ?? pal.secondaryInk),
-                const SizedBox(width: 6),
-                // One line, shrunk to fit, as the primary button.
-                Flexible(
-                  child: FittedBox(
-                    fit: BoxFit.scaleDown,
+    return Semantics(
+      button: true,
+      enabled: onPressed != null,
+      child: Material(
+        color: pal.secondaryFill,
+        shape: shape,
+        child: InkWell(
+          customBorder: shape,
+          onTap: onPressed,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, size: 14, color: iconColor ?? pal.secondaryInk),
+                  const SizedBox(width: 6),
+                  // Two lines at most, as the primary button.
+                  Flexible(
                     child: Text(
                       label,
-                      maxLines: 1,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: pal.secondaryInk,
-                      ),
+                      maxLines: 2,
+                      textAlign: TextAlign.center,
+                      style: _labelStyle.copyWith(color: pal.secondaryInk),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
@@ -521,6 +550,30 @@ class InvoicePaymentActions extends StatelessWidget {
       onPressed: onOpenWallet,
     );
     final (lead, second) = copyLeads ? (copy, wallet) : (wallet, copy);
+    final secondaries = [
+      InvoiceSecondaryButton(
+        icon: second.icon,
+        // The check turns lime only on the grey button.
+        iconColor: !copyLeads && copied ? book.lime : null,
+        label: second.label,
+        onPressed: second.onPressed,
+      ),
+      InvoiceSecondaryButton(
+        icon: Icons.share,
+        label: l10n.shareButtonLabel,
+        onPressed: onShare,
+      ),
+    ];
+    // The actions span the screen between the gutters on both screens.
+    // Measured from the screen, not a `LayoutBuilder`: the pages size
+    // themselves with `IntrinsicHeight`, which a `LayoutBuilder` cannot
+    // answer.
+    final half =
+        (MediaQuery.sizeOf(context).width - 2 * kInvoiceGutter - 8) / 2;
+    final paired = [
+      second.label,
+      l10n.shareButtonLabel,
+    ].every((label) => InvoiceSecondaryButton.fits(context, label, half));
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -531,27 +584,26 @@ class InvoicePaymentActions extends StatelessWidget {
           onPressed: lead.onPressed,
         ),
         const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: InvoiceSecondaryButton(
-                icon: second.icon,
-                // The check turns lime only on the grey button.
-                iconColor: !copyLeads && copied ? book.lime : null,
-                label: second.label,
-                onPressed: second.onPressed,
-              ),
+        // Side by side while both labels fit half the row; stacked at full
+        // width once the text size leaves a word no room.
+        if (paired)
+          IntrinsicHeight(
+            // One height for both: a label that wraps does not leave its
+            // neighbour shorter.
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: secondaries[0]),
+                const SizedBox(width: 8),
+                Expanded(child: secondaries[1]),
+              ],
             ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: InvoiceSecondaryButton(
-                icon: Icons.share,
-                label: l10n.shareButtonLabel,
-                onPressed: onShare,
-              ),
-            ),
-          ],
-        ),
+          )
+        else ...[
+          secondaries[0],
+          const SizedBox(height: 8),
+          secondaries[1],
+        ],
       ],
     );
   }

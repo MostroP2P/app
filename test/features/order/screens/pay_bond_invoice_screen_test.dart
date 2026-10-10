@@ -26,6 +26,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../support/automation_finders.dart';
 import '../../../support/fake_trades.dart';
+import '../../../support/load_app_fonts.dart';
 import '../../../support/text_scale.dart';
 
 BondInfo _bond({
@@ -101,6 +102,9 @@ Future<void> _pump(
 }
 
 void main() {
+  // The 320 dp checks measure labels: the real font, not the test one.
+  setUpAll(loadAppFonts);
+
   testWidgets('14a: the amount first, the three consequences, the wallet', (
     tester,
   ) async {
@@ -248,7 +252,8 @@ void main() {
 
   // DS-A11Y-4: the action bar this change touches fits at 320 dp wide and
   // 2x text in every language, with the explanation open (the default):
-  // nothing overflows and each label stays on one line, as in
+  // nothing overflows and each label fits two lines without breaking a
+  // word, as in
   // order_detail_golden_test.dart.
   for (final locale in AppLocalizations.supportedLocales) {
     testWidgets(
@@ -276,11 +281,9 @@ void main() {
           final button = find.text(label);
           await tester.scrollUntilVisible(button, 200);
           expect(button.hitTestable(), findsOneWidget, reason: label);
-          final text = tester.renderObject<RenderParagraph>(button);
-          final line = text.getFullHeightForCaret(
-            const TextPosition(offset: 0),
-          );
-          expect(text.size.height, lessThan(line * 1.5), reason: label);
+          final paragraph = tester.renderObject<RenderParagraph>(button);
+          expect(paragraph.didExceedMaxLines, isFalse, reason: label);
+          expect(breaksAWord(paragraph), isFalse, reason: label);
         }
         expect(tester.takeException(), isNull);
       },
