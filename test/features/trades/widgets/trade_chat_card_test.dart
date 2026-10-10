@@ -7,8 +7,6 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/chat/providers/chat_providers.dart';
 import 'package:mostro/features/trades/widgets/trade_chat_card.dart';
 import 'package:mostro/l10n/app_localizations.dart';
-import 'package:mostro/shared/providers/peer_nym_provider.dart';
-import 'package:mostro/src/rust/api/types.dart' show NymIdentity;
 import 'package:mostro/shared/widgets/tab_app_bar.dart' show CountBadge;
 
 import '../../../support/load_app_fonts.dart';
@@ -22,8 +20,6 @@ Future<void> _pump(
   int unread = 0,
   bool isSelling = false,
   bool withRoom = true,
-  String counterpartyPubkey = '',
-  Future<NymIdentity> Function(String)? nymLookup,
 }) async {
   final router = GoRouter(
     routes: [
@@ -35,7 +31,6 @@ Future<void> _pump(
                 orderId: _orderId,
                 closed: closed,
                 isSelling: isSelling,
-                counterpartyPubkey: counterpartyPubkey,
               ),
             ),
       ),
@@ -51,7 +46,6 @@ Future<void> _pump(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        if (nymLookup != null) nymLookupProvider.overrideWithValue(nymLookup),
         chatRoomsNotifierProvider.overrideWith(
           (ref) =>
               ChatRoomsNotifier()..setRooms([
@@ -96,7 +90,9 @@ void main() {
   testWidgets('a seller chats with the buyer', (tester) async {
     await _pump(tester, closed: false, isSelling: true);
     expect(find.text('Chat with the buyer'), findsOneWidget);
-    expect(find.text('bright-fox-41 · end-to-end encrypted'), findsOneWidget);
+    expect(find.text('End-to-end encrypted'), findsOneWidget);
+    // The role says who is on the other side; the room shows the alias.
+    expect(find.textContaining('bright-fox-41'), findsNothing);
     expect(find.text('Open'), findsOneWidget);
   });
 
@@ -105,10 +101,11 @@ void main() {
     expect(find.text('Chat with the seller'), findsOneWidget);
   });
 
-  testWidgets('unread messages take the title, by alias', (tester) async {
+  testWidgets('unread messages take the second line', (tester) async {
     await _pump(tester, closed: false, unread: 2);
-    expect(find.text('2 new messages from bright-fox-41'), findsOneWidget);
-    expect(find.text('Chat with the seller'), findsNothing);
+    expect(find.text('Chat with the seller'), findsOneWidget);
+    expect(find.text('2 new messages'), findsOneWidget);
+    expect(find.text('End-to-end encrypted'), findsNothing);
   });
 
   testWidgets('a closed card keeps its role and drops "Open"', (tester) async {
@@ -119,41 +116,33 @@ void main() {
   });
 
   // The rooms are only built on hydration, from the Chat tab or the room
-  // itself: a trade that turns active on screen has none yet, but its row
-  // already holds the counterpart's key.
-  testWidgets('without a room the alias comes from the trade key', (
-    tester,
-  ) async {
-    await _pump(
-      tester,
-      closed: false,
-      isSelling: true,
-      withRoom: false,
-      counterpartyPubkey: 'peer-key',
-      nymLookup:
-          (pubkey) async => NymIdentity(
-            pseudonym: pubkey == 'peer-key' ? 'cool-turkey' : 'wrong',
-            iconIndex: 0,
-            colorHue: 0,
-          ),
-    );
+  // itself: a trade that turns active on screen has none yet. The card
+  // still names the role, from the screen's side, and never "Unknown".
+  testWidgets('without a room the card reads the trade side', (tester) async {
+    await _pump(tester, closed: false, isSelling: true, withRoom: false);
     expect(find.text('Chat with the buyer'), findsOneWidget);
-    expect(find.text('cool-turkey · end-to-end encrypted'), findsOneWidget);
+    expect(find.text('End-to-end encrypted'), findsOneWidget);
     expect(find.textContaining('Unknown'), findsNothing);
   });
 
-  testWidgets('a key that cannot be named never reads "Unknown"', (
+  // DS-A11Y-1: one button that says who the chat is with and opens it.
+  testWidgets('the card is one button with the role and the line', (
     tester,
   ) async {
-    await _pump(
-      tester,
-      closed: false,
-      withRoom: false,
-      counterpartyPubkey: 'peer-key',
-      nymLookup: (_) async => throw StateError('no bridge'),
+    final handle = tester.ensureSemantics();
+    await _pump(tester, closed: false, isSelling: true);
+    expect(
+      tester.getSemantics(find.byType(TradeChatCard)),
+      matchesSemantics(
+        isButton: true,
+        hasEnabledState: true,
+        isEnabled: true,
+        hasTapAction: true,
+        label: 'Chat with the buyer. End-to-end encrypted',
+        hint: 'Open',
+      ),
     );
-    expect(find.text('End-to-end encrypted chat'), findsOneWidget);
-    expect(find.textContaining('Unknown'), findsNothing);
+    handle.dispose();
   });
 
   testWidgets('the unread count reads as it is up to 99', (tester) async {

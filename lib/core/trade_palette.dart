@@ -186,7 +186,7 @@ class TradePalette {
     neutralInk: Color(0xFF3F4756),
     chatBorder: Color(0x735C9130),
     chatActiveBg: Color(0x1492D64F), // lime 8%
-    chatActiveBorder: Color(0xB35C9130), // rgba(92,145,48,0.70)
+    chatActiveBorder: Color(0xFF5C9130), // stroke ink: 3:1 on the tint
     avatarBg: Color(0x1F92D64F), // lime 12%
     avatarBorder: Color(0x5C5C9130), // rgba(92,145,48,0.36)
     avatarNewBg: Color(0x0A12161F), // ink 4%

@@ -2289,7 +2289,7 @@ class AppLocalizationsIt extends AppLocalizations {
       'Ancora nessuna chat: finché l\'operazione non è attiva, nessuna delle due parti sa chi è l\'altra.';
 
   @override
-  String get tradeChatEncrypted => 'Chat cifrata end-to-end';
+  String get tradeChatEncrypted => 'Cifrata end-to-end';
 
   @override
   String get tradeChatClosed => 'Conversazione chiusa · vedi i messaggi';
@@ -2304,17 +2304,12 @@ class AppLocalizationsIt extends AppLocalizations {
   String get tradeChatWithCounterpart => 'Chatta con la controparte';
 
   @override
-  String tradeChatEncryptedWith(String alias) {
-    return '$alias · cifrata end-to-end';
-  }
-
-  @override
-  String tradeChatNewMessages(int count, String alias) {
+  String tradeChatNewMessages(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count nuovi messaggi da $alias',
-      one: '1 nuovo messaggio da $alias',
+      other: '$count nuovi messaggi',
+      one: '1 nuovo messaggio',
     );
     return '$_temp0';
   }

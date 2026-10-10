@@ -3928,10 +3928,10 @@ abstract class AppLocalizations {
   /// **'No chat yet: until the trade is active, neither party knows who the other is.'**
   String get tradeChatLockedNote;
 
-  /// Subtitle of the trade screen's chat card while its title counts the unread messages
+  /// Second line of the trade screen's chat card under the role title
   ///
   /// In en, this message translates to:
-  /// **'End-to-end encrypted chat'**
+  /// **'End-to-end encrypted'**
   String get tradeChatEncrypted;
 
   /// Subtitle of the trade screen's chat card once the conversation has ended (trade cancelled, or completed more than an hour ago); tapping opens the conversation read-only
@@ -3958,17 +3958,11 @@ abstract class AppLocalizations {
   /// **'Chat with your counterpart'**
   String get tradeChatWithCounterpart;
 
-  /// Subtitle of the trade screen's chat card: the counterpart's alias and that the chat is end-to-end encrypted
+  /// Second line of the trade screen's chat card while it has unread messages; count is the number of unread messages
   ///
   /// In en, this message translates to:
-  /// **'{alias} · end-to-end encrypted'**
-  String tradeChatEncryptedWith(String alias);
-
-  /// Title of the trade screen's chat card while it has unread messages; count is the number of unread messages, alias the counterpart's
-  ///
-  /// In en, this message translates to:
-  /// **'{count, plural, =1{1 new message from {alias}} other{{count} new messages from {alias}}}'**
-  String tradeChatNewMessages(int count, String alias);
+  /// **'{count, plural, =1{1 new message} other{{count} new messages}}'**
+  String tradeChatNewMessages(int count);
 
   /// Trailing action label of the trade screen's chat card; tapping the card opens the conversation
   ///

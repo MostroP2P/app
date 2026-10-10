@@ -2956,9 +2956,9 @@
   "@tradeChatLockedNote": {
     "description": "Line shown in place of the chat card until the trade is active"
   },
-  "tradeChatEncrypted": "End-to-end encrypted chat",
+  "tradeChatEncrypted": "End-to-end encrypted",
   "@tradeChatEncrypted": {
-    "description": "Subtitle of the trade screen's chat card while its title counts the unread messages"
+    "description": "Second line of the trade screen's chat card under the role title"
   },
   "tradeChatClosed": "Conversation closed · view messages",
   "@tradeChatClosed": {
@@ -2976,24 +2976,12 @@
   "@tradeChatWithCounterpart": {
     "description": "Title of the trade screen's chat card while the counterpart's role is not known yet"
   },
-  "tradeChatEncryptedWith": "{alias} · end-to-end encrypted",
-  "@tradeChatEncryptedWith": {
-    "description": "Subtitle of the trade screen's chat card: the counterpart's alias and that the chat is end-to-end encrypted",
-    "placeholders": {
-      "alias": {
-        "type": "String"
-      }
-    }
-  },
-  "tradeChatNewMessages": "{count, plural, =1{1 new message from {alias}} other{{count} new messages from {alias}}}",
+  "tradeChatNewMessages": "{count, plural, =1{1 new message} other{{count} new messages}}",
   "@tradeChatNewMessages": {
-    "description": "Title of the trade screen's chat card while it has unread messages; count is the number of unread messages, alias the counterpart's",
+    "description": "Second line of the trade screen's chat card while it has unread messages; count is the number of unread messages",
     "placeholders": {
       "count": {
         "type": "int"
-      },
-      "alias": {
-        "type": "String"
       }
     }
   },

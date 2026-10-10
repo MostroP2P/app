@@ -9,7 +9,6 @@ import 'package:mostro/features/rate/providers/rating_providers.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/features/trades/screens/trade_detail_screen.dart';
 import 'package:mostro/l10n/app_localizations.dart';
-import 'package:mostro/shared/providers/peer_nym_provider.dart';
 import 'package:mostro/src/rust/api/types.dart';
 
 import '../../support/fake_trades.dart';
@@ -52,14 +51,6 @@ void main() {
                 orderId,
               ).overrideWith((ref) async => null),
               tradeRatingProvider(orderId).overrideWith((ref) async => null),
-              // The alias the chat card derives from the trade key.
-              nymLookupProvider.overrideWithValue(
-                (_) async => const NymIdentity(
-                  pseudonym: 'cool-turkey',
-                  iconIndex: 0,
-                  colorHue: 0,
-                ),
-              ),
             ],
           ),
           child: MaterialApp(
