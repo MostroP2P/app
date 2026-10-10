@@ -4,13 +4,13 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/core/automation/automation_ids.dart';
-import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/shared/widgets/nwc_payment_widget.dart';
 import 'package:mostro/features/about/models/mostro_instance.dart' as instance;
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/about/providers/mostro_node_provider.dart';
 import 'package:mostro/features/order/providers/bond_providers.dart';
 import 'package:mostro/features/order/providers/exchange_rate_provider.dart';
+import 'package:mostro/features/order/providers/invoice_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/order/screens/pay_bond_invoice_screen.dart';
 import 'package:mostro/features/order/widgets/invoice_widgets.dart';
@@ -24,7 +24,9 @@ import 'package:mostro/src/rust/api/types.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../support/automation_finders.dart';
 import '../../../support/fake_trades.dart';
+import '../../../support/text_scale.dart';
 
 BondInfo _bond({
   String? invoice = 'lnbc16480n1bond',
@@ -51,6 +53,7 @@ Future<void> _pump(
   Future<bool> Function(String)? closeExpired,
   Locale locale = const Locale('en'),
   double textScale = 1,
+  bool onWeb = false,
 }) async {
   SharedPreferences.setMockInitialValues({
     kBondExplainerOpenKey: explainerOpen,
@@ -59,6 +62,7 @@ Future<void> _pump(
     ProviderScope(
       overrides: [
         isWalletConnectedProvider.overrideWithValue(walletConnected),
+        invoiceOnWebProvider.overrideWithValue(onWeb),
         tradeInfoProvider.overrideWith((ref, id) async => trade),
         tradeUpdatesProvider.overrideWith(
           (ref) => const Stream<TradeUpdate>.empty(),
@@ -87,13 +91,7 @@ Future<void> _pump(
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         locale: locale,
-        builder:
-            (context, child) => MediaQuery(
-              data: MediaQuery.of(
-                context,
-              ).copyWith(textScaler: TextScaler.linear(textScale)),
-              child: child!,
-            ),
+        builder: textScaleBuilder(textScale),
         home: const PayBondInvoiceScreen(orderId: 'order-1'),
       ),
     ),
@@ -138,6 +136,29 @@ void main() {
     expect(find.text("Don't take the order"), findsOneWidget);
     expect(find.text('Read the documentation'), findsNothing);
   });
+
+  for (final onWeb in [false, true]) {
+    testWidgets(
+      '14a: ${onWeb ? 'on the web Copy' : 'off the web the wallet'} leads',
+      (tester) async {
+        await _pump(tester, trade: fakeTrade(bond: _bond()), onWeb: onWeb);
+
+        final (lead, second) =
+            onWeb
+                ? ('Copy', 'Open in my wallet')
+                : ('Open in my wallet', 'Copy');
+        expect(find.widgetWithText(InvoicePrimaryButton, lead), findsOneWidget);
+        expect(
+          find.widgetWithText(InvoiceSecondaryButton, second),
+          findsOneWidget,
+        );
+        expect(
+          find.widgetWithText(InvoiceSecondaryButton, 'Share'),
+          findsOneWidget,
+        );
+      },
+    );
+  }
 
   testWidgets('with no node status the timeout warning stands', (tester) async {
     await _pump(tester, trade: fakeTrade(bond: _bond()), slashOnTimeout: null);
@@ -279,19 +300,9 @@ void main() {
         walletConnected: walletConnected,
       );
 
-      expect(
-        find.byWidgetPredicate(
-          (w) => w is AutomationId && w.id == AutomationIds.bondInvoiceText,
-        ),
-        findsOneWidget,
-      );
+      expect(findAutomationId(AutomationIds.bondInvoiceText), findsOneWidget);
       // The hold invoice's id belongs to the hold-invoice screen.
-      expect(
-        find.byWidgetPredicate(
-          (w) => w is AutomationId && w.id == AutomationIds.payInvoiceText,
-        ),
-        findsNothing,
-      );
+      expect(findAutomationId(AutomationIds.payInvoiceText), findsNothing);
     });
   }
 

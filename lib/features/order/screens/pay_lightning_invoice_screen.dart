@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -377,6 +376,8 @@ class _PayLightningInvoiceScreenState
                                 : NwcPaymentWidget(
                                   bolt11: invoice,
                                   amountSats: amountSats,
+                                  invoiceAutomationId:
+                                      AutomationIds.payInvoiceText,
                                   onPaymentSuccess: _onPaymentDetected,
                                   onFallbackToManual:
                                       () => setState(() => _manualMode = true),
@@ -564,62 +565,21 @@ class _PayLightningInvoiceScreenState
   }
 
   List<Widget> _footer(AppLocalizations l10n, String invoice) {
-    final book = OrderBookPalette.of(context);
     if (_waiting) {
       return [_waitingForConfirmation(l10n)];
     }
 
-    final copied = _copiedTimer != null;
-    final copyIcon = copied ? Icons.check : Icons.copy;
-    final share = InvoiceSecondaryButton(
-      icon: Icons.share,
-      label: l10n.shareButtonLabel,
-      onPressed: () => _share(invoice),
-    );
-
     return [
-      if (copyLeadsInvoice(isWeb: kIsWeb, noWalletApp: _noWalletApp)) ...[
-        InvoicePrimaryButton(
-          icon: copyIcon,
-          label: l10n.copyButtonLabel,
-          onPressed: () => _copy(invoice),
+      InvoicePaymentActions(
+        copyLeads: copyLeadsInvoice(
+          isWeb: ref.watch(invoiceOnWebProvider),
+          noWalletApp: _noWalletApp,
         ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: InvoiceSecondaryButton(
-                icon: Icons.bolt,
-                label: l10n.invoiceOpenWallet,
-                onPressed: () => _openWallet(invoice),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(child: share),
-          ],
-        ),
-      ] else ...[
-        InvoicePrimaryButton(
-          icon: Icons.bolt,
-          label: l10n.invoiceOpenWallet,
-          onPressed: () => _openWallet(invoice),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: InvoiceSecondaryButton(
-                icon: copyIcon,
-                iconColor: copied ? book.lime : null,
-                label: l10n.copyButtonLabel,
-                onPressed: () => _copy(invoice),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(child: share),
-          ],
-        ),
-      ],
+        copied: _copiedTimer != null,
+        onCopy: () => _copy(invoice),
+        onOpenWallet: () => _openWallet(invoice),
+        onShare: () => _share(invoice),
+      ),
       const SizedBox(height: 4),
       InvoiceCancelLink(
         label: l10n.invoiceCancelTrade,

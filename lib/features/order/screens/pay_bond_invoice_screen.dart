@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -20,6 +19,7 @@ import 'package:mostro/features/order/models/bond_rules.dart';
 import 'package:mostro/features/order/models/invoice_rules.dart';
 import 'package:mostro/features/order/providers/bond_providers.dart';
 import 'package:mostro/features/order/providers/exchange_rate_provider.dart';
+import 'package:mostro/features/order/providers/invoice_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/order/widgets/bond_widgets.dart';
 import 'package:mostro/features/order/widgets/invoice_clock.dart';
@@ -706,50 +706,17 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
         ),
       ];
     }
-    final copied = _copiedTimer != null;
-    final copyIcon = copied ? Icons.check : Icons.copy;
-    final copyLeads = copyLeadsInvoice(
-      isWeb: kIsWeb,
-      noWalletApp: _noWalletApp,
-    );
-    final secondaries = Row(
-      children: [
-        Expanded(
-          child: InvoiceSecondaryButton(
-            icon: copyLeads ? Icons.bolt : copyIcon,
-            iconColor: !copyLeads && copied ? book.lime : null,
-            label: copyLeads ? l10n.invoiceOpenWallet : l10n.copyButtonLabel,
-            onPressed:
-                copyLeads ? () => _openWallet(invoice) : () => _copy(invoice),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: InvoiceSecondaryButton(
-            icon: Icons.share,
-            label: l10n.shareButtonLabel,
-            onPressed: () => _share(invoice),
-          ),
-        ),
-      ],
-    );
     return [
-      // `Copy` leads when [copyLeadsInvoice] says so; the wallet link then
-      // drops to a secondary action.
-      if (copyLeads)
-        InvoicePrimaryButton(
-          icon: copyIcon,
-          label: l10n.copyButtonLabel,
-          onPressed: () => _copy(invoice),
-        )
-      else
-        InvoicePrimaryButton(
-          icon: Icons.bolt,
-          label: l10n.invoiceOpenWallet,
-          onPressed: () => _openWallet(invoice),
+      InvoicePaymentActions(
+        copyLeads: copyLeadsInvoice(
+          isWeb: ref.watch(invoiceOnWebProvider),
+          noWalletApp: _noWalletApp,
         ),
-      const SizedBox(height: 8),
-      secondaries,
+        copied: _copiedTimer != null,
+        onCopy: () => _copy(invoice),
+        onOpenWallet: () => _openWallet(invoice),
+        onShare: () => _share(invoice),
+      ),
       const SizedBox(height: 4),
       _leaveLink(l10n, maker: maker),
     ];
@@ -769,8 +736,7 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
       NwcPaymentWidget(
         bolt11: invoice,
         amountSats: amountSats,
-        // The screen's QR carries `bond.invoice.text`; the widget's default
-        // id is the hold invoice's (`pay.invoice.text`), wrong here.
+        // The screen's QR carries the bolt11 as `bond.invoice.text`.
         invoiceAutomationId: null,
         onPaymentSuccess: _onPaymentDetected,
         onFallbackToManual: () => setState(() => _manualMode = true),

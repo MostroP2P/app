@@ -483,6 +483,80 @@ class InvoiceSecondaryButton extends StatelessWidget {
   }
 }
 
+/// What an invoice screen offers to pay with: one lime action over a row of
+/// two secondaries, the second of them Share. The wallet link leads and Copy
+/// sits beside Share, or the two swap when [copyLeads] ([copyLeadsInvoice]).
+/// Shared by the hold invoice (13b) and the bond (14), so the arrangement is
+/// decided in one place.
+class InvoicePaymentActions extends StatelessWidget {
+  const InvoicePaymentActions({
+    super.key,
+    required this.copyLeads,
+    required this.copied,
+    required this.onCopy,
+    required this.onOpenWallet,
+    required this.onShare,
+  });
+
+  final bool copyLeads;
+
+  /// Copy's icon is a check while true (the copy feedback).
+  final bool copied;
+  final VoidCallback onCopy;
+  final VoidCallback onOpenWallet;
+  final VoidCallback onShare;
+
+  @override
+  Widget build(BuildContext context) {
+    final book = OrderBookPalette.of(context);
+    final l10n = AppLocalizations.of(context);
+    final copy = (
+      icon: copied ? Icons.check : Icons.copy,
+      label: l10n.copyButtonLabel,
+      onPressed: onCopy,
+    );
+    final wallet = (
+      icon: Icons.bolt,
+      label: l10n.invoiceOpenWallet,
+      onPressed: onOpenWallet,
+    );
+    final (lead, second) = copyLeads ? (copy, wallet) : (wallet, copy);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InvoicePrimaryButton(
+          icon: lead.icon,
+          label: lead.label,
+          onPressed: lead.onPressed,
+        ),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            Expanded(
+              child: InvoiceSecondaryButton(
+                icon: second.icon,
+                // The check turns lime only on the grey button.
+                iconColor: !copyLeads && copied ? book.lime : null,
+                label: second.label,
+                onPressed: second.onPressed,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: InvoiceSecondaryButton(
+                icon: Icons.share,
+                label: l10n.shareButtonLabel,
+                onPressed: onShare,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 /// `Cancel trade` as bare text: grey in 13a, red in 13b.
 class InvoiceCancelLink extends StatelessWidget {
   const InvoiceCancelLink({
