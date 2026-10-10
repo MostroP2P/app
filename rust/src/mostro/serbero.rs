@@ -9,11 +9,18 @@
 //! and never on another node's: a key one node runs as its Serbero can be a
 //! person's on another.
 //!
-//! Two sources for that node, the live one first:
+//! Two sources for that node, the cached one first:
+//! - every registry node's kind 38385 cached by `node_stats`, which keeps
+//!   the newest revision by NIP-01's order (and which the capability fetch
+//!   writes before anything reads it), so a dispute of a node the user
+//!   switched away from keeps its label;
 //! - the active node's announcement from its capability fetch, kept here per
-//!   node (`None` once a fetch saw no tag, which retracts a cached one);
-//! - every registry node's kind 38385 cached by `node_stats`, so a dispute of
-//!   a node the user switched away from keeps its label.
+//!   node, for a node the cache does not hold (no store yet).
+//!
+//! The cache outranks the live answer on purpose: a fetch can end empty
+//! (every relay slow at startup) or carry a stale copy from a relay that is
+//! behind, and neither is the node taking its Serbero back. A retraction is
+//! a newer event without the tag, which supersedes the cached one.
 //!
 //! Read at display time, not when a message arrives: a history replay can
 //! land before the capability fetch, and the label then corrects itself.
@@ -49,9 +56,10 @@ pub(crate) fn set_from_tags(node: &str, tags: &[Vec<String>]) {
         .insert(node.to_lowercase(), parse_tag(tags));
 }
 
-/// Whether `pubkey` is the Serbero `node` announces. Its `live` answer wins
-/// over its `cached` info event; a node not in `known` (removed from the
-/// registry) vouches for nobody, although its live answer stays in memory.
+/// Whether `pubkey` is the Serbero `node` announces. Its `cached` info event
+/// (the newest revision seen) decides; its `live` answer only when nothing
+/// is cached. A node not in `known` (removed from the registry) vouches for
+/// nobody, although its live answer stays in memory.
 fn is_assistant_in(
     pubkey: &str,
     node: &str,
@@ -63,13 +71,12 @@ fn is_assistant_in(
     if !known.contains(&node) {
         return false;
     }
-    let announced = match live.get(&node) {
-        Some(answer) => answer.clone(),
-        None => cached
-            .iter()
-            .find(|(cached_node, _)| cached_node.to_lowercase() == node)
-            .and_then(|(_, tags)| parse_tag(tags)),
-    };
+    let announced = cached
+        .iter()
+        .find(|(cached_node, _)| cached_node.to_lowercase() == node)
+        .map(|(_, tags)| parse_tag(tags))
+        .or_else(|| live.get(&node).cloned())
+        .flatten();
     announced.is_some_and(|serbero| serbero == pubkey.trim().to_lowercase())
 }
 

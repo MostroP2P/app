@@ -904,8 +904,9 @@ fn apply_node_capabilities(node: &str, fetched: Result<Option<Vec<Vec<String>>>>
                 crate::mostro::bond_policy::parse_tags(&tags),
             );
             // Its dispute assistant, so the dispute chat can tell Serbero from
-            // the person who takes a case over (#637). A fetch without the tag
-            // retracts an older announcement. See mostro::serbero.
+            // the person who takes a case over (#637). The event is already
+            // in the node_stats cache, which the label reads first; this copy
+            // serves a node the cache cannot hold. See mostro::serbero.
             crate::mostro::serbero::set_from_tags(&mostro_pubkey_hex, &tags);
             // The service fee. Only Cashu mode needs it client-side — there the
             // seller funds the whole fee as its own token — but it rides in the
@@ -926,8 +927,8 @@ fn apply_node_capabilities(node: &str, fetched: Result<Option<Vec<Vec<String>>>>
             // Lightning, and leave Cashu closed.
             escrow_mode::clear();
             crate::mostro::bond_policy::clear();
-            // Nor a Serbero: retract an older announcement of this node.
-            crate::mostro::serbero::set_from_tags(&mostro_pubkey_hex, &[]);
+            // The Serbero announcement is left alone: no relay answering in
+            // time is not the node taking it back (mostro::serbero).
         }
         Err(e) => {
             log::warn!("[nostr] failed to fetch Kind 38385 for node capabilities: {e}");
