@@ -2956,13 +2956,38 @@
   "@tradeChatLockedNote": {
     "description": "Line shown in place of the chat card until the trade is active"
   },
-  "tradeChatEncrypted": "End-to-end encrypted chat",
+  "tradeChatEncrypted": "End-to-end encrypted",
   "@tradeChatEncrypted": {
-    "description": "Subtitle of the chat card under the counterpart alias"
+    "description": "Second line of the trade screen's chat card under the role title"
   },
   "tradeChatClosed": "Conversation closed · view messages",
   "@tradeChatClosed": {
     "description": "Subtitle of the trade screen's chat card once the conversation has ended (trade cancelled, or completed more than an hour ago); tapping opens the conversation read-only"
+  },
+  "tradeChatWithBuyer": "Chat with the buyer",
+  "@tradeChatWithBuyer": {
+    "description": "Title of the trade screen's chat card when the counterpart is the buyer (the user sells)"
+  },
+  "tradeChatWithSeller": "Chat with the seller",
+  "@tradeChatWithSeller": {
+    "description": "Title of the trade screen's chat card when the counterpart is the seller (the user buys)"
+  },
+  "tradeChatWithCounterpart": "Chat with your counterpart",
+  "@tradeChatWithCounterpart": {
+    "description": "Title of the trade screen's chat card while the counterpart's role is not known yet"
+  },
+  "tradeChatNewMessages": "{count, plural, =1{1 new message} other{{count} new messages}}",
+  "@tradeChatNewMessages": {
+    "description": "Second line of the trade screen's chat card while it has unread messages; count is the number of unread messages",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "tradeChatOpen": "Open",
+  "@tradeChatOpen": {
+    "description": "Trailing action label of the trade screen's chat card; tapping the card opens the conversation"
   },
   "tradeChatClosedAnnouncement": "The conversation is closed. You can still read its messages",
   "@tradeChatClosedAnnouncement": {

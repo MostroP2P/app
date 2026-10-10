@@ -34,6 +34,8 @@ class TradePalette {
     required this.neutralBorder,
     required this.neutralInk,
     required this.chatBorder,
+    required this.chatActiveBg,
+    required this.chatActiveBorder,
     required this.avatarBg,
     required this.avatarBorder,
     required this.avatarNewBg,
@@ -90,6 +92,11 @@ class TradePalette {
   /// Chat card border.
   final Color chatBorder;
 
+  /// The open chat card (21a): a lime tint and a lime stroke, so it reads as
+  /// a place to write rather than a label.
+  final Color chatActiveBg;
+  final Color chatActiveBorder;
+
   /// Avatar of the chat card and of the reputation row.
   final Color avatarBg;
   final Color avatarBorder;
@@ -134,6 +141,8 @@ class TradePalette {
     neutralBorder: Color(0x1FFFFFFF), // white 12%
     neutralInk: Color(0xFFA6B0C2),
     chatBorder: Color(0x3892D64F), // rgba(146,214,79,0.22)
+    chatActiveBg: Color(0x1292D64F), // rgba(146,214,79,0.07)
+    chatActiveBorder: Color(0x9992D64F), // rgba(146,214,79,0.60)
     avatarBg: Color(0x1F92D64F), // rgba(146,214,79,0.12)
     avatarBorder: Color(0x3892D64F), // rgba(146,214,79,0.22)
     avatarNewBg: Color(0x0DFFFFFF), // white 5%
@@ -176,6 +185,8 @@ class TradePalette {
     neutralBorder: Color(0x3312161F), // ink 20%
     neutralInk: Color(0xFF3F4756),
     chatBorder: Color(0x735C9130),
+    chatActiveBg: Color(0x1492D64F), // lime 8%
+    chatActiveBorder: Color(0xFF5C9130), // stroke ink: 3:1 on the tint
     avatarBg: Color(0x1F92D64F), // lime 12%
     avatarBorder: Color(0x5C5C9130), // rgba(92,145,48,0.36)
     avatarNewBg: Color(0x0A12161F), // ink 4%

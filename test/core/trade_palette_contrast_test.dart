@@ -6,6 +6,7 @@ import 'package:mostro/core/trade_palette.dart';
 import 'order_book_palette_contrast_test.dart' show contrastRatio, flatten;
 
 const _aa = 4.5;
+const _nonText = 3.0;
 
 void _expectAA(String label, Color fg, Color bg) {
   final ratio = contrastRatio(fg, bg);
@@ -13,6 +14,15 @@ void _expectAA(String label, Color fg, Color bg) {
     ratio,
     greaterThanOrEqualTo(_aa),
     reason: '$label must be ≥ $_aa:1 (got ${ratio.toStringAsFixed(2)}:1)',
+  );
+}
+
+void _expectNonText(String label, Color fg, Color bg) {
+  final ratio = contrastRatio(fg, bg);
+  expect(
+    ratio,
+    greaterThanOrEqualTo(_nonText),
+    reason: '$label must be ≥ $_nonText:1 (got ${ratio.toStringAsFixed(2)}:1)',
   );
 }
 
@@ -60,6 +70,15 @@ void main() {
       test('reputation grade on the avatar', () {
         _expectAA('grade', book.limeInk, flatten(pal.avatarBg, book.surface));
         _expectAA('new', book.textNew, flatten(pal.avatarNewBg, book.surface));
+      });
+
+      test('the open chat card on the page', () {
+        final card = flatten(pal.chatActiveBg, book.bg);
+        _expectAA('title', book.textStrong, card);
+        _expectAA('second line', book.textSecondary, card);
+        _expectAA('open', book.limeText, card);
+        // DS-COL-7: the stroke is what says "this is a tappable box".
+        _expectNonText('stroke', flatten(pal.chatActiveBorder, card), card);
       });
 
       test('the no-chat line on the page', () {

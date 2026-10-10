@@ -2270,10 +2270,33 @@ class AppLocalizationsEn extends AppLocalizations {
       'No chat yet: until the trade is active, neither party knows who the other is.';
 
   @override
-  String get tradeChatEncrypted => 'End-to-end encrypted chat';
+  String get tradeChatEncrypted => 'End-to-end encrypted';
 
   @override
   String get tradeChatClosed => 'Conversation closed · view messages';
+
+  @override
+  String get tradeChatWithBuyer => 'Chat with the buyer';
+
+  @override
+  String get tradeChatWithSeller => 'Chat with the seller';
+
+  @override
+  String get tradeChatWithCounterpart => 'Chat with your counterpart';
+
+  @override
+  String tradeChatNewMessages(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count new messages',
+      one: '1 new message',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get tradeChatOpen => 'Open';
 
   @override
   String get tradeChatClosedAnnouncement =>

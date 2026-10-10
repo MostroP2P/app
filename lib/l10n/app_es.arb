@@ -656,11 +656,36 @@
   "@tradeChatLockedNote": {
     "description": "Line shown in place of the chat card until the trade is active"
   },
-  "tradeChatEncrypted": "Chat cifrado de extremo a extremo",
+  "tradeChatEncrypted": "Cifrado de extremo a extremo",
   "@tradeChatEncrypted": {
-    "description": "Subtitle of the chat card under the counterpart alias"
+    "description": "Second line of the trade screen's chat card under the role title"
   },
   "tradeChatClosed": "Conversación cerrada · ver mensajes",
+  "tradeChatWithBuyer": "Chatea con el comprador",
+  "@tradeChatWithBuyer": {
+    "description": "Title of the trade screen's chat card when the counterpart is the buyer (the user sells)"
+  },
+  "tradeChatWithSeller": "Chatea con el vendedor",
+  "@tradeChatWithSeller": {
+    "description": "Title of the trade screen's chat card when the counterpart is the seller (the user buys)"
+  },
+  "tradeChatWithCounterpart": "Chatea con tu contraparte",
+  "@tradeChatWithCounterpart": {
+    "description": "Title of the trade screen's chat card while the counterpart's role is not known yet"
+  },
+  "tradeChatNewMessages": "{count, plural, =1{1 mensaje nuevo} other{{count} mensajes nuevos}}",
+  "@tradeChatNewMessages": {
+    "description": "Second line of the trade screen's chat card while it has unread messages; count is the number of unread messages",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "tradeChatOpen": "Abrir",
+  "@tradeChatOpen": {
+    "description": "Trailing action label of the trade screen's chat card; tapping the card opens the conversation"
+  },
   "tradeChatClosedAnnouncement": "La conversación se cerró. Aún puedes leer sus mensajes",
   "tradeBodyWaitingPaymentBuyer": "Está pagando la factura hold. Cuando los sats estén bloqueados, te toca pagar el fiat.",
   "@tradeBodyWaitingPaymentBuyer": {

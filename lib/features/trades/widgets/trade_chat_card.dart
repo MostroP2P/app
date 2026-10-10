@@ -9,19 +9,36 @@ import 'package:mostro/features/chat/providers/chat_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/widgets/tab_app_bar.dart' show CountBadge;
 
-/// The chat card of an active trade: the counterpart's alias, the unread
-/// badge from the message stream, and a tap into the room. The alias is the
-/// datum — never a "your counterpart" placeholder once the trade is active.
+/// The chat card of an active trade (21a): it says who the user chats with
+/// by role — "Chat with the buyer" when they sell, "the seller" when they buy
+/// — over "End-to-end encrypted", with a filled lime icon, a lime stroke
+/// and an explicit "Open", so it reads as a place to write rather than a
+/// label. With unread messages the second line counts them instead, and the
+/// badge on the icon says the same.
+///
+/// No alias: the role already says who is on the other side, and the room
+/// shows the alias once opened. So the card never needs the counterpart's
+/// identity, and never reads "Unknown" while the chat rooms are still being
+/// built (only on hydration, from the Chat tab or from the room itself).
 ///
 /// [closed] once the conversation has ended: muted, with a line that the
-/// messages can still be read. The tap opens the room, read-only. The unread
-/// badge stays: the messages are unread until the room is opened, and the
-/// chat list and the Chat tab count them too.
+/// messages can still be read, and no "Open". The tap opens the room,
+/// read-only. The unread badge stays: the messages are unread until the room
+/// is opened, and the chat list and the Chat tab count them too.
 class TradeChatCard extends ConsumerWidget {
-  const TradeChatCard({super.key, required this.orderId, this.closed = false});
+  const TradeChatCard({
+    super.key,
+    required this.orderId,
+    this.closed = false,
+    this.isSelling,
+  });
 
   final String orderId;
   final bool closed;
+
+  /// The trade's side as the screen knows it, for the title while the chat
+  /// room has not loaded; the room's own side wins once it has.
+  final bool? isSelling;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -34,53 +51,94 @@ class TradeChatCard extends ConsumerWidget {
             .watch(chatRoomsNotifierProvider)
             .where((r) => r.orderId == orderId)
             .firstOrNull;
-    final alias = room?.displayHandle(l10n) ?? l10n.unknownPeerHandle;
     final unread = room?.unreadCount ?? 0;
+    // A seller chats with the buyer, and the other way round.
+    final withRole = switch (room?.isSelling ?? isSelling) {
+      true => l10n.tradeChatWithBuyer,
+      false => l10n.tradeChatWithSeller,
+      null => l10n.tradeChatWithCounterpart,
+    };
+    final subtitle =
+        closed
+            ? l10n.tradeChatClosed
+            : unread > 0
+            ? l10n.tradeChatNewMessages(unread)
+            : l10n.tradeChatEncrypted;
+    final radius = BorderRadius.circular(18);
+    void open() => context.push(AppRoute.chatRoomPath(orderId));
 
-    return Material(
-      color: book.surface,
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        onTap: () => context.push(AppRoute.chatRoomPath(orderId)),
-        borderRadius: BorderRadius.circular(18),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          decoration: BoxDecoration(
-            border: Border.all(color: closed ? book.border : trade.chatBorder),
-            borderRadius: BorderRadius.circular(18),
-          ),
-          child: Row(
-            children: [
-              _Avatar(unread: unread, closed: closed),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      alias,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: closed ? book.textSecondary : book.textStrong,
+    // DS-A11Y-1: one button that reads the role and the second line, with
+    // "Open" as its hint; the texts and the badge under it stay silent.
+    return Semantics(
+      button: true,
+      enabled: true,
+      label: '$withRole. $subtitle',
+      hint: closed ? null : l10n.tradeChatOpen,
+      onTap: open,
+      excludeSemantics: true,
+      child: Material(
+        color: closed ? book.surface : trade.chatActiveBg,
+        borderRadius: radius,
+        child: InkWell(
+          onTap: open,
+          borderRadius: radius,
+          child: Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              border: Border.all(
+                color: closed ? book.border : trade.chatActiveBorder,
+                width: closed ? 1 : 1.5,
+              ),
+              borderRadius: radius,
+            ),
+            child: Row(
+              children: [
+                _Avatar(unread: unread, closed: closed),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        withRole,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: closed ? book.textSecondary : book.textStrong,
+                        ),
+                        overflow: TextOverflow.ellipsis,
                       ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    Text(
-                      closed ? l10n.tradeChatClosed : l10n.tradeChatEncrypted,
-                      style: TextStyle(fontSize: 11, color: book.textTertiary),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
+                      const SizedBox(height: 2),
+                      Text(
+                        subtitle,
+                        maxLines: 2,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color:
+                              closed ? book.textTertiary : book.textSecondary,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              const SizedBox(width: 8),
-              Icon(
-                Icons.chevron_right,
-                size: 18,
-                color: closed ? book.textTertiary : book.limeIcon,
-              ),
-            ],
+                const SizedBox(width: 8),
+                if (!closed)
+                  Text(
+                    l10n.tradeChatOpen,
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: book.limeText,
+                    ),
+                  ),
+                Icon(
+                  Icons.chevron_right,
+                  size: 18,
+                  color: closed ? book.textTertiary : book.limeText,
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -100,26 +158,28 @@ class _Avatar extends StatelessWidget {
     final trade = TradePalette.of(context);
 
     return SizedBox(
-      width: 38,
-      height: 36,
+      width: 44,
+      height: 42,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           Positioned(
             left: 0,
             top: 1,
+            // Filled lime while the chat is open (DS-COL-4: its ink on it);
+            // the soft tint once it has closed.
             child: Container(
-              width: 34,
-              height: 34,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: trade.avatarBg,
-                border: Border.all(color: trade.avatarBorder),
+                color: closed ? trade.avatarBg : book.lime,
+                border: closed ? Border.all(color: trade.avatarBorder) : null,
               ),
               child: Icon(
                 Icons.chat_bubble_outline,
-                size: 16,
-                color: closed ? book.textTertiary : book.limeText,
+                size: 20,
+                color: closed ? book.textTertiary : book.onLime,
               ),
             ),
           ),
