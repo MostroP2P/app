@@ -97,6 +97,100 @@ void main() {
     });
   });
 
+  group('price sources', () {
+    test('read by the providers\' names', () {
+      expect(
+        [
+          'yadio',
+          'coingecko',
+          'currency_api',
+          'blockchain',
+          'eltoque',
+          'nostr',
+        ].map(priceSourceName),
+        [
+          'Yadio',
+          'CoinGecko',
+          'Currency API',
+          'Blockchain.com',
+          'El Toque',
+          'Nostr',
+        ],
+      );
+    });
+
+    // The Rust side keeps the node's spelling, so a known provider must be
+    // recognised in any case the node writes it in.
+    test('a known provider is named whatever case the node writes', () {
+      expect(priceSourceName('YADIO'), 'Yadio');
+      expect(priceSourceName('ElToque'), 'El Toque');
+      expect(priceSourceName('Currency_API'), 'Currency API');
+    });
+
+    test('a provider the app does not know reads as the node sent it', () {
+      expect(priceSourceName('newsource'), 'newsource');
+      expect(priceSourceName('CustomProvider'), 'CustomProvider');
+    });
+
+    test('get a group of their own, one row each, after the bond', () {
+      final without = nodeTechSections(_handoffNode, _en);
+      final sections = nodeTechSections(
+        _handoffNode,
+        _en,
+        priceSources: const ['blockchain', 'coingecko', 'yadio'],
+      );
+
+      expect(sections.map((s) => s.title), [
+        'Mostro',
+        'Anti-abuse Bond',
+        'Price',
+        'Lightning Network',
+      ]);
+      expect(sections[2].rows.map((r) => (r.label, r.value)), [
+        ('Source', 'Blockchain.com'),
+        ('Source', 'CoinGecko'),
+        ('Source', 'Yadio'),
+      ]);
+      // Every other group is unchanged, rows and values.
+      List<String> shown(Iterable<TechSection> groups) => [
+        for (final group in groups)
+          for (final row in group.rows)
+            '${group.title} · ${row.label}: ${row.value}',
+      ];
+      expect(shown(sections.where((s) => s.title != 'Price')), shown(without));
+      expect(nodeFieldCount(sections), nodeFieldCount(without) + 3);
+    });
+
+    test('are copied with the rest of the technical data', () {
+      final text = technicalDataClipboard(
+        app: appTechSection('2.0.0', 'deadbeefcafe', _en),
+        limits: NodeLimits.of(_handoffNode, _en),
+        nodeSections: nodeTechSections(
+          _handoffNode,
+          _en,
+          priceSources: const ['coingecko', 'yadio'],
+        ),
+        l10n: _en,
+      );
+
+      expect(
+        text.split('\n'),
+        containsAllInOrder(['Source: CoinGecko', 'Source: Yadio']),
+      );
+    });
+
+    test('a node that names none has no price group', () {
+      for (final sources in [null, const <String>[]]) {
+        final sections = nodeTechSections(
+          _handoffNode,
+          _en,
+          priceSources: sources,
+        );
+        expect(sections.map((s) => s.title), isNot(contains('Price')));
+      }
+    });
+  });
+
   group('NodeSummary', () {
     const node = MostroInstance(
       pubKey: 'node',

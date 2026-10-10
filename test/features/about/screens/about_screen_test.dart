@@ -14,6 +14,7 @@ import 'package:mostro/features/about/screens/node_technical_data_screen.dart';
 import 'package:mostro/features/about/widgets/about_widgets.dart';
 import 'package:mostro/features/settings/widgets/mostro_node_selector.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/l10n/app_localizations_en.dart';
 
 import '../../../support/provider_harness.dart';
 
@@ -68,6 +69,8 @@ Future<ProviderContainer> _pump(
   WidgetTester tester,
   Widget home, {
   required List<Override> overrides,
+  List<String>? priceSources,
+  Future<List<String>?> Function()? loadPriceSources,
 }) async {
   tester.view.physicalSize = const Size(1200, 4000);
   tester.view.devicePixelRatio = 1.0;
@@ -78,6 +81,9 @@ Future<ProviderContainer> _pump(
     overrides: [
       appVersionProvider.overrideWith((ref) async => '2.0.0'),
       activeNodeNameProvider.overrideWith((ref) => 'Mostro'),
+      priceSourcesProvider.overrideWith(
+        (ref) => loadPriceSources?.call() ?? Future.value(priceSources),
+      ),
       ...overrides,
     ],
   );
@@ -231,6 +237,24 @@ void main() {
 
       expect(find.text('No'), findsOneWidget);
       expect(find.text('All'), findsOneWidget);
+    });
+
+    testWidgets('counts the price source among the technical fields', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        const AboutScreen(),
+        priceSources: const ['yadio'],
+        overrides: [
+          mostroNodeProvider.overrideWith(
+            (ref) async => MostroInstance.fromTags(_tags({})),
+          ),
+        ],
+      );
+
+      // Public key, fiat currencies, price source and bond status.
+      expect(find.text('4 fields'), findsOneWidget);
     });
 
     testWidgets('offers a retry when the node does not answer', (tester) async {
@@ -470,5 +494,116 @@ void main() {
       expect(find.bySemanticsLabel(_pubkey), findsOneWidget);
       semantics.dispose();
     });
+  });
+
+  group('price source (12b)', () {
+    testWidgets('names the providers the node takes its prices from', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        const NodeTechnicalDataScreen(),
+        priceSources: const ['coingecko', 'yadio'],
+        overrides: [
+          mostroNodeProvider.overrideWith(
+            (ref) async => MostroInstance.fromTags(_tags({})),
+          ),
+        ],
+      );
+
+      expect(find.text('PRICE'), findsOneWidget);
+      expect(find.text('Source'), findsNWidgets(2));
+      expect(find.text('CoinGecko'), findsOneWidget);
+      expect(find.text('Yadio'), findsOneWidget);
+    });
+
+    testWidgets('has no price group when the node publishes no prices', (
+      tester,
+    ) async {
+      await _pumpWithNode(tester, MostroInstance.fromTags(_tags({})));
+
+      expect(find.text('PRICE'), findsNothing);
+    });
+
+    testWidgets('the footnote says the sources are those of the rates now', (
+      tester,
+    ) async {
+      final en = AppLocalizationsEn();
+      final withSources =
+          '${en.aboutTechnicalFootnote} ${en.aboutPriceSourcesFootnote}';
+      await _pump(
+        tester,
+        const NodeTechnicalDataScreen(),
+        priceSources: const ['yadio'],
+        overrides: [
+          mostroNodeProvider.overrideWith(
+            (ref) async => MostroInstance.fromTags(_tags({})),
+          ),
+        ],
+      );
+      expect(find.text(withSources), findsOneWidget);
+    });
+
+    testWidgets('no price sentence in the footnote without sources', (
+      tester,
+    ) async {
+      final en = AppLocalizationsEn();
+      await _pumpWithNode(tester, MostroInstance.fromTags(_tags({})));
+
+      expect(find.text(en.aboutTechnicalFootnote), findsOneWidget);
+    });
+  });
+
+  group('price sources fetch', () {
+    testWidgets('12a asks for them while the node is still answering', (
+      tester,
+    ) async {
+      var priceCalls = 0;
+      final node = Completer<MostroInstance?>();
+      await _pump(
+        tester,
+        const AboutScreen(),
+        loadPriceSources: () async {
+          priceCalls++;
+          return const ['yadio'];
+        },
+        overrides: [mostroNodeProvider.overrideWith((ref) => node.future)],
+      );
+
+      expect(priceCalls, 1);
+    });
+
+    for (final (screen, home) in [
+      ('12a', const AboutScreen() as Widget),
+      ('12b', const NodeTechnicalDataScreen() as Widget),
+    ]) {
+      testWidgets('$screen Retry fetches the node and its sources again', (
+        tester,
+      ) async {
+        var nodeCalls = 0;
+        var priceCalls = 0;
+        await _pump(
+          tester,
+          home,
+          loadPriceSources: () async {
+            priceCalls++;
+            return null;
+          },
+          overrides: [
+            mostroNodeProvider.overrideWith((ref) async {
+              nodeCalls++;
+              return null;
+            }),
+          ],
+        );
+        expect((nodeCalls, priceCalls), (1, 1));
+
+        await tester.tap(find.text('Retry'));
+        await tester.pump();
+        await tester.pump();
+
+        expect((nodeCalls, priceCalls), (2, 2));
+      });
+    }
   });
 }

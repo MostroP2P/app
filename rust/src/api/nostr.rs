@@ -735,17 +735,60 @@ pub async fn fetch_exchange_rate(
     fiat_code: String,
 ) -> Result<Option<f64>> {
     use crate::mostro::rates;
-    use nostr_sdk::prelude::*;
-    use std::time::Duration;
 
     let now = crate::rt::unix_now();
     if let Some(rate) = rates::cached_rate(&mostro_pubkey_hex, &fiat_code, now) {
         return Ok(Some(rate));
     }
+    let fetched = refresh_rates(&mostro_pubkey_hex, now).await?;
+    Ok(fetched.and_then(|(rates, _)| rates.get(&fiat_code.to_uppercase()).copied()))
+}
+
+/// The price providers `mostro_pubkey_hex` says its rates come from, as the
+/// `source` tag of the same Kind 30078 event names them (`yadio`,
+/// `coingecko`, `eltoque`…), in its order. mostrod names the providers behind
+/// the revision it published, not every one it is configured with.
+///
+/// `None` when there is nothing to tell: the node publishes no rates event,
+/// the one on the relay has expired or is unusable, or it names no provider.
+/// `Err` as for [`fetch_exchange_rate`]. Shares its per-node cache, so it
+/// costs no relay query while a table read for a price is still valid; a node
+/// that publishes no rates is asked again on every call.
+pub async fn fetch_price_sources(mostro_pubkey_hex: String) -> Result<Option<Vec<String>>> {
+    use crate::mostro::rates;
+
+    let now = crate::rt::unix_now();
+    let sources = match rates::cached_sources(&mostro_pubkey_hex, now) {
+        Some(sources) => sources,
+        None => refresh_rates(&mostro_pubkey_hex, now)
+            .await?
+            .map(|(_, sources)| sources)
+            .unwrap_or_default(),
+    };
+    Ok((!sources.is_empty()).then_some(sources))
+}
+
+/// Fetch `mostro_pubkey_hex`'s rates event and cache what it says, or clear
+/// the node's cache when it has nothing usable to say.
+///
+/// Returns the table and providers it read, `None` when it cleared. Callers
+/// answer from this, not from a second cache read: the cache holds one node,
+/// and a concurrent refresh can replace or clear it before they look.
+///
+/// A refresh that lands after a node switch still answers its caller, but
+/// leaves the cache to the node now active.
+async fn refresh_rates(
+    mostro_pubkey_hex: &str,
+    now: i64,
+) -> Result<Option<(std::collections::HashMap<String, f64>, Vec<String>)>> {
+    use crate::mostro::rates;
+    use futures_util::StreamExt;
+    use nostr_sdk::prelude::*;
+    use std::time::Duration;
 
     let client = pool()?.client();
 
-    let pubkey = nostr_sdk::prelude::PublicKey::from_hex(&mostro_pubkey_hex)
+    let pubkey = nostr_sdk::prelude::PublicKey::from_hex(mostro_pubkey_hex)
         .map_err(|e| anyhow::anyhow!("invalid pubkey hex: {e}"))?;
 
     let filter = Filter::new()
@@ -754,15 +797,31 @@ pub async fn fetch_exchange_rate(
         .custom_tag(SingleLetterTag::LOWERCASE_D, rates::RATES_D_TAG)
         .limit(1);
 
-    let events = client
-        .fetch_events(filter)
+    // Streamed, as the node's Kind 38385 is: `fetch_events` waits for every
+    // relay's EOSE, so one relay sitting on the REQ held the answer for the
+    // whole 10 s. The event is addressable, so the first copy plus a short
+    // grace for a newer one is enough.
+    let stream = client
+        .stream_events(filter)
         .timeout(Duration::from_secs(10))
         .await
-        .map_err(|e| anyhow::anyhow!("fetch_events failed: {e}"))?;
+        .map_err(|e| anyhow::anyhow!("stream_events failed: {e}"))?;
+    let copies = stream.filter_map(|(relay, item)| async move {
+        item.inspect_err(|e| log::debug!("[rates] 30078 from {relay}: {e}"))
+            .ok()
+    });
 
-    let Some(event) = select_rates_event(events, &pubkey) else {
+    let still_active =
+        crate::config::active_mostro_pubkey().eq_ignore_ascii_case(mostro_pubkey_hex);
+    let forget = || {
+        if still_active {
+            rates::clear(mostro_pubkey_hex);
+        }
+    };
+
+    let Some(event) = select_rates_event(Box::pin(copies), &pubkey).await else {
         log::warn!("[rates] node {mostro_pubkey_hex} published no usable kind 30078 event");
-        rates::clear();
+        forget();
         return Ok(None);
     };
 
@@ -773,21 +832,35 @@ pub async fn fetch_exchange_rate(
     if now >= expires_at {
         // A relay that ignores NIP-40 must not let a zombie price through.
         log::warn!("[rates] discarding expired kind 30078 event from {mostro_pubkey_hex}");
-        rates::clear();
+        forget();
         return Ok(None);
     }
 
     let Some(parsed) = rates::parse_rates_content(&event.content) else {
         log::warn!("[rates] unusable kind 30078 payload from {mostro_pubkey_hex}");
-        rates::clear();
+        forget();
         return Ok(None);
     };
 
-    rates::store(&mostro_pubkey_hex, parsed, expires_at);
-    Ok(rates::cached_rate(&mostro_pubkey_hex, &fiat_code, now))
+    let sources = rates::parse_sources(tag_value(&event, "source").as_deref());
+    if still_active {
+        rates::store(
+            mostro_pubkey_hex,
+            parsed.clone(),
+            sources.clone(),
+            expires_at,
+        );
+    }
+    Ok(Some((parsed, sources)))
 }
 
-/// The newest authentic rates event among `events`, or `None`.
+/// How long [`select_rates_event`] keeps listening after the first copy of a
+/// rates event, in case that relay held a stale revision. As
+/// [`INSTANCE_INFO_GRACE`].
+const RATES_GRACE: std::time::Duration = INSTANCE_INFO_GRACE;
+
+/// The newest authentic rates event among the copies `events` streams in, or
+/// `None` when the stream ends without one.
 ///
 /// Defence in depth, as v1 does: a relay is free to answer with events the
 /// filter never asked for, and pricing an order off another kind, another
@@ -805,28 +878,36 @@ pub async fn fetch_exchange_rate(
 /// on a single event fetched once. Verification runs before the newest-first
 /// pick, so a forgery cannot shadow the genuine event by claiming a later
 /// `created_at` either.
-fn select_rates_event(
-    events: impl IntoIterator<Item = nostr_sdk::prelude::Event>,
+///
+/// Newest by NIP-01's order: `created_at`, then the lowest id, so which relay
+/// answers first never decides between two revisions of one second.
+async fn select_rates_event(
+    events: impl futures_util::Stream<Item = nostr_sdk::prelude::Event> + Unpin,
     pubkey: &nostr_sdk::prelude::PublicKey,
 ) -> Option<nostr_sdk::prelude::Event> {
     use crate::mostro::rates;
+    use futures_util::StreamExt;
     use nostr_sdk::prelude::*;
 
-    events
-        .into_iter()
-        .filter(|e| {
-            e.kind == Kind::from(rates::RATES_KIND)
-                && e.pubkey == *pubkey
-                && tag_value(e, "d").as_deref() == Some(rates::RATES_D_TAG)
-        })
-        .filter(|e| match e.verify() {
-            Ok(()) => true,
-            Err(err) => {
-                log::warn!("[rates] discarding unauthenticated kind 30078 event: {err}");
-                false
-            }
-        })
-        .max_by_key(|e| e.created_at)
+    let pubkey = *pubkey;
+    let authentic = events.filter(move |e| {
+        let fields = e.kind == Kind::from(rates::RATES_KIND)
+            && e.pubkey == pubkey
+            && tag_value(e, "d").as_deref() == Some(rates::RATES_D_TAG);
+        let signed = fields
+            && e.verify()
+                .inspect_err(|err| {
+                    log::warn!("[rates] discarding unauthenticated kind 30078 event: {err}")
+                })
+                .is_ok();
+        std::future::ready(signed)
+    });
+    crate::nostr::first_answer::newest_answer(
+        Box::pin(authentic),
+        RATES_GRACE,
+        crate::nostr::first_answer::replaceable_rank,
+    )
+    .await
 }
 
 /// First value of the single-letter or named tag `name` on `event`.
@@ -1182,29 +1263,48 @@ mod tests {
         Event::from_json(json.to_string()).unwrap()
     }
 
-    #[test]
-    fn selects_a_signed_rates_event() {
+    async fn select(events: Vec<Event>, pubkey: &PublicKey) -> Option<Event> {
+        select_rates_event(futures_util::stream::iter(events), pubkey).await
+    }
+
+    #[tokio::test]
+    async fn selects_a_signed_rates_event() {
         let node = Keys::generate();
         let event = rates_event(&node, RATES, 1000);
 
-        let selected = select_rates_event([event.clone()], &node.public_key());
+        let selected = select(vec![event.clone()], &node.public_key()).await;
 
         assert_eq!(selected.map(|e| e.id), Some(event.id));
     }
 
-    #[test]
-    fn selects_the_newest_of_several() {
+    #[tokio::test]
+    async fn selects_the_newest_of_several() {
         let node = Keys::generate();
         let old = rates_event(&node, RATES, 1000);
         let new = rates_event(&node, r#"{"BTC":{"USD":60000.0}}"#, 2000);
 
-        let selected = select_rates_event([old, new.clone()], &node.public_key());
+        let selected = select(vec![old, new.clone()], &node.public_key()).await;
 
         assert_eq!(selected.map(|e| e.id), Some(new.id));
     }
 
-    #[test]
-    fn rejects_a_forged_rates_event() {
+    /// Two revisions of one second: NIP-01 keeps the lowest id, which is what
+    /// relays retain, whichever copy arrives first.
+    #[tokio::test]
+    async fn two_revisions_of_one_second_keep_the_lowest_id() {
+        let node = Keys::generate();
+        let a = rates_event(&node, RATES, 1000);
+        let b = rates_event(&node, r#"{"BTC":{"USD":60000.0}}"#, 1000);
+        let lowest = if a.id < b.id { a.id } else { b.id };
+
+        for order in [vec![a.clone(), b.clone()], vec![b, a]] {
+            let selected = select(order, &node.public_key()).await;
+            assert_eq!(selected.map(|e| e.id), Some(lowest));
+        }
+    }
+
+    #[tokio::test]
+    async fn rejects_a_forged_rates_event() {
         let node = Keys::generate();
         let genuine = rates_event(&node, RATES, 1000);
         let forged = forge_content(&genuine, r#"{"BTC":{"USD":1.0}}"#);
@@ -1212,41 +1312,45 @@ mod tests {
         assert_eq!(forged.pubkey, node.public_key());
         assert!(forged.verify().is_err(), "the forgery must not authenticate");
 
-        assert!(select_rates_event([forged], &node.public_key()).is_none());
+        assert!(select(vec![forged], &node.public_key()).await.is_none());
     }
 
     /// A forgery must not be able to bury the real price by claiming a later
     /// `created_at`, which is why the signature check runs before the pick.
-    #[test]
-    fn a_newer_forgery_does_not_shadow_the_genuine_event() {
+    #[tokio::test]
+    async fn a_newer_forgery_does_not_shadow_the_genuine_event() {
         let node = Keys::generate();
         let genuine = rates_event(&node, RATES, 1000);
         let forged = forge_content(&rates_event(&node, RATES, 2000), r#"{"BTC":{"USD":1.0}}"#);
 
-        let selected = select_rates_event([forged, genuine.clone()], &node.public_key());
+        let selected = select(vec![forged, genuine.clone()], &node.public_key()).await;
 
         assert_eq!(selected.map(|e| e.id), Some(genuine.id));
     }
 
-    #[test]
-    fn rejects_another_author_kind_or_d_tag() {
+    #[tokio::test]
+    async fn rejects_another_author_kind_or_d_tag() {
         let node = Keys::generate();
         let other = Keys::generate();
 
         let wrong_author = rates_event(&other, RATES, 1000);
-        assert!(select_rates_event([wrong_author], &node.public_key()).is_none());
+        assert!(select(vec![wrong_author], &node.public_key())
+            .await
+            .is_none());
 
         let wrong_kind = EventBuilder::new(Kind::TextNote, RATES)
             .tag(Tag::parse(["d", rates::RATES_D_TAG]).unwrap())
             .finalize(&node)
             .unwrap();
-        assert!(select_rates_event([wrong_kind], &node.public_key()).is_none());
+        assert!(select(vec![wrong_kind], &node.public_key()).await.is_none());
 
         let wrong_d_tag = EventBuilder::new(Kind::from(rates::RATES_KIND), RATES)
             .tag(Tag::parse(["d", "something-else"]).unwrap())
             .finalize(&node)
             .unwrap();
-        assert!(select_rates_event([wrong_d_tag], &node.public_key()).is_none());
+        assert!(select(vec![wrong_d_tag], &node.public_key())
+            .await
+            .is_none());
     }
 
     /// Runs the watcher until the channel closes; returns how often it rang.

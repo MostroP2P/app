@@ -984,6 +984,16 @@ class AppLocalizationsDe extends AppLocalizations {
   String get aboutFiatCurrenciesLabel => 'Fiat-Währungen';
 
   @override
+  String get aboutPriceSourceLabel => 'Quelle';
+
+  @override
+  String get aboutPriceSection => 'Preis';
+
+  @override
+  String get aboutPriceSourcesFootnote =>
+      'Die Preisquellen sind die Anbieter hinter den Kursen, die der Knoten gerade veröffentlicht; ein ausgefallener oder aussortierter Anbieter fehlt.';
+
+  @override
   String get aboutMostroVersionLabel => 'Mostro-Version';
 
   @override

@@ -28,8 +28,11 @@ class NodeTechnicalDataScreen extends ConsumerWidget {
     final node = nodeAsync.valueOrNull;
 
     final app = appTechSection(appVersion, appGitCommit, l10n);
+    final priceSources = ref.watch(priceSourcesProvider).valueOrNull;
     final nodeSections =
-        node == null ? const <TechSection>[] : nodeTechSections(node, l10n);
+        node == null
+            ? const <TechSection>[]
+            : nodeTechSections(node, l10n, priceSources: priceSources);
     final clipboard =
         node == null
             ? null
@@ -53,7 +56,7 @@ class NodeTechnicalDataScreen extends ConsumerWidget {
                 ? null
                 : CopyIconButton(
                   text: clipboard,
-                  size: 17,
+                  size: 18,
                   color: pal.accent,
                   tooltip: l10n.aboutCopyAllData,
                   copiedLabel: l10n.aboutCopiedToClipboard,
@@ -87,15 +90,24 @@ class NodeTechnicalDataScreen extends ConsumerWidget {
               ),
             ],
             if (node != null)
-              AboutNote(l10n.aboutTechnicalFootnote)
+              AboutNote(
+                (priceSources ?? const []).isNotEmpty
+                    ? '${l10n.aboutTechnicalFootnote} ${l10n.aboutPriceSourcesFootnote}'
+                    : l10n.aboutTechnicalFootnote,
+              )
             else if (nodeAsync.isLoading)
               AboutNote(l10n.aboutNodeLoadingText)
             else
               AboutNote(
                 l10n.aboutNodeUnavailable,
                 action: TextButton(
-                  onPressed: () => ref.invalidate(mostroNodeProvider),
-                  child: Text(l10n.aboutNodeRetry),
+                  onPressed: () => retryNodeFetches(ref),
+                  child: Text(
+                    l10n.aboutNodeRetry,
+                    style: TextStyle(
+                      color: OrderBookPalette.of(context).limeText,
+                    ),
+                  ),
                 ),
               ),
           ],

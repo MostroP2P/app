@@ -980,6 +980,16 @@ class AppLocalizationsNl extends AppLocalizations {
   String get aboutFiatCurrenciesLabel => 'Fiatvaluta';
 
   @override
+  String get aboutPriceSourceLabel => 'Bron';
+
+  @override
+  String get aboutPriceSection => 'Prijs';
+
+  @override
+  String get aboutPriceSourcesFootnote =>
+      'De prijsbronnen zijn de aanbieders achter de koersen die de node nu publiceert; een aanbieder die faalde of werd weggelaten, staat er niet bij.';
+
+  @override
   String get aboutMostroVersionLabel => 'Mostro-versie';
 
   @override

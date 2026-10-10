@@ -45,6 +45,9 @@ const MAX_LIFETIME_SECS: i64 = 3600;
 struct Snapshot {
     node: String,
     rates: HashMap<String, f64>,
+    /// The price providers the node says the table came from (its `source`
+    /// tag), empty when it named none.
+    sources: Vec<String>,
     expires_at: i64,
 }
 
@@ -75,6 +78,31 @@ pub fn parse_rates_content(content: &str) -> Option<HashMap<String, f64>> {
     (!rates.is_empty()).then_some(rates)
 }
 
+/// The provider ids of a rates event's `source` tag, which mostrod writes as
+/// the sorted, comma-separated providers that contributed to the table
+/// (`yadio`, `coingecko,yadio`, see `mostro/src/price/manager.rs`).
+///
+/// Trimmed and deduplicated in order, ignoring case, with the first spelling
+/// kept, so a provider the app has no name for reads as the node wrote it.
+/// Empty when the tag is missing or names nothing, which says no more than
+/// that the node did not tell.
+///
+/// At most [`MAX_SOURCES`]: the tag is the node's to write, and mostrod names
+/// six providers at most.
+pub fn parse_sources(tag: Option<&str>) -> Vec<String> {
+    let mut seen = std::collections::HashSet::new();
+    tag.unwrap_or_default()
+        .split(',')
+        .map(str::trim)
+        .filter(|id| !id.is_empty() && seen.insert(id.to_ascii_lowercase()))
+        .take(MAX_SOURCES)
+        .map(str::to_string)
+        .collect()
+}
+
+/// How many providers [`parse_sources`] keeps from one `source` tag.
+pub const MAX_SOURCES: usize = 16;
+
 /// When a rates event published at `created_at` stops being usable, from its
 /// NIP-40 `expiration` tag when it carries one. See [`MAX_LIFETIME_SECS`] for
 /// both the fallback and the clamp.
@@ -88,11 +116,12 @@ pub fn expires_at(created_at: i64, expiration_tag: Option<i64>) -> i64 {
 /// A poisoned lock is recovered from rather than propagated, as in
 /// `escrow_mode`: this is a cache of what a node said, and refusing to refresh
 /// it after an unrelated panic would only serve older prices.
-pub fn store(node: &str, rates: HashMap<String, f64>, expires_at: i64) {
+pub fn store(node: &str, rates: HashMap<String, f64>, sources: Vec<String>, expires_at: i64) {
     let count = rates.len();
     *SNAPSHOT.write().unwrap_or_else(|e| e.into_inner()) = Some(Snapshot {
         node: node.to_string(),
         rates,
+        sources,
         expires_at,
     });
     log::info!("[rates] node {node}: cached {count} rates until {expires_at}");
@@ -110,11 +139,28 @@ pub fn cached_rate(node: &str, fiat_code: &str, now: i64) -> Option<f64> {
     snapshot.rates.get(&fiat_code.to_uppercase()).copied()
 }
 
-/// Drop the snapshot. Called when a fetch finds no usable event, so an
+/// The price providers `node` named for its cached table, or `None` when
+/// there is nothing usable to answer with: no fetch yet, a snapshot belonging
+/// to another node, or one that has expired by `now`. An empty list is a
+/// table whose event named no provider.
+pub fn cached_sources(node: &str, now: i64) -> Option<Vec<String>> {
+    let guard = SNAPSHOT.read().unwrap_or_else(|e| e.into_inner());
+    let snapshot = guard.as_ref()?;
+    if snapshot.node != node || now >= snapshot.expires_at {
+        return None;
+    }
+    Some(snapshot.sources.clone())
+}
+
+/// Drop `node`'s snapshot. Called when a fetch finds no usable event, so an
 /// unreachable or de-configured price source stops answering from the last
-/// good one.
-pub fn clear() {
-    *SNAPSHOT.write().unwrap_or_else(|e| e.into_inner()) = None;
+/// good one. Another node's snapshot stays: a fetch for one node says nothing
+/// about another's prices.
+pub fn clear(node: &str) {
+    let mut guard = SNAPSHOT.write().unwrap_or_else(|e| e.into_inner());
+    if guard.as_ref().is_some_and(|snapshot| snapshot.node == node) {
+        *guard = None;
+    }
 }
 
 #[cfg(test)]
@@ -128,7 +174,7 @@ mod tests {
 
     impl Drop for Guard {
         fn drop(&mut self) {
-            clear();
+            *SNAPSHOT.write().unwrap_or_else(|e| e.into_inner()) = None;
         }
     }
 
@@ -213,7 +259,7 @@ mod tests {
     #[test]
     fn a_stored_rate_is_served_back_to_its_node() {
         let _guard = lock();
-        store("node-a", usd(50_000.0), 1_000);
+        store("node-a", usd(50_000.0), vec![], 1_000);
 
         assert_eq!(cached_rate("node-a", "USD", 999), Some(50_000.0));
         assert_eq!(cached_rate("node-a", "usd", 999), Some(50_000.0));
@@ -225,7 +271,7 @@ mod tests {
         // the previous node, whose price is not the one this order will be
         // quoted at.
         let _guard = lock();
-        store("node-a", usd(50_000.0), 1_000);
+        store("node-a", usd(50_000.0), vec![], 1_000);
 
         assert_eq!(cached_rate("node-b", "USD", 999), None);
     }
@@ -233,7 +279,7 @@ mod tests {
     #[test]
     fn an_expired_snapshot_is_not_served() {
         let _guard = lock();
-        store("node-a", usd(50_000.0), 1_000);
+        store("node-a", usd(50_000.0), vec![], 1_000);
 
         assert_eq!(cached_rate("node-a", "USD", 1_000), None);
         assert_eq!(cached_rate("node-a", "USD", 1_001), None);
@@ -242,7 +288,7 @@ mod tests {
     #[test]
     fn a_currency_the_node_does_not_quote_is_none() {
         let _guard = lock();
-        store("node-a", usd(50_000.0), 1_000);
+        store("node-a", usd(50_000.0), vec![], 1_000);
 
         assert_eq!(cached_rate("node-a", "CLP", 999), None);
     }
@@ -252,9 +298,86 @@ mod tests {
         let _guard = lock();
         assert_eq!(cached_rate("node-a", "USD", 999), None);
 
-        store("node-a", usd(50_000.0), 1_000);
-        clear();
+        store("node-a", usd(50_000.0), vec![], 1_000);
+        clear("node-a");
 
         assert_eq!(cached_rate("node-a", "USD", 999), None);
+    }
+
+    /// A fetch for a node no longer active lands after the switch: what it
+    /// found missing must not evict the active node's prices.
+    #[test]
+    fn a_clear_for_another_node_keeps_the_snapshot() {
+        let _guard = lock();
+        store("node-b", usd(50_000.0), vec!["yadio".into()], 1_000);
+
+        clear("node-a");
+
+        assert_eq!(cached_rate("node-b", "USD", 999), Some(50_000.0));
+        assert_eq!(
+            cached_sources("node-b", 999),
+            Some(vec!["yadio".to_string()])
+        );
+    }
+
+    #[test]
+    fn the_source_tag_reads_as_provider_ids() {
+        assert_eq!(parse_sources(Some("yadio")), vec!["yadio"]);
+        assert_eq!(
+            parse_sources(Some("coingecko,yadio")),
+            vec!["coingecko", "yadio"]
+        );
+        assert_eq!(
+            parse_sources(Some(" Yadio , ,eltoque,yadio")),
+            vec!["Yadio", "eltoque"]
+        );
+        assert_eq!(
+            parse_sources(Some("CustomProvider,customprovider")),
+            vec!["CustomProvider"]
+        );
+    }
+
+    /// The tag is the node's to write: a buggy or hostile one naming
+    /// thousands of providers costs a bounded parse and a bounded list.
+    #[test]
+    fn a_source_tag_keeps_at_most_max_sources_providers() {
+        let tag = (0..20_000)
+            .map(|i| format!("p{i}"))
+            .collect::<Vec<_>>()
+            .join(",");
+
+        let sources = parse_sources(Some(&tag));
+
+        assert_eq!(sources.len(), MAX_SOURCES);
+        assert_eq!(sources.first().map(String::as_str), Some("p0"));
+        assert_eq!(sources.last().map(String::as_str), Some("p15"));
+    }
+
+    #[test]
+    fn no_source_tag_names_no_provider() {
+        assert!(parse_sources(None).is_empty());
+        assert!(parse_sources(Some("")).is_empty());
+        assert!(parse_sources(Some(" , ")).is_empty());
+    }
+
+    #[test]
+    fn the_sources_are_served_to_their_node_until_the_table_expires() {
+        let _guard = lock();
+        store("node-a", usd(50_000.0), vec!["yadio".into()], 1_000);
+
+        assert_eq!(
+            cached_sources("node-a", 999),
+            Some(vec!["yadio".to_string()])
+        );
+        assert_eq!(cached_sources("node-b", 999), None);
+        assert_eq!(cached_sources("node-a", 1_000), None);
+    }
+
+    #[test]
+    fn a_table_that_named_no_provider_answers_an_empty_list() {
+        let _guard = lock();
+        store("node-a", usd(50_000.0), vec![], 1_000);
+
+        assert_eq!(cached_sources("node-a", 999), Some(vec![]));
     }
 }

@@ -982,6 +982,16 @@ class AppLocalizationsFr extends AppLocalizations {
   String get aboutFiatCurrenciesLabel => 'Devises fiat';
 
   @override
+  String get aboutPriceSourceLabel => 'Source';
+
+  @override
+  String get aboutPriceSection => 'Prix';
+
+  @override
+  String get aboutPriceSourcesFootnote =>
+      'Les sources de prix sont les fournisseurs des taux que le nœud publie en ce moment ; un fournisseur en panne ou écarté n\'apparaît pas.';
+
+  @override
   String get aboutMostroVersionLabel => 'Version Mostro';
 
   @override

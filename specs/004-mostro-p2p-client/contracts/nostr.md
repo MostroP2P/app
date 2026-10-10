@@ -185,6 +185,11 @@ served by the relay has expired per its NIP-40 `expiration` tag, its payload is
 unusable, or it quotes no such currency. Callers MUST treat `null` as "not
 checkable" — see `create_order` in `orders.md`.
 
+**Fetching**: The event is streamed from the relays and the first authentic
+copy is used, plus a short grace for a newer revision; the client does not wait
+for every relay's EOSE. Newest is NIP-01's order: `created_at`, then the lowest
+id.
+
 **Authenticity**: An event is only used once its Schnorr signature verifies
 against the node's pubkey, and only the newest event that does is considered.
 The kind, author and `d` tag checks say nothing on their own — a relay is free
@@ -193,13 +198,41 @@ guarantee that a fetched event was verified before it reaches the caller
 (GHSA-f96q-5f6p-v7cj) — so an unverified event would let a relay set the price
 the whole range check is measured against.
 
-**Caching**: The rate table is cached per node — never served back to a
-different one — and bounded by the event's own expiration, clamped to one hour.
-The amount fields of a range order therefore cost a single relay query.
+**Caching**: One snapshot of the event, holding the rate table and the
+providers it names (`fetch_price_sources`), cached per node — never served back
+to a different one — and bounded by the event's own expiration, clamped to one
+hour. The amount fields of a range order therefore cost a single relay query. A
+fetch that finds no usable event drops that node's snapshot and no other's, and
+a fetch that lands after a node switch answers its caller without touching the
+cache. A node that publishes no rates is not remembered as such, so each call
+asks the relays again.
 
 **Errors**: `NotInitialized`, `InvalidPublicKey`, or a failed relay query. A
 failed query is an error rather than `null`, but callers act on both the same
 way.
+
+---
+
+### fetch_price_sources(mostro_pubkey_hex: String) → Vec<String>?
+The price providers the node names in the `source` tag of the same Kind 30078
+event (`yadio`, `coingecko`, `eltoque`…), in the order it wrote them; the About
+technical data shows one `Source` row per provider (`nodeTechSections`).
+
+mostrod writes the providers that contributed to the revision it published,
+not every one it is configured with: one that failed, was rate-limited or was
+filtered as an outlier for that revision is left out, and the next revision may
+name it again.
+
+**Returns**: the providers, trimmed, deduplicated ignoring case (first spelling
+kept) and capped at 16; `null` when there is nothing to tell — no usable rates
+event, as for `fetch_exchange_rate`, or one that names no provider. An empty
+list is never returned.
+
+**Caching**: Shares `fetch_exchange_rate`'s snapshot, so it costs no relay query
+while a table read for a price is still valid, and a fetch here fills the cache
+the order form reads.
+
+**Errors**: as `fetch_exchange_rate`.
 
 ---
 

@@ -45,6 +45,11 @@ Widget _app(Brightness brightness, Widget home) {
       appVersionProvider.overrideWith((ref) async => '2.0.0'),
       activeNodeNameProvider.overrideWith((ref) => 'Mostro'),
       mostroNodeProvider.overrideWith((ref) async => _node),
+      // Overridden, not left to the bridge: unset, the fetch throws and both
+      // screens render as for a node with no rates.
+      priceSourcesProvider.overrideWith(
+        (ref) async => const ['coingecko', 'yadio'],
+      ),
     ],
   );
   return UncontrolledProviderScope(

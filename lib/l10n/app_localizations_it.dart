@@ -980,6 +980,16 @@ class AppLocalizationsIt extends AppLocalizations {
   String get aboutFiatCurrenciesLabel => 'Valute fiat';
 
   @override
+  String get aboutPriceSourceLabel => 'Fonte';
+
+  @override
+  String get aboutPriceSection => 'Prezzo';
+
+  @override
+  String get aboutPriceSourcesFootnote =>
+      'Le fonti di prezzo sono i fornitori dei tassi che il nodo pubblica ora; uno che ha fallito o è stato scartato non compare.';
+
+  @override
   String get aboutMostroVersionLabel => 'Versione Mostro';
 
   @override

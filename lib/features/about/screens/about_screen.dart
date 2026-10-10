@@ -455,11 +455,17 @@ class _TechnicalDataRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final l10n = AppLocalizations.of(context);
+    // Watched before the node is known, so both fetches run at once.
+    final priceSources = ref.watch(priceSourcesProvider).valueOrNull;
     final node = nodeAsync.valueOrNull;
     final unavailable = node == null && !nodeAsync.isLoading;
     final value =
         node != null
-            ? l10n.aboutFieldCount(nodeFieldCount(nodeTechSections(node, l10n)))
+            ? l10n.aboutFieldCount(
+              nodeFieldCount(
+                nodeTechSections(node, l10n, priceSources: priceSources),
+              ),
+            )
             : unavailable
             ? l10n.aboutNodeRetry
             : missingFigure;
@@ -473,7 +479,7 @@ class _TechnicalDataRow extends ConsumerWidget {
           node != null
               ? () => context.push(AppRoute.aboutTechnical)
               : unavailable
-              ? () => ref.invalidate(mostroNodeProvider)
+              ? () => retryNodeFetches(ref)
               : null,
     );
   }
