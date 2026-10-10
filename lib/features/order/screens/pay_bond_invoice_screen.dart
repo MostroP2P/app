@@ -409,8 +409,11 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
       appBar: appBar,
       body: ValueListenableBuilder<Duration?>(
         valueListenable: invoiceRemaining,
+        // Built once per invoice, not on every tick of the countdown: the
+        // same instance is not rebuilt, and a QR is costly to encode.
+        child: _identifiedQr(l10n, invoice),
         builder:
-            (context, remaining, _) =>
+            (context, remaining, qr) =>
                 remaining == Duration.zero && !_waiting
                     ? _withId(_expired(l10n, maker: maker))
                     : _payable(
@@ -418,6 +421,7 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
                       trade: trade,
                       bond: bond,
                       invoice: invoice,
+                      qr: qr!,
                       amountSats: amountSats,
                       remaining: remaining,
                       maker: maker,
@@ -444,6 +448,7 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
     required TradeInfo trade,
     required BondInfo bond,
     required String invoice,
+    required Widget qr,
     required int amountSats,
     required Duration? remaining,
     required bool maker,
@@ -499,15 +504,10 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
                         timeLabel: l10n.bondPayWithinLabel,
                         hours: l10n.invoiceCountdownHours,
                         unit: l10n.satsUnitLabel,
-                      ),
-                      // Opening the explainer keeps the QR: it opens by
-                      // default, so hiding it left a first-time payer with
-                      // only the wallet link. The QR is then the one node
-                      // that carries the bolt11 for automation.
-                      const SizedBox(height: 12),
-                      _qr(l10n, invoice).withAutomationId(
-                        AutomationIds.bondInvoiceText,
-                        label: invoice,
+                        // Opening the explainer keeps the QR in the amount's
+                        // card (DS-CMP-23): it opens by default, so hiding it
+                        // left a first-time payer with only the wallet link.
+                        child: qr,
                       ),
                     ] else ...[
                       InvoiceHeroCard(
@@ -517,9 +517,7 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
                           amountSats.toString(),
                         ),
                         contextLine: fiatLine,
-                        automationId: AutomationIds.bondInvoiceText,
-                        automationLabel: invoice,
-                        child: _qr(l10n, invoice),
+                        child: qr,
                       ),
                       if (remaining != null) ...[
                         const SizedBox(height: 12),
@@ -657,6 +655,24 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
         ),
     ];
   }
+
+  /// The QR with the bolt11 readout beside it, the one node that carries
+  /// `bond.invoice.text` in both states. A sibling, not a wrapper: a readout
+  /// hides what it wraps from screen readers, and the QR keeps its own
+  /// description. One pixel, not zero: a zero-size box has no semantics node.
+  Widget _identifiedQr(AppLocalizations l10n, String invoice) => Stack(
+    children: [
+      _qr(l10n, invoice),
+      Positioned(
+        left: 0,
+        top: 0,
+        child: const SizedBox(
+          width: 1,
+          height: 1,
+        ).withAutomationId(AutomationIds.bondInvoiceText, label: invoice),
+      ),
+    ],
+  );
 
   Widget _qr(AppLocalizations l10n, String invoice) => Center(
     child: SizedBox.square(

@@ -277,10 +277,14 @@ class BondAmountRow extends StatelessWidget {
     required this.timeLabel,
     required this.hours,
     required this.unit,
+    this.child,
   });
 
   final String label;
   final int sats;
+
+  /// Under the amount in the same card: the QR (DS-CMP-23).
+  final Widget? child;
 
   /// The localized `sats` unit label.
   final String unit;
@@ -308,96 +312,106 @@ class BondAmountRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(18),
         border: Border.all(color: palette.cardBorder),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  label,
-                  style: TextStyle(fontSize: 11, color: book.textTertiary),
-                ),
-                const SizedBox(height: 2),
-                Text.rich(
-                  TextSpan(
-                    children: [
-                      TextSpan(
-                        text: formatInvoiceSats(
-                          sats,
-                          Localizations.localeOf(context).toString(),
-                        ),
-                        style: TextStyle(
-                          fontFamily: AppFonts.figures,
-                          fontSize: 22,
-                          fontWeight: FontWeight.w700,
-                          color: book.textPrimary,
-                        ),
-                      ),
-                      TextSpan(
-                        text: ' $unit',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: book.textTertiary,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (remaining != null)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(
-                  timeLabel,
-                  style: TextStyle(fontSize: 11, color: book.textTertiary),
-                ),
-                const SizedBox(height: 4),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 6,
-                  ),
-                  decoration: BoxDecoration(
-                    color: urgent ? palette.errorFill : palette.timeFill,
-                    borderRadius: BorderRadius.circular(999),
-                    border: Border.all(
-                      color: urgent ? palette.errorBorder : palette.timeBorder,
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(fontSize: 11, color: book.textTertiary),
                     ),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.schedule,
-                        size: 12,
-                        color: urgent ? palette.errorInk : palette.timeFigure,
+                    const SizedBox(height: 2),
+                    Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: formatInvoiceSats(
+                              sats,
+                              Localizations.localeOf(context).toString(),
+                            ),
+                            style: TextStyle(
+                              fontFamily: AppFonts.figures,
+                              fontSize: 22,
+                              fontWeight: FontWeight.w700,
+                              color: book.textPrimary,
+                            ),
+                          ),
+                          TextSpan(
+                            text: ' $unit',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: book.textTertiary,
+                            ),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 6),
-                      CountdownUrgencyAnnouncer(
-                        urgent: urgent,
-                        message:
-                            '$timeLabel ${formatCountdown(remaining, hours: hours)}',
-                        child: Text(
-                          formatCountdown(remaining, hours: hours),
-                          style: TextStyle(
-                            fontFamily: AppFonts.figures,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w700,
+                    ),
+                  ],
+                ),
+              ),
+              if (remaining != null)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      timeLabel,
+                      style: TextStyle(fontSize: 11, color: book.textTertiary),
+                    ),
+                    const SizedBox(height: 4),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: urgent ? palette.errorFill : palette.timeFill,
+                        borderRadius: BorderRadius.circular(999),
+                        border: Border.all(
+                          color:
+                              urgent ? palette.errorBorder : palette.timeBorder,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.schedule,
+                            size: 12,
                             color:
                                 urgent ? palette.errorInk : palette.timeFigure,
                           ),
-                        ),
+                          const SizedBox(width: 6),
+                          CountdownUrgencyAnnouncer(
+                            urgent: urgent,
+                            message:
+                                '$timeLabel ${formatCountdown(remaining, hours: hours)}',
+                            child: Text(
+                              formatCountdown(remaining, hours: hours),
+                              style: TextStyle(
+                                fontFamily: AppFonts.figures,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w700,
+                                color:
+                                    urgent
+                                        ? palette.errorInk
+                                        : palette.timeFigure,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+            ],
+          ),
+          if (child case final child?) ...[const SizedBox(height: 12), child],
         ],
       ),
     );

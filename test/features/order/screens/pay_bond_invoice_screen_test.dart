@@ -309,6 +309,38 @@ void main() {
     });
   }
 
+  for (final open in [false, true]) {
+    testWidgets(
+      '${open ? '14b' : '14a'}: the QR keeps its description beside the '
+      'readout',
+      (tester) async {
+        final semantics = tester.ensureSemantics();
+        await _pump(
+          tester,
+          trade: fakeTrade(bond: _bond()),
+          explainerOpen: open,
+        );
+
+        // A readout wrapping the QR would hide it from screen readers: the
+        // QR is announced by its description, the bolt11 by the readout.
+        final l10n = lookupAppLocalizations(const Locale('en'));
+        expect(
+          find.bySemanticsLabel(l10n.invoiceQrSemantics('lnbc16480n1bond')),
+          findsOneWidget,
+        );
+        expect(
+          find.semantics.byPredicate(
+            (node) =>
+                node.identifier == AutomationIds.bondInvoiceText &&
+                node.label.endsWith('lnbc16480n1bond'),
+          ),
+          findsOne,
+        );
+        semantics.dispose();
+      },
+    );
+  }
+
   testWidgets('a row without its bolt11 offers the same-take re-request', (
     tester,
   ) async {
