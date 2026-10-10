@@ -196,7 +196,7 @@ class BondExplainerBody extends StatelessWidget {
     final book = OrderBookPalette.of(context);
     final palette = InvoicePalette.of(context);
     return Container(
-      padding: const EdgeInsets.fromLTRB(14, 15, 14, 15),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: book.surface,
         borderRadius: BorderRadius.circular(18),
@@ -219,7 +219,7 @@ class BondExplainerBody extends StatelessWidget {
           const SizedBox(height: 12),
           InkWell(
             onTap: onLink,
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(8),
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),
               child: Row(

@@ -378,7 +378,8 @@ class InvoicePrimaryButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           onTap: busy ? null : onPressed,
           child: Padding(
-            padding: const EdgeInsets.all(15),
+            // DS-CMP-3: the primary call to action pads 14.
+            padding: const EdgeInsets.all(14),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -452,7 +453,7 @@ class InvoiceSecondaryButton extends StatelessWidget {
         child: ConstrainedBox(
           constraints: const BoxConstraints(minHeight: _kHitTarget),
           child: Padding(
-            padding: const EdgeInsets.all(11),
+            padding: const EdgeInsets.all(12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
