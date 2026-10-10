@@ -3928,7 +3928,7 @@ abstract class AppLocalizations {
   /// **'No chat yet: until the trade is active, neither party knows who the other is.'**
   String get tradeChatLockedNote;
 
-  /// Subtitle of the chat card under the counterpart alias
+  /// Subtitle of the trade screen's chat card while its title counts the unread messages
   ///
   /// In en, this message translates to:
   /// **'End-to-end encrypted chat'**
@@ -3939,6 +3939,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Conversation closed · view messages'**
   String get tradeChatClosed;
+
+  /// Title of the trade screen's chat card when the counterpart is the buyer (the user sells)
+  ///
+  /// In en, this message translates to:
+  /// **'Chat with the buyer'**
+  String get tradeChatWithBuyer;
+
+  /// Title of the trade screen's chat card when the counterpart is the seller (the user buys)
+  ///
+  /// In en, this message translates to:
+  /// **'Chat with the seller'**
+  String get tradeChatWithSeller;
+
+  /// Title of the trade screen's chat card while the counterpart's role is not known yet
+  ///
+  /// In en, this message translates to:
+  /// **'Chat with your counterpart'**
+  String get tradeChatWithCounterpart;
+
+  /// Subtitle of the trade screen's chat card: the counterpart's alias and that the chat is end-to-end encrypted
+  ///
+  /// In en, this message translates to:
+  /// **'{alias} · end-to-end encrypted'**
+  String tradeChatEncryptedWith(String alias);
+
+  /// Title of the trade screen's chat card while it has unread messages; count is the number of unread messages, alias the counterpart's
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, =1{1 new message from {alias}} other{{count} new messages from {alias}}}'**
+  String tradeChatNewMessages(int count, String alias);
+
+  /// Trailing action label of the trade screen's chat card; tapping the card opens the conversation
+  ///
+  /// In en, this message translates to:
+  /// **'Open'**
+  String get tradeChatOpen;
 
   /// Screen-reader announcement when the trade screen's chat card turns closed while the user is on it (the completed trade's hour ran out); the messages stay readable
   ///

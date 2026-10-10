@@ -9,19 +9,32 @@ import 'package:mostro/features/chat/providers/chat_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/widgets/tab_app_bar.dart' show CountBadge;
 
-/// The chat card of an active trade: the counterpart's alias, the unread
-/// badge from the message stream, and a tap into the room. The alias is the
-/// datum — never a "your counterpart" placeholder once the trade is active.
+/// The chat card of an active trade (21a): it says who the user chats with
+/// by role — "Chat with the buyer" when they sell, "the seller" when they buy
+/// — with the counterpart's alias underneath, a filled lime icon, a lime
+/// stroke and an explicit "Open", so it reads as a place to write rather than
+/// a label. With unread messages the title counts them instead, by alias, and
+/// the badge on the icon says the same. The alias is the datum — never a
+/// "your counterpart" placeholder once the room is known.
 ///
 /// [closed] once the conversation has ended: muted, with a line that the
-/// messages can still be read. The tap opens the room, read-only. The unread
-/// badge stays: the messages are unread until the room is opened, and the
-/// chat list and the Chat tab count them too.
+/// messages can still be read, and no "Open". The tap opens the room,
+/// read-only. The unread badge stays: the messages are unread until the room
+/// is opened, and the chat list and the Chat tab count them too.
 class TradeChatCard extends ConsumerWidget {
-  const TradeChatCard({super.key, required this.orderId, this.closed = false});
+  const TradeChatCard({
+    super.key,
+    required this.orderId,
+    this.closed = false,
+    this.isSelling,
+  });
 
   final String orderId;
   final bool closed;
+
+  /// The trade's side as the screen knows it, for the title while the chat
+  /// room has not loaded; the room's own side wins once it has.
+  final bool? isSelling;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -36,18 +49,38 @@ class TradeChatCard extends ConsumerWidget {
             .firstOrNull;
     final alias = room?.displayHandle(l10n) ?? l10n.unknownPeerHandle;
     final unread = room?.unreadCount ?? 0;
+    // A seller chats with the buyer, and the other way round.
+    final withRole = switch (room?.isSelling ?? isSelling) {
+      true => l10n.tradeChatWithBuyer,
+      false => l10n.tradeChatWithSeller,
+      null => l10n.tradeChatWithCounterpart,
+    };
+    final title =
+        unread > 0 && !closed
+            ? l10n.tradeChatNewMessages(unread, alias)
+            : withRole;
+    final subtitle =
+        closed
+            ? l10n.tradeChatClosed
+            : unread > 0
+            ? l10n.tradeChatEncrypted
+            : l10n.tradeChatEncryptedWith(alias);
+    final radius = BorderRadius.circular(18);
 
     return Material(
-      color: book.surface,
-      borderRadius: BorderRadius.circular(18),
+      color: closed ? book.surface : trade.chatActiveBg,
+      borderRadius: radius,
       child: InkWell(
         onTap: () => context.push(AppRoute.chatRoomPath(orderId)),
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: radius,
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            border: Border.all(color: closed ? book.border : trade.chatBorder),
-            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: closed ? book.border : trade.chatActiveBorder,
+              width: closed ? 1 : 1.5,
+            ),
+            borderRadius: radius,
           ),
           child: Row(
             children: [
@@ -58,27 +91,40 @@ class TradeChatCard extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      alias,
+                      title,
                       style: TextStyle(
-                        fontSize: 13,
+                        fontSize: 15,
                         fontWeight: FontWeight.w600,
                         color: closed ? book.textSecondary : book.textStrong,
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
+                    const SizedBox(height: 3),
                     Text(
-                      closed ? l10n.tradeChatClosed : l10n.tradeChatEncrypted,
-                      style: TextStyle(fontSize: 11, color: book.textTertiary),
+                      subtitle,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: closed ? book.textTertiary : book.textSecondary,
+                      ),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
+              if (!closed)
+                Text(
+                  l10n.tradeChatOpen,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: book.limeText,
+                  ),
+                ),
               Icon(
                 Icons.chevron_right,
                 size: 18,
-                color: closed ? book.textTertiary : book.limeIcon,
+                color: closed ? book.textTertiary : book.limeText,
               ),
             ],
           ),
@@ -100,26 +146,28 @@ class _Avatar extends StatelessWidget {
     final trade = TradePalette.of(context);
 
     return SizedBox(
-      width: 38,
-      height: 36,
+      width: 44,
+      height: 42,
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           Positioned(
             left: 0,
             top: 1,
+            // Filled lime while the chat is open (DS-COL-4: its ink on it);
+            // the soft tint once it has closed.
             child: Container(
-              width: 34,
-              height: 34,
+              width: 40,
+              height: 40,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: trade.avatarBg,
-                border: Border.all(color: trade.avatarBorder),
+                color: closed ? trade.avatarBg : book.lime,
+                border: closed ? Border.all(color: trade.avatarBorder) : null,
               ),
               child: Icon(
                 Icons.chat_bubble_outline,
-                size: 16,
-                color: closed ? book.textTertiary : book.limeText,
+                size: 19,
+                color: closed ? book.textTertiary : book.onLime,
               ),
             ),
           ),

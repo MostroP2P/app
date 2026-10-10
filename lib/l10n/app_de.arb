@@ -658,9 +658,46 @@
   },
   "tradeChatEncrypted": "Ende-zu-Ende-verschlüsselter Chat",
   "@tradeChatEncrypted": {
-    "description": "Subtitle of the chat card under the counterpart alias"
+    "description": "Subtitle of the trade screen's chat card while its title counts the unread messages"
   },
   "tradeChatClosed": "Unterhaltung beendet · Nachrichten ansehen",
+  "tradeChatWithBuyer": "Mit dem Käufer chatten",
+  "@tradeChatWithBuyer": {
+    "description": "Title of the trade screen's chat card when the counterpart is the buyer (the user sells)"
+  },
+  "tradeChatWithSeller": "Mit dem Verkäufer chatten",
+  "@tradeChatWithSeller": {
+    "description": "Title of the trade screen's chat card when the counterpart is the seller (the user buys)"
+  },
+  "tradeChatWithCounterpart": "Mit deinem Gegenüber chatten",
+  "@tradeChatWithCounterpart": {
+    "description": "Title of the trade screen's chat card while the counterpart's role is not known yet"
+  },
+  "tradeChatEncryptedWith": "{alias} · Ende-zu-Ende-verschlüsselt",
+  "@tradeChatEncryptedWith": {
+    "description": "Subtitle of the trade screen's chat card: the counterpart's alias and that the chat is end-to-end encrypted",
+    "placeholders": {
+      "alias": {
+        "type": "String"
+      }
+    }
+  },
+  "tradeChatNewMessages": "{count, plural, =1{1 neue Nachricht von {alias}} other{{count} neue Nachrichten von {alias}}}",
+  "@tradeChatNewMessages": {
+    "description": "Title of the trade screen's chat card while it has unread messages; count is the number of unread messages, alias the counterpart's",
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "alias": {
+        "type": "String"
+      }
+    }
+  },
+  "tradeChatOpen": "Öffnen",
+  "@tradeChatOpen": {
+    "description": "Trailing action label of the trade screen's chat card; tapping the card opens the conversation"
+  },
   "tradeChatClosedAnnouncement": "Die Unterhaltung ist beendet. Du kannst ihre Nachrichten weiterhin lesen",
   "tradeBodyWaitingPaymentBuyer": "Der Verkäufer bezahlt die Hold-Rechnung. Sobald die Sats gesperrt sind, bist du mit der Fiat-Zahlung dran.",
   "@tradeBodyWaitingPaymentBuyer": {

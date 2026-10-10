@@ -2292,6 +2292,34 @@ class AppLocalizationsNl extends AppLocalizations {
   String get tradeChatClosed => 'Gesprek gesloten · berichten bekijken';
 
   @override
+  String get tradeChatWithBuyer => 'Chat met de koper';
+
+  @override
+  String get tradeChatWithSeller => 'Chat met de verkoper';
+
+  @override
+  String get tradeChatWithCounterpart => 'Chat met je tegenpartij';
+
+  @override
+  String tradeChatEncryptedWith(String alias) {
+    return '$alias · end-to-end versleuteld';
+  }
+
+  @override
+  String tradeChatNewMessages(int count, String alias) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count nieuwe berichten van $alias',
+      one: '1 nieuw bericht van $alias',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get tradeChatOpen => 'Openen';
+
+  @override
   String get tradeChatClosedAnnouncement =>
       'Het gesprek is gesloten. Je kunt de berichten nog steeds lezen';
 

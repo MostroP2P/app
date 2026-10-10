@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/features/trades/models/trades_list_rules.dart';
-import 'package:mostro/src/rust/api/types.dart' show BondClaimPhase, OrderStatus;
+import 'package:mostro/src/rust/api/types.dart'
+    show BondClaimPhase, OrderStatus;
 
 TradeRowState _row(
   OrderStatus status, {
@@ -283,16 +284,18 @@ void main() {
       expect(badge(BondClaimPhase.expired), TradeClaimBadge.none);
     });
 
-    test('a pending claim makes the row the user\'s turn with the claim verb',
-        () {
-      final closed = _row(OrderStatus.canceled);
-      final claimed = applyClaimBadge(closed, TradeClaimBadge.payoutPending);
-      expect(claimed.group, TradeGroup.needsAction);
-      expect(claimed.verb, TradeRowVerb.claimPayout);
-      expect(claimed.chip, closed.chip, reason: 'the trade keeps its chip');
-      expect(applyClaimBadge(closed, TradeClaimBadge.payoutPaid), closed);
-      expect(applyClaimBadge(closed, TradeClaimBadge.none), closed);
-    });
+    test(
+      'a pending claim makes the row the user\'s turn with the claim verb',
+      () {
+        final closed = _row(OrderStatus.canceled);
+        final claimed = applyClaimBadge(closed, TradeClaimBadge.payoutPending);
+        expect(claimed.group, TradeGroup.needsAction);
+        expect(claimed.verb, TradeRowVerb.claimPayout);
+        expect(claimed.chip, closed.chip, reason: 'the trade keeps its chip');
+        expect(applyClaimBadge(closed, TradeClaimBadge.payoutPaid), closed);
+        expect(applyClaimBadge(closed, TradeClaimBadge.none), closed);
+      },
+    );
 
     test('a claim without a trade renders a closed row with the badge', () {
       final pending = claimOnlyRowState(TradeClaimBadge.payoutPending);

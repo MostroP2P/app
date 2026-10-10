@@ -2294,6 +2294,34 @@ class AppLocalizationsEs extends AppLocalizations {
   String get tradeChatClosed => 'Conversación cerrada · ver mensajes';
 
   @override
+  String get tradeChatWithBuyer => 'Chatea con el comprador';
+
+  @override
+  String get tradeChatWithSeller => 'Chatea con el vendedor';
+
+  @override
+  String get tradeChatWithCounterpart => 'Chatea con tu contraparte';
+
+  @override
+  String tradeChatEncryptedWith(String alias) {
+    return '$alias · cifrado de extremo a extremo';
+  }
+
+  @override
+  String tradeChatNewMessages(int count, String alias) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count mensajes nuevos de $alias',
+      one: '1 mensaje nuevo de $alias',
+    );
+    return '$_temp0';
+  }
+
+  @override
+  String get tradeChatOpen => 'Abrir';
+
+  @override
   String get tradeChatClosedAnnouncement =>
       'La conversación se cerró. Aún puedes leer sus mensajes';
 

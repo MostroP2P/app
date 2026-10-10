@@ -18,6 +18,7 @@ Future<void> _pump(
   WidgetTester tester, {
   required bool closed,
   int unread = 0,
+  bool isSelling = false,
 }) async {
   final router = GoRouter(
     routes: [
@@ -49,7 +50,7 @@ Future<void> _pump(
                   peerHandle: 'bright-fox-41',
                   peerIconIndex: 3,
                   peerColorHue: 120,
-                  isSelling: false,
+                  isSelling: isSelling,
                   unreadCount: unread,
                 ),
               ]),
@@ -78,6 +79,32 @@ void main() {
       expect(find.text('room $_orderId'), findsOneWidget);
     });
   }
+
+  // 21a: the card names who the user writes to, by role, and says it opens.
+  testWidgets('a seller chats with the buyer', (tester) async {
+    await _pump(tester, closed: false, isSelling: true);
+    expect(find.text('Chat with the buyer'), findsOneWidget);
+    expect(find.text('bright-fox-41 · end-to-end encrypted'), findsOneWidget);
+    expect(find.text('Open'), findsOneWidget);
+  });
+
+  testWidgets('a buyer chats with the seller', (tester) async {
+    await _pump(tester, closed: false);
+    expect(find.text('Chat with the seller'), findsOneWidget);
+  });
+
+  testWidgets('unread messages take the title, by alias', (tester) async {
+    await _pump(tester, closed: false, unread: 2);
+    expect(find.text('2 new messages from bright-fox-41'), findsOneWidget);
+    expect(find.text('Chat with the seller'), findsNothing);
+  });
+
+  testWidgets('a closed card keeps its role and drops "Open"', (tester) async {
+    await _pump(tester, closed: true, unread: 2);
+    expect(find.text('Chat with the seller'), findsOneWidget);
+    expect(find.text('Conversation closed · view messages'), findsOneWidget);
+    expect(find.text('Open'), findsNothing);
+  });
 
   testWidgets('the unread count reads as it is up to 99', (tester) async {
     await _pump(tester, closed: false, unread: 7);

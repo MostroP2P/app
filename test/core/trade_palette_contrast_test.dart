@@ -62,6 +62,13 @@ void main() {
         _expectAA('new', book.textNew, flatten(pal.avatarNewBg, book.surface));
       });
 
+      test('the open chat card on the page', () {
+        final card = flatten(pal.chatActiveBg, book.bg);
+        _expectAA('title', book.textStrong, card);
+        _expectAA('alias line', book.textSecondary, card);
+        _expectAA('open', book.limeText, card);
+      });
+
       test('the no-chat line on the page', () {
         _expectAA(
           'locked note',

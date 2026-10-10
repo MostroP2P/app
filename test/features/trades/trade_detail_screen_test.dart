@@ -2297,13 +2297,14 @@ void main() {
       );
       container.read(chatRoomsNotifierProvider.notifier).upsertRoom(room);
       await _settle(tester);
-      expect(find.text(_en.tradeChatEncrypted), findsOneWidget);
+      expect(find.text(_en.tradeChatOpen), findsOneWidget);
 
       container.read(chatState.notifier).state = const ChatRowState(
         group: ChatGroup.closed,
         tone: ChatAvatarTone.closed,
       );
       await _settle(tester);
+      expect(find.text(_en.tradeChatOpen), findsNothing);
       expect(find.text(_en.tradeChatClosed), findsOneWidget);
     });
 
