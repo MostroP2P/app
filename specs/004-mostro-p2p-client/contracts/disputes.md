@@ -179,12 +179,16 @@ person on another node's dispute.
 The dispute's node is the authenticated author of its `admin-took-dispute`,
 recorded under `dispute_node:<order_id>` (see Persistence and restart). A
 dispute with no node recorded — assigned before the app recorded it, until
-a replay does — shows `Human`. That node's announcement comes from its
-latest capability fetch, which wins (a fetch without the tag, or without an
-info event, retracts an older one), or else from its cached info event, so
-a dispute of a node the user switched away from keeps its label. A node
-outside the registry and not active (a removed custom node) vouches for
-nobody. The solver's own profile never counts.
+a replay does — shows `Human`. That node's announcement is read from the
+newest revision of its info event the app holds, by NIP-01's order, whether
+that is its cached info event (so a dispute of a node the user switched
+away from keeps its label) or the event its latest capability fetch brought
+(so a revision the best-effort cache could not keep still counts). A fetch
+that ends without an event (every relay slow) or with a stale copy from a
+relay that is behind does not retract the announcement. A retraction is a
+newer info event without the tag. A node outside the registry and not
+active (a removed custom node) vouches for nobody. The solver's own profile
+never counts.
 
 Read at display time rather than stored with a message: a history replay
 can land before the capability fetch, and the label corrects itself on the
