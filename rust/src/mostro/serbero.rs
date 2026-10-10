@@ -210,18 +210,44 @@ mod tests {
     }
 
     #[test]
-    fn a_live_fetch_without_the_tag_retracts_the_cached_announcement() {
-        // Arrange: the cache still holds the node's older event with the tag;
-        // its latest fetch no longer announces one (the operator removed it).
+    fn the_cached_announcement_outranks_a_live_answer() {
+        // Arrange: the cache holds the node's newest signed event, with the
+        // tag; the last live fetch came back empty (every relay slow at
+        // startup) or with a stale copy from a relay that is behind.
         let cached = HashMap::from([(NODE.to_string(), tags(&[("serbero", SERBERO)]))]);
-        let retracted = HashMap::from([(NODE.to_string(), None)]);
+        let empty_fetch = HashMap::from([(NODE.to_string(), None)]);
+        let registry = known(&[NODE, OTHER_NODE]);
+
+        // Act + Assert: neither takes the announcement back.
+        assert!(is_assistant_in(
+            SERBERO,
+            NODE,
+            &empty_fetch,
+            &cached,
+            &registry
+        ));
+        assert!(is_assistant_in(
+            SERBERO,
+            NODE,
+            &HashMap::new(),
+            &cached,
+            &registry
+        ));
+    }
+
+    #[test]
+    fn a_retraction_reaches_the_label_through_the_cache() {
+        // Arrange: the operator removed the tag; the newer event without it
+        // superseded the cached one, while the live map still says otherwise.
+        let retracted = HashMap::from([(NODE.to_string(), tags(&[("pow", "0")]))]);
         let announced = HashMap::from([(NODE.to_string(), Some(SERBERO.to_string()))]);
+        let registry = known(&[NODE, OTHER_NODE]);
 
         // Act + Assert
-        let registry = known(&[NODE, OTHER_NODE]);
         assert!(!is_assistant_in(
-            SERBERO, NODE, &retracted, &cached, &registry
+            SERBERO, NODE, &announced, &retracted, &registry
         ));
+        // Without a cache entry (no store yet), the live answer decides.
         assert!(is_assistant_in(
             SERBERO,
             NODE,
