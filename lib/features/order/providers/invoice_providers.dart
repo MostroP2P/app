@@ -24,6 +24,11 @@ final invoiceStepWindowProvider = Provider.autoDispose<Duration>(
   ),
 );
 
+/// Whether the app runs in a browser, where Copy leads the invoice actions
+/// ([copyLeadsInvoice]). A provider rather than `kIsWeb` at the use site, so
+/// the screens can be tested both ways.
+final invoiceOnWebProvider = Provider<bool>((ref) => kIsWeb);
+
 /// What the add-invoice screen asks about the buyer's input.
 typedef InvoiceCheckRequest =
     ({

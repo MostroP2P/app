@@ -1,13 +1,16 @@
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/shared/widgets/nwc_payment_widget.dart';
 import 'package:mostro/features/about/models/mostro_instance.dart' as instance;
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/about/providers/mostro_node_provider.dart';
 import 'package:mostro/features/order/providers/bond_providers.dart';
 import 'package:mostro/features/order/providers/exchange_rate_provider.dart';
+import 'package:mostro/features/order/providers/invoice_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/order/screens/pay_bond_invoice_screen.dart';
 import 'package:mostro/features/order/widgets/invoice_widgets.dart';
@@ -21,7 +24,10 @@ import 'package:mostro/src/rust/api/types.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../support/automation_finders.dart';
 import '../../../support/fake_trades.dart';
+import '../../../support/load_app_fonts.dart';
+import '../../../support/text_scale.dart';
 
 BondInfo _bond({
   String? invoice = 'lnbc16480n1bond',
@@ -46,6 +52,9 @@ Future<void> _pump(
   Future<void> Function(String)? cancel,
   Future<void> Function(String)? abandon,
   Future<bool> Function(String)? closeExpired,
+  Locale locale = const Locale('en'),
+  double textScale = 1,
+  bool onWeb = false,
 }) async {
   SharedPreferences.setMockInitialValues({
     kBondExplainerOpenKey: explainerOpen,
@@ -54,6 +63,7 @@ Future<void> _pump(
     ProviderScope(
       overrides: [
         isWalletConnectedProvider.overrideWithValue(walletConnected),
+        invoiceOnWebProvider.overrideWithValue(onWeb),
         tradeInfoProvider.overrideWith((ref, id) async => trade),
         tradeUpdatesProvider.overrideWith(
           (ref) => const Stream<TradeUpdate>.empty(),
@@ -81,7 +91,8 @@ Future<void> _pump(
         theme: buildDarkTheme(),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
-        locale: const Locale('en'),
+        locale: locale,
+        builder: textScaleBuilder(textScale),
         home: const PayBondInvoiceScreen(orderId: 'order-1'),
       ),
     ),
@@ -91,6 +102,9 @@ Future<void> _pump(
 }
 
 void main() {
+  // The 320 dp checks measure labels: the real font, not the test one.
+  setUpAll(loadAppFonts);
+
   testWidgets('14a: the amount first, the three consequences, the wallet', (
     tester,
   ) async {
@@ -127,6 +141,29 @@ void main() {
     expect(find.text('Read the documentation'), findsNothing);
   });
 
+  for (final onWeb in [false, true]) {
+    testWidgets(
+      '14a: ${onWeb ? 'on the web Copy' : 'off the web the wallet'} leads',
+      (tester) async {
+        await _pump(tester, trade: fakeTrade(bond: _bond()), onWeb: onWeb);
+
+        final (lead, second) =
+            onWeb
+                ? ('Copy', 'Open in my wallet')
+                : ('Open in my wallet', 'Copy');
+        expect(find.widgetWithText(InvoicePrimaryButton, lead), findsOneWidget);
+        expect(
+          find.widgetWithText(InvoiceSecondaryButton, second),
+          findsOneWidget,
+        );
+        expect(
+          find.widgetWithText(InvoiceSecondaryButton, 'Share'),
+          findsOneWidget,
+        );
+      },
+    );
+  }
+
   testWidgets('with no node status the timeout warning stands', (tester) async {
     await _pump(tester, trade: fakeTrade(bond: _bond()), slashOnTimeout: null);
     expect(
@@ -161,16 +198,20 @@ void main() {
     expect(find.text('Open in my wallet'), findsNothing);
   });
 
-  testWidgets('14b: opening the explainer hides the QR and copy / share', (
+  testWidgets('14b: opening the explainer keeps the QR and copy / share', (
     tester,
   ) async {
+    // The explainer opens by default: hiding the QR there left a first-time
+    // payer with only the wallet link, which a browser may hand to a wallet
+    // that cannot pay Lightning.
     await _pump(tester, trade: fakeTrade(bond: _bond()));
     await tester.tap(find.text('Why Mostro asks for a deposit'));
     await tester.pump();
     await tester.pump();
 
-    expect(find.byType(QrImageView), findsNothing);
-    expect(find.text('Copy'), findsNothing);
+    expect(find.byType(QrImageView), findsOneWidget);
+    expect(find.text('Copy'), findsOneWidget);
+    expect(find.text('Share'), findsOneWidget);
     expect(find.text('Read the documentation'), findsOneWidget);
     expect(
       find.textContaining(
@@ -189,7 +230,7 @@ void main() {
     tester,
   ) async {
     await _pump(tester, trade: fakeTrade(bond: _bond()), explainerOpen: true);
-    expect(find.byType(QrImageView), findsNothing);
+    expect(find.byType(QrImageView), findsOneWidget);
     expect(find.text('Read the documentation'), findsOneWidget);
   });
 
@@ -208,6 +249,97 @@ void main() {
       findsOneWidget,
     );
   });
+
+  // DS-A11Y-4: the action bar this change touches fits at 320 dp wide and
+  // 2x text in every language, with the explanation open (the default):
+  // nothing overflows and each label fits two lines without breaking a
+  // word, as in
+  // order_detail_golden_test.dart.
+  for (final locale in AppLocalizations.supportedLocales) {
+    testWidgets(
+      '14b: the action bar fits at 320 dp, 2x text, ${locale.languageCode}',
+      (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = const Size(320, 640);
+        addTearDown(tester.view.reset);
+
+        await _pump(
+          tester,
+          trade: fakeTrade(bond: _bond()),
+          explainerOpen: true,
+          locale: locale,
+          textScale: 2,
+        );
+
+        expect(tester.takeException(), isNull);
+        final l10n = lookupAppLocalizations(locale);
+        for (final label in [
+          l10n.copyButtonLabel,
+          l10n.shareButtonLabel,
+          l10n.invoiceOpenWallet,
+        ]) {
+          final button = find.text(label);
+          await tester.scrollUntilVisible(button, 200);
+          expect(button.hitTestable(), findsOneWidget, reason: label);
+          final paragraph = tester.renderObject<RenderParagraph>(button);
+          expect(paragraph.didExceedMaxLines, isFalse, reason: label);
+          expect(breaksAWord(paragraph), isFalse, reason: label);
+        }
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  // The bolt11 is otherwise only drawn as a QR, so automation reads it from
+  // `bond.invoice.text`: exactly one node, whether the explainer is open
+  // (the default on a fresh install) and whether a wallet is connected.
+  for (final walletConnected in [false, true]) {
+    testWidgets('14b: the open explainer exposes the bolt11 once '
+        '(wallet connected: $walletConnected)', (tester) async {
+      await _pump(
+        tester,
+        trade: fakeTrade(bond: _bond()),
+        explainerOpen: true,
+        walletConnected: walletConnected,
+      );
+
+      expect(findAutomationId(AutomationIds.bondInvoiceText), findsOneWidget);
+      // The hold invoice's id belongs to the hold-invoice screen.
+      expect(findAutomationId(AutomationIds.payInvoiceText), findsNothing);
+    });
+  }
+
+  for (final open in [false, true]) {
+    testWidgets(
+      '${open ? '14b' : '14a'}: the QR keeps its description beside the '
+      'readout',
+      (tester) async {
+        final semantics = tester.ensureSemantics();
+        await _pump(
+          tester,
+          trade: fakeTrade(bond: _bond()),
+          explainerOpen: open,
+        );
+
+        // A readout wrapping the QR would hide it from screen readers: the
+        // QR is announced by its description, the bolt11 by the readout.
+        final l10n = lookupAppLocalizations(const Locale('en'));
+        expect(
+          find.bySemanticsLabel(l10n.invoiceQrSemantics('lnbc16480n1bond')),
+          findsOneWidget,
+        );
+        expect(
+          find.semantics.byPredicate(
+            (node) =>
+                node.identifier == AutomationIds.bondInvoiceText &&
+                node.label.endsWith('lnbc16480n1bond'),
+          ),
+          findsOne,
+        );
+        semantics.dispose();
+      },
+    );
+  }
 
   testWidgets('a row without its bolt11 offers the same-take re-request', (
     tester,

@@ -378,7 +378,8 @@ class InvoicePrimaryButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           onTap: busy ? null : onPressed,
           child: Padding(
-            padding: const EdgeInsets.all(15),
+            // DS-CMP-3: the primary call to action pads 14, its label 15/w600.
+            padding: const EdgeInsets.all(14),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
@@ -394,12 +395,16 @@ class InvoicePrimaryButton extends StatelessWidget {
                 else
                   Icon(icon, size: 16, color: ink),
                 const SizedBox(width: 8),
+                // A second line rather than a smaller label: shrinking has no
+                // floor and undoes the user's text size (DS-L10N-2, DS-TYP-4).
                 Flexible(
                   child: Text(
                     label,
+                    maxLines: 2,
+                    textAlign: TextAlign.center,
                     style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w700,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
                       color: ink,
                     ),
                   ),
@@ -430,43 +435,176 @@ class InvoiceSecondaryButton extends StatelessWidget {
   /// Overrides the ink of the icon (the copy check).
   final Color? iconColor;
 
+  static const _labelStyle = TextStyle(
+    fontSize: 12,
+    fontWeight: FontWeight.w600,
+  );
+
+  /// Whether [label] fits a button [width] wide at the user's text size:
+  /// two lines at most, and no word broken across them (DS-L10N-2).
+  static bool fits(BuildContext context, String label, double width) {
+    // Padding, icon and the gap after it.
+    final room = width - 2 * 12 - 14 - 6;
+    TextPainter painter(String text, {int? maxLines}) => TextPainter(
+      text: TextSpan(
+        text: text,
+        style: DefaultTextStyle.of(context).style.merge(_labelStyle),
+      ),
+      textDirection: Directionality.of(context),
+      textScaler: MediaQuery.textScalerOf(context),
+      maxLines: maxLines,
+    );
+    final whole = painter(label, maxLines: 2)..layout(maxWidth: room);
+    final exceeds = whole.didExceedMaxLines;
+    whole.dispose();
+    if (exceeds) return false;
+    for (final word in label.split(' ')) {
+      final one = painter(word)..layout();
+      final wide = one.width > room;
+      one.dispose();
+      if (wide) return false;
+    }
+    return true;
+  }
+
   @override
   Widget build(BuildContext context) {
     final pal = InvoicePalette.of(context);
+    // The primary's radius (DS-CMP-4) and a 48 dp target (DS-CMP-6).
     final shape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(14),
+      borderRadius: BorderRadius.circular(16),
       side: BorderSide(color: pal.secondaryBorder),
     );
-    return Material(
-      color: pal.secondaryFill,
-      shape: shape,
-      child: InkWell(
-        customBorder: shape,
-        onTap: onPressed,
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(minHeight: _kHitTarget),
-          child: Padding(
-            padding: const EdgeInsets.all(11),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(icon, size: 14, color: iconColor ?? pal.secondaryInk),
-                const SizedBox(width: 6),
-                Flexible(
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: pal.secondaryInk,
+    return Semantics(
+      button: true,
+      enabled: onPressed != null,
+      child: Material(
+        color: pal.secondaryFill,
+        shape: shape,
+        child: InkWell(
+          customBorder: shape,
+          onTap: onPressed,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 48),
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(icon, size: 14, color: iconColor ?? pal.secondaryInk),
+                  const SizedBox(width: 6),
+                  // Two lines at most, as the primary button.
+                  Flexible(
+                    child: Text(
+                      label,
+                      maxLines: 2,
+                      textAlign: TextAlign.center,
+                      style: _labelStyle.copyWith(color: pal.secondaryInk),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
       ),
+    );
+  }
+}
+
+/// What an invoice screen offers to pay with: one lime action over a row of
+/// two secondaries, the second of them Share. The wallet link leads and Copy
+/// sits beside Share, or the two swap when [copyLeads] ([copyLeadsInvoice]).
+/// Shared by the hold invoice (13b) and the bond (14), so the arrangement is
+/// decided in one place.
+class InvoicePaymentActions extends StatelessWidget {
+  const InvoicePaymentActions({
+    super.key,
+    required this.copyLeads,
+    required this.copied,
+    required this.onCopy,
+    required this.onOpenWallet,
+    required this.onShare,
+  });
+
+  final bool copyLeads;
+
+  /// Copy's icon is a check while true (the copy feedback).
+  final bool copied;
+  final VoidCallback onCopy;
+  final VoidCallback onOpenWallet;
+  final VoidCallback onShare;
+
+  @override
+  Widget build(BuildContext context) {
+    final book = OrderBookPalette.of(context);
+    final l10n = AppLocalizations.of(context);
+    final copy = (
+      icon: copied ? Icons.check : Icons.copy,
+      label: l10n.copyButtonLabel,
+      onPressed: onCopy,
+    );
+    final wallet = (
+      icon: Icons.bolt,
+      label: l10n.invoiceOpenWallet,
+      onPressed: onOpenWallet,
+    );
+    final (lead, second) = copyLeads ? (copy, wallet) : (wallet, copy);
+    final secondaries = [
+      InvoiceSecondaryButton(
+        icon: second.icon,
+        // The check turns lime only on the grey button.
+        iconColor: !copyLeads && copied ? book.lime : null,
+        label: second.label,
+        onPressed: second.onPressed,
+      ),
+      InvoiceSecondaryButton(
+        icon: Icons.share,
+        label: l10n.shareButtonLabel,
+        onPressed: onShare,
+      ),
+    ];
+    // The actions span the screen between the gutters on both screens.
+    // Measured from the screen, not a `LayoutBuilder`: the pages size
+    // themselves with `IntrinsicHeight`, which a `LayoutBuilder` cannot
+    // answer.
+    final half =
+        (MediaQuery.sizeOf(context).width - 2 * kInvoiceGutter - 8) / 2;
+    final paired = [
+      second.label,
+      l10n.shareButtonLabel,
+    ].every((label) => InvoiceSecondaryButton.fits(context, label, half));
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        InvoicePrimaryButton(
+          icon: lead.icon,
+          label: lead.label,
+          onPressed: lead.onPressed,
+        ),
+        const SizedBox(height: 8),
+        // Side by side while both labels fit half the row; stacked at full
+        // width once the text size leaves a word no room.
+        if (paired)
+          IntrinsicHeight(
+            // One height for both: a label that wraps does not leave its
+            // neighbour shorter.
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Expanded(child: secondaries[0]),
+                const SizedBox(width: 8),
+                Expanded(child: secondaries[1]),
+              ],
+            ),
+          )
+        else ...[
+          secondaries[0],
+          const SizedBox(height: 8),
+          secondaries[1],
+        ],
+      ],
     );
   }
 }

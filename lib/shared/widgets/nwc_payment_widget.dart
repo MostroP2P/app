@@ -17,7 +17,7 @@ class NwcPaymentWidget extends StatefulWidget {
     required this.amountSats,
     required this.onPaymentSuccess,
     required this.onFallbackToManual,
-    this.invoiceAutomationId = AutomationIds.payInvoiceText,
+    required this.invoiceAutomationId,
   });
 
   final String bolt11;
@@ -26,7 +26,8 @@ class NwcPaymentWidget extends StatefulWidget {
   final VoidCallback onFallbackToManual;
 
   /// Automation id of the bolt11 readout, null to omit it (the screen
-  /// already exposes the invoice under its own id).
+  /// already exposes the invoice under its own id). Required: each screen
+  /// names the id its invoice goes by.
   final String? invoiceAutomationId;
 
   @override
