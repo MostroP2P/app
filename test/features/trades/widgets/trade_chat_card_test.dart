@@ -7,6 +7,8 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/chat/providers/chat_providers.dart';
 import 'package:mostro/features/trades/widgets/trade_chat_card.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/providers/peer_nym_provider.dart';
+import 'package:mostro/src/rust/api/types.dart' show NymIdentity;
 import 'package:mostro/shared/widgets/tab_app_bar.dart' show CountBadge;
 
 import '../../../support/load_app_fonts.dart';
@@ -19,6 +21,9 @@ Future<void> _pump(
   required bool closed,
   int unread = 0,
   bool isSelling = false,
+  bool withRoom = true,
+  String counterpartyPubkey = '',
+  Future<NymIdentity> Function(String)? nymLookup,
 }) async {
   final router = GoRouter(
     routes: [
@@ -26,7 +31,12 @@ Future<void> _pump(
         path: '/',
         builder:
             (_, __) => Scaffold(
-              body: TradeChatCard(orderId: _orderId, closed: closed),
+              body: TradeChatCard(
+                orderId: _orderId,
+                closed: closed,
+                isSelling: isSelling,
+                counterpartyPubkey: counterpartyPubkey,
+              ),
             ),
       ),
       GoRoute(
@@ -41,18 +51,20 @@ Future<void> _pump(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        if (nymLookup != null) nymLookupProvider.overrideWithValue(nymLookup),
         chatRoomsNotifierProvider.overrideWith(
           (ref) =>
               ChatRoomsNotifier()..setRooms([
-                ChatRoomState(
-                  orderId: _orderId,
-                  peerPubkey: 'peer',
-                  peerHandle: 'bright-fox-41',
-                  peerIconIndex: 3,
-                  peerColorHue: 120,
-                  isSelling: isSelling,
-                  unreadCount: unread,
-                ),
+                if (withRoom)
+                  ChatRoomState(
+                    orderId: _orderId,
+                    peerPubkey: 'peer',
+                    peerHandle: 'bright-fox-41',
+                    peerIconIndex: 3,
+                    peerColorHue: 120,
+                    isSelling: isSelling,
+                    unreadCount: unread,
+                  ),
               ]),
         ),
       ],
@@ -104,6 +116,44 @@ void main() {
     expect(find.text('Chat with the seller'), findsOneWidget);
     expect(find.text('Conversation closed · view messages'), findsOneWidget);
     expect(find.text('Open'), findsNothing);
+  });
+
+  // The rooms are only built on hydration, from the Chat tab or the room
+  // itself: a trade that turns active on screen has none yet, but its row
+  // already holds the counterpart's key.
+  testWidgets('without a room the alias comes from the trade key', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      closed: false,
+      isSelling: true,
+      withRoom: false,
+      counterpartyPubkey: 'peer-key',
+      nymLookup:
+          (pubkey) async => NymIdentity(
+            pseudonym: pubkey == 'peer-key' ? 'cool-turkey' : 'wrong',
+            iconIndex: 0,
+            colorHue: 0,
+          ),
+    );
+    expect(find.text('Chat with the buyer'), findsOneWidget);
+    expect(find.text('cool-turkey · end-to-end encrypted'), findsOneWidget);
+    expect(find.textContaining('Unknown'), findsNothing);
+  });
+
+  testWidgets('a key that cannot be named never reads "Unknown"', (
+    tester,
+  ) async {
+    await _pump(
+      tester,
+      closed: false,
+      withRoom: false,
+      counterpartyPubkey: 'peer-key',
+      nymLookup: (_) async => throw StateError('no bridge'),
+    );
+    expect(find.text('End-to-end encrypted chat'), findsOneWidget);
+    expect(find.textContaining('Unknown'), findsNothing);
   });
 
   testWidgets('the unread count reads as it is up to 99', (tester) async {

@@ -7,6 +7,7 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/trade_palette.dart';
 import 'package:mostro/features/chat/providers/chat_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/providers/peer_nym_provider.dart';
 import 'package:mostro/shared/widgets/tab_app_bar.dart' show CountBadge;
 
 /// The chat card of an active trade (21a): it says who the user chats with
@@ -14,8 +15,14 @@ import 'package:mostro/shared/widgets/tab_app_bar.dart' show CountBadge;
 /// — with the counterpart's alias underneath, a filled lime icon, a lime
 /// stroke and an explicit "Open", so it reads as a place to write rather than
 /// a label. With unread messages the title counts them instead, by alias, and
-/// the badge on the icon says the same. The alias is the datum — never a
-/// "your counterpart" placeholder once the room is known.
+/// the badge on the icon says the same.
+///
+/// The alias is never "Unknown": the card only shows once the trade is
+/// active, when the trade already holds the counterpart's trade key. The
+/// chat rooms are only built on hydration, from the Chat tab or from the
+/// room itself, so a trade that turns active on screen has no room yet; the
+/// alias is then derived from [counterpartyPubkey], as the room derives it.
+/// Until that lookup answers, the line says only that the chat is encrypted.
 ///
 /// [closed] once the conversation has ended: muted, with a line that the
 /// messages can still be read, and no "Open". The tap opens the room,
@@ -27,6 +34,7 @@ class TradeChatCard extends ConsumerWidget {
     required this.orderId,
     this.closed = false,
     this.isSelling,
+    this.counterpartyPubkey = '',
   });
 
   final String orderId;
@@ -35,6 +43,10 @@ class TradeChatCard extends ConsumerWidget {
   /// The trade's side as the screen knows it, for the title while the chat
   /// room has not loaded; the room's own side wins once it has.
   final bool? isSelling;
+
+  /// The counterpart's trade key from the trade row, for the alias while the
+  /// chat room has not loaded.
+  final String counterpartyPubkey;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -47,7 +59,14 @@ class TradeChatCard extends ConsumerWidget {
             .watch(chatRoomsNotifierProvider)
             .where((r) => r.orderId == orderId)
             .firstOrNull;
-    final alias = room?.displayHandle(l10n) ?? l10n.unknownPeerHandle;
+    final roomAlias = room?.peerHandle ?? '';
+    final peer = room?.peerPubkey ?? counterpartyPubkey;
+    final String? alias =
+        roomAlias.isNotEmpty
+            ? roomAlias
+            : peer.isEmpty
+            ? null
+            : ref.watch(peerNymProvider(peer)).valueOrNull?.pseudonym;
     final unread = room?.unreadCount ?? 0;
     // A seller chats with the buyer, and the other way round.
     final withRole = switch (room?.isSelling ?? isSelling) {
@@ -56,13 +75,13 @@ class TradeChatCard extends ConsumerWidget {
       null => l10n.tradeChatWithCounterpart,
     };
     final title =
-        unread > 0 && !closed
+        unread > 0 && !closed && alias != null
             ? l10n.tradeChatNewMessages(unread, alias)
             : withRole;
     final subtitle =
         closed
             ? l10n.tradeChatClosed
-            : unread > 0
+            : unread > 0 || alias == null
             ? l10n.tradeChatEncrypted
             : l10n.tradeChatEncryptedWith(alias);
     final radius = BorderRadius.circular(18);
