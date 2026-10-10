@@ -99,7 +99,7 @@ class TradeChatCard extends ConsumerWidget {
                       ),
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 3),
+                    const SizedBox(height: 2),
                     Text(
                       subtitle,
                       style: TextStyle(
@@ -166,7 +166,7 @@ class _Avatar extends StatelessWidget {
               ),
               child: Icon(
                 Icons.chat_bubble_outline,
-                size: 19,
+                size: 20,
                 color: closed ? book.textTertiary : book.onLime,
               ),
             ),

@@ -144,16 +144,16 @@ class TradeCard extends ConsumerWidget {
     AppLocalizations l10n, {
     bool cashu = false,
   }) => switch (verb) {
-    TradeRowVerb.addInvoice => l10n.tradeVerbAddInvoice,
-    TradeRowVerb.payBond => l10n.tradeVerbPayBond,
-    TradeRowVerb.claimPayout => l10n.tradeVerbClaimPayout,
-    TradeRowVerb.payInvoice =>
-      cashu ? l10n.lockEscrowConfirm : l10n.tradeVerbPayInvoice,
-    TradeRowVerb.sendPayment => l10n.tradeVerbSendPayment,
-    TradeRowVerb.releaseSats => l10n.tradeVerbReleaseSats,
-    TradeRowVerb.rate => l10n.tradeVerbRate,
-    TradeRowVerb.none => '',
-  };
+        TradeRowVerb.addInvoice => l10n.tradeVerbAddInvoice,
+        TradeRowVerb.payBond => l10n.tradeVerbPayBond,
+        TradeRowVerb.claimPayout => l10n.tradeVerbClaimPayout,
+        TradeRowVerb.payInvoice =>
+          cashu ? l10n.lockEscrowConfirm : l10n.tradeVerbPayInvoice,
+        TradeRowVerb.sendPayment => l10n.tradeVerbSendPayment,
+        TradeRowVerb.releaseSats => l10n.tradeVerbReleaseSats,
+        TradeRowVerb.rate => l10n.tradeVerbRate,
+        TradeRowVerb.none => '',
+      };
 }
 
 /// `hace 1 h`, `ayer`, `lun`, `12 sep`.

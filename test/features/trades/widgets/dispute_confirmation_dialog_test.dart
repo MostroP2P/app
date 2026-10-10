@@ -16,11 +16,10 @@ Widget _host() {
     supportedLocales: AppLocalizations.supportedLocales,
     home: Scaffold(
       body: Builder(
-        builder:
-            (context) => ElevatedButton(
-              onPressed: () => showDisputeConfirmationDialog(context),
-              child: const Text('open'),
-            ),
+        builder: (context) => ElevatedButton(
+          onPressed: () => showDisputeConfirmationDialog(context),
+          child: const Text('open'),
+        ),
       ),
     ),
   );
@@ -40,13 +39,12 @@ Future<bool?> _openAndTap(WidgetTester tester, String buttonText) async {
       supportedLocales: AppLocalizations.supportedLocales,
       home: Scaffold(
         body: Builder(
-          builder:
-              (context) => ElevatedButton(
-                onPressed: () async {
-                  result = await showDisputeConfirmationDialog(context);
-                },
-                child: const Text('open'),
-              ),
+          builder: (context) => ElevatedButton(
+            onPressed: () async {
+              result = await showDisputeConfirmationDialog(context);
+            },
+            child: const Text('open'),
+          ),
         ),
       ),
     ),
