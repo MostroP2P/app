@@ -378,7 +378,7 @@ class InvoicePrimaryButton extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           onTap: busy ? null : onPressed,
           child: Padding(
-            // DS-CMP-3: the primary call to action pads 14.
+            // DS-CMP-3: the primary call to action pads 14, its label 15/w600.
             padding: const EdgeInsets.all(14),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -404,8 +404,8 @@ class InvoicePrimaryButton extends StatelessWidget {
                       label,
                       maxLines: 1,
                       style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
                         color: ink,
                       ),
                     ),
