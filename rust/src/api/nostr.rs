@@ -279,7 +279,10 @@ pub async fn remove_relay(url: String) -> Result<()> {
 /// forgetting the removal would bring the relay straight back.
 fn removal_effect(removed: Option<RelayInfo>) -> Option<RelayInfo> {
     let mut info = removed?;
-    if !matches!(info.source, crate::api::types::RelaySource::MostroDiscovered) {
+    if !matches!(
+        info.source,
+        crate::api::types::RelaySource::MostroDiscovered
+    ) {
         return None;
     }
     info.is_active = false;
@@ -340,7 +343,12 @@ pub(crate) async fn apply_relay_list_event(event: &Event) {
     if added.is_empty() {
         return;
     }
-    for info in pool.get_relays().await.iter().filter(|r| added.contains(&r.url)) {
+    for info in pool
+        .get_relays()
+        .await
+        .iter()
+        .filter(|r| added.contains(&r.url))
+    {
         persist_relay(info).await;
     }
     crate::api::logging::blog_info(
@@ -694,8 +702,12 @@ pub async fn fetch_mostro_instance_tags(
     )
     .await;
     // Before returning: Dart rereads the cache as soon as this fetch lands.
+    // The Serbero label keeps its own copy: the cache write is best effort,
+    // and the newest revision must decide even when the store refused it
+    // (mostro::serbero).
     if let Some(event) = &event {
         crate::api::node_stats::remember_info_event(event).await;
+        crate::mostro::serbero::set_from_event(event);
     }
 
     Ok(event.map(|event| {
@@ -903,11 +915,10 @@ fn apply_node_capabilities(node: &str, fetched: Result<Option<Vec<Vec<String>>>>
                 &mostro_pubkey_hex,
                 crate::mostro::bond_policy::parse_tags(&tags),
             );
-            // Its dispute assistant, so the dispute chat can tell Serbero from
-            // the person who takes a case over (#637). The event is already
-            // in the node_stats cache, which the label reads first; this copy
-            // serves a node the cache cannot hold. See mostro::serbero.
-            crate::mostro::serbero::set_from_tags(&mostro_pubkey_hex, &tags);
+            // Its dispute assistant (#637) is read from the event itself,
+            // which `fetch_mostro_instance_tags` recorded: the label needs
+            // the revision's date and id, not only its tags. See
+            // mostro::serbero.
             // The service fee. Only Cashu mode needs it client-side — there the
             // seller funds the whole fee as its own token — but it rides in the
             // same event, so reading it here costs nothing.
@@ -1071,10 +1082,13 @@ mod tests {
     const RATES: &str = r#"{"BTC":{"USD":50000.0}}"#;
 
     fn bond_enabled_tags() -> Vec<Vec<String>> {
-        [("bond_enabled", "true"), ("bond_payout_claim_window_days", "30")]
-            .iter()
-            .map(|(k, v)| vec![k.to_string(), v.to_string()])
-            .collect()
+        [
+            ("bond_enabled", "true"),
+            ("bond_payout_claim_window_days", "30"),
+        ]
+        .iter()
+        .map(|(k, v)| vec![k.to_string(), v.to_string()])
+        .collect()
     }
 
     #[tokio::test]
@@ -1093,7 +1107,10 @@ mod tests {
         assert!(result.is_ok(), "re-initializing must not fail: {result:?}");
         let current = cell.get().expect("pool still set");
         assert!(Arc::ptr_eq(current, &running), "the running pool is kept");
-        assert!(current.get_relays().await.is_empty(), "the new relay list is ignored");
+        assert!(
+            current.get_relays().await.is_empty(),
+            "the new relay list is ignored"
+        );
     }
 
     #[test]
@@ -1211,7 +1228,10 @@ mod tests {
         let forged = forge_content(&genuine, r#"{"BTC":{"USD":1.0}}"#);
 
         assert_eq!(forged.pubkey, node.public_key());
-        assert!(forged.verify().is_err(), "the forgery must not authenticate");
+        assert!(
+            forged.verify().is_err(),
+            "the forgery must not authenticate"
+        );
 
         assert!(select_rates_event([forged], &node.public_key()).is_none());
     }
@@ -1363,7 +1383,11 @@ mod relay_blacklist_restart_tests {
                 storage.save_relay(&info).await.unwrap();
             }
 
-            let removed = pool.get_relays().await.into_iter().find(|r| r.url == ANNOUNCED);
+            let removed = pool
+                .get_relays()
+                .await
+                .into_iter()
+                .find(|r| r.url == ANNOUNCED);
             pool.remove_relay(ANNOUNCED).await.unwrap();
             let row = removal_effect(removed).expect("an announced relay is kept, not deleted");
             assert!(row.is_blacklisted);
@@ -1375,14 +1399,19 @@ mod relay_blacklist_restart_tests {
             let storage = SqliteStorage::open(&db).await.unwrap();
             let (pool, persisted) = boot(&storage).await;
             assert!(
-                persisted.iter().any(|r| r.url == ANNOUNCED && r.is_blacklisted),
+                persisted
+                    .iter()
+                    .any(|r| r.url == ANNOUNCED && r.is_blacklisted),
                 "blacklisted row did not survive the restart"
             );
             assert_eq!(pool.blacklist().await, vec![ANNOUNCED.to_string()]);
 
             // The node re-announces it on reconnect: it must not come back.
             let added = pool.sync_discovered(&[ANNOUNCED.to_string()]).await;
-            assert!(added.is_empty(), "a blacklisted relay was re-added: {added:?}");
+            assert!(
+                added.is_empty(),
+                "a blacklisted relay was re-added: {added:?}"
+            );
 
             // Adding it by hand lifts the blacklist and persists it as active.
             let info = pool.add_relay(ANNOUNCED).await.unwrap();
@@ -1434,7 +1463,11 @@ mod relay_list_generation_tests {
     fn older_or_replayed_generations_are_ignored() {
         let mut seen = HashMap::new();
         assert!(note_relay_list_generation(&mut seen, "node-a", gen(100, 1)));
-        assert!(!note_relay_list_generation(&mut seen, "node-a", gen(100, 1)));
+        assert!(!note_relay_list_generation(
+            &mut seen,
+            "node-a",
+            gen(100, 1)
+        ));
         assert!(!note_relay_list_generation(&mut seen, "node-a", gen(99, 1)));
         assert!(note_relay_list_generation(&mut seen, "node-a", gen(101, 1)));
     }
@@ -1460,6 +1493,10 @@ mod relay_list_generation_tests {
     fn an_equal_timestamp_list_with_a_higher_id_loses() {
         let mut seen = HashMap::new();
         assert!(note_relay_list_generation(&mut seen, "node-a", gen(100, 2)));
-        assert!(!note_relay_list_generation(&mut seen, "node-a", gen(100, 9)));
+        assert!(!note_relay_list_generation(
+            &mut seen,
+            "node-a",
+            gen(100, 9)
+        ));
     }
 }
