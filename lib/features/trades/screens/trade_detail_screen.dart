@@ -791,7 +791,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
       ),
       body: Column(
         children: [
-          _pinnedChat(pinsChat, book, closed: chatClosed),
+          _pinnedChat(pinsChat, book, closed: chatClosed, isSelling: isSelling),
           Expanded(
             child: NotificationListener<Notification>(
               onNotification: _trackScrollUnderChat,
@@ -880,13 +880,15 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
   // ── Chat ─────────────────────────────────────────────────────────────────
 
   /// The chat card, pinned above the scrolling content once the trade has a
-  /// chat, [closed] when the conversation has ended: it slides in (fade +
+  /// chat, [closed] when the conversation has ended, titled by the trade's
+  /// [isSelling] until the chat room says it: it slides in (fade +
   /// 8dp, 220 ms; at once with animations off) and draws a line under itself
   /// while content sits beneath it. Nothing otherwise.
   Widget _pinnedChat(
     bool pinned,
     OrderBookPalette book, {
     required bool closed,
+    required bool? isSelling,
   }) {
     final Widget child =
         pinned
@@ -908,7 +910,11 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
                   ),
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(18, 4, 18, 8),
-                child: TradeChatCard(orderId: widget.orderId, closed: closed),
+                child: TradeChatCard(
+                  orderId: widget.orderId,
+                  closed: closed,
+                  isSelling: isSelling,
+                ),
               ),
             )
             : const SizedBox.shrink(key: ValueKey('none'));

@@ -194,7 +194,7 @@ impl Revision {
     /// second the **lowest** id — the one relays retain. Without the id a tie
     /// went to whichever relay answered first. Same rule as
     /// [`CachedNodeInfo::supersedes`].
-    fn supersedes(&self, held: &Self) -> bool {
+    pub(crate) fn supersedes(&self, held: &Self) -> bool {
         // Ids are lowercase hex of equal length: string order is byte order.
         (self.at, std::cmp::Reverse(&self.event_id)) > (held.at, std::cmp::Reverse(&held.event_id))
     }
@@ -285,7 +285,7 @@ impl CachedNodeInfo {
     ///
     /// An entry without an id cannot claim to be the lowest: it yields a tie
     /// to a known id and never wins one.
-    fn supersedes(&self, held: &Self) -> bool {
+    pub(crate) fn supersedes(&self, held: &Self) -> bool {
         match self.created_at.cmp(&held.created_at) {
             std::cmp::Ordering::Greater => true,
             std::cmp::Ordering::Less => false,
@@ -317,7 +317,10 @@ fn newest_info(pubkeys: &[String], info_events: &[Event]) -> HashMap<String, Cac
             event_id: Some(event.id.to_hex()),
             tags,
         };
-        if newest.get(&author).is_some_and(|prev| !info.supersedes(prev)) {
+        if newest
+            .get(&author)
+            .is_some_and(|prev| !info.supersedes(prev))
+        {
             continue;
         }
         newest.insert(author, info);
@@ -415,15 +418,15 @@ async fn load_info_cache(db: &impl Storage) -> Result<HashMap<String, CachedNode
     }
 }
 
-/// Every registry node's cached kind 38385 tags, keyed by node pubkey (hex).
+/// Every registry node's cached kind 38385, keyed by node pubkey (hex).
 /// Empty without a store or when the cache cannot be read: a reader of one
 /// tag (the Serbero announcement) then falls back to what it knows live.
-pub(crate) async fn cached_info_tags() -> HashMap<String, Vec<Vec<String>>> {
+pub(crate) async fn cached_info() -> HashMap<String, CachedNodeInfo> {
     let Some(db) = crate::db::app_db::db() else {
         return HashMap::new();
     };
     match load_info_cache(db).await {
-        Ok(cache) => cache.into_iter().map(|(node, info)| (node, info.tags)).collect(),
+        Ok(cache) => cache,
         Err(e) => {
             log::warn!("[node_stats] kind 38385 cache unreadable: {e}");
             HashMap::new()
@@ -999,9 +1002,17 @@ mod tests {
             info_event(&node, &pk, "0.006", 100),
             info_event(&node, &pk, "0.01", 100),
         );
-        let lowest = if a.id.to_hex() < b.id.to_hex() { &a } else { &b };
+        let lowest = if a.id.to_hex() < b.id.to_hex() {
+            &a
+        } else {
+            &b
+        };
         let expected_fee = tag_value(
-            &lowest.tags.iter().map(|t| t.as_slice().to_vec()).collect::<Vec<_>>(),
+            &lowest
+                .tags
+                .iter()
+                .map(|t| t.as_slice().to_vec())
+                .collect::<Vec<_>>(),
             "fee",
         )
         .map(str::to_string);
