@@ -2602,6 +2602,29 @@ class AppLocalizationsIt extends AppLocalizations {
   String get nwcWalletNotConnected => 'Non connesso';
 
   @override
+  String get nwcUnavailableOnWeb => 'Non disponibile sul web';
+
+  @override
+  String get nwcUnsupportedOnWebMessage =>
+      'La versione web non può ancora collegare un wallet NWC. Usa l\'app Android o desktop.';
+
+  @override
+  String get nwcWalletUnreachableMessage =>
+      'Impossibile raggiungere il tuo wallet. Controlla che sia online e riprova.';
+
+  @override
+  String get nwcWalletRejectedMessage =>
+      'Il tuo wallet ha rifiutato questa connessione. Crea una nuova connessione nel wallet e incolla quell\'URI.';
+
+  @override
+  String get nwcWalletUnsupportedMessage =>
+      'Il tuo wallet ha risposto, ma non supporta ciò che serve a Mostro. Controlla le sue impostazioni NWC o usa un altro wallet.';
+
+  @override
+  String get nwcWalletErrorMessage =>
+      'Il tuo wallet ha risposto con un errore. Riprova tra un momento.';
+
+  @override
   String relaysConnectedOfTotal(int connected, int total) {
     return '$connected su $total connessi';
   }

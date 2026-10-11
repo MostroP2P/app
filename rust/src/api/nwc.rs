@@ -42,6 +42,28 @@ fn wallet_store() -> &'static WalletStore {
     WALLET_STORE.get_or_init(WalletStore::new)
 }
 
+/// A `get_info` failure keeps the label it was raised with: the wallet
+/// refused the connection (`WalletRejected`), lacks `get_info`
+/// (`WalletUnsupported`), answered with another error (`WalletError`), or no
+/// request could be built from the URI (`InvalidNwcUri`). Anything else
+/// never got an answer.
+fn label_get_info_error(e: anyhow::Error) -> anyhow::Error {
+    let text = e.to_string();
+    if [
+        "WalletRejected:",
+        "WalletUnsupported:",
+        "WalletError:",
+        "InvalidNwcUri:",
+    ]
+    .iter()
+    .any(|label| text.starts_with(label))
+    {
+        e
+    } else {
+        anyhow!("ConnectionFailed: {e}")
+    }
+}
+
 // ── Public API ────────────────────────────────────────────────────────────────
 
 /// Parse and connect a NWC wallet.
@@ -51,16 +73,14 @@ fn wallet_store() -> &'static WalletStore {
 /// Validates the URI, creates an [NwcClient], calls `get_info()` to confirm
 /// connectivity, and stores the client in memory.
 ///
-/// **Errors**: `InvalidNwcUri`, `ConnectionFailed`.
+/// **Errors**: `InvalidNwcUri`, `WalletRejected`, `WalletUnsupported`,
+/// `WalletError`, `ConnectionFailed`, `Unsupported` (web).
 pub async fn connect_wallet(nwc_uri: String) -> Result<NwcWalletInfo> {
-    let mut client = NwcClient::new(&nwc_uri)
-        .await
-        .map_err(|e| anyhow!("InvalidNwcUri: {e}"))?;
+    // `NwcClient::new` labels its own failures: relabelling them all as
+    // `InvalidNwcUri` told a user with a good URI to go and fix it.
+    let mut client = NwcClient::new(&nwc_uri).await?;
 
-    let info = client
-        .get_info()
-        .await
-        .map_err(|e| anyhow!("ConnectionFailed: {e}"))?;
+    let info = client.get_info().await.map_err(label_get_info_error)?;
 
     // Fetch initial balance (non-fatal — some wallets don't support it).
     let balance = client.get_balance().await.ok().flatten();
@@ -252,6 +272,16 @@ mod tests {
             let err = pay_invoice(input.into()).await.unwrap_err();
             assert!(err.to_string().contains("InvoiceInvalid"), "{input}: {err}");
         }
+    }
+
+    #[test]
+    fn get_info_errors_keep_their_label_or_become_connection_failed() {
+        let label = |msg: &str| label_get_info_error(anyhow!("{msg}")).to_string();
+        assert!(label("WalletRejected: no wallet [UNAUTHORIZED]").starts_with("WalletRejected:"));
+        assert!(label("InvalidNwcUri: cannot build").starts_with("InvalidNwcUri:"));
+        assert!(label("WalletUnsupported: no get_info").starts_with("WalletUnsupported:"));
+        assert!(label("WalletError: busy [RATE_LIMITED]").starts_with("WalletError:"));
+        assert!(label("NWC timeout: no response").starts_with("ConnectionFailed:"));
     }
 
     #[tokio::test]

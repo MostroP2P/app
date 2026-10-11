@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `new`, `notify`, `wallet_store`
+// These functions are ignored because they are not marked as `pub`: `label_get_info_error`, `new`, `notify`, `wallet_store`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `WalletStore`
 
 /// Parse and connect a NWC wallet.
@@ -17,7 +17,8 @@ import 'types.dart';
 /// Validates the URI, creates an [NwcClient], calls `get_info()` to confirm
 /// connectivity, and stores the client in memory.
 ///
-/// **Errors**: `InvalidNwcUri`, `ConnectionFailed`.
+/// **Errors**: `InvalidNwcUri`, `WalletRejected`, `WalletUnsupported`,
+/// `WalletError`, `ConnectionFailed`, `Unsupported` (web).
 Future<NwcWalletInfo> connectWallet({required String nwcUri}) =>
     RustLib.instance.api.crateApiNwcConnectWallet(nwcUri: nwcUri);
 
