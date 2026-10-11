@@ -2605,6 +2605,26 @@ class AppLocalizationsFr extends AppLocalizations {
   String get nwcWalletNotConnected => 'Non connecté';
 
   @override
+  String get nwcWalletUnreachableMessage =>
+      'Impossible de joindre votre portefeuille. Vérifiez qu\'il est en ligne et réessayez.';
+
+  @override
+  String get nwcWalletRejectedMessage =>
+      'Votre portefeuille a refusé cette connexion. Créez une nouvelle connexion dans votre portefeuille et collez cette URI.';
+
+  @override
+  String get nwcWalletUnsupportedMessage =>
+      'Votre portefeuille a répondu, mais ne prend pas en charge ce dont Mostro a besoin. Vérifiez ses réglages NWC ou utilisez un autre portefeuille.';
+
+  @override
+  String get nwcWalletErrorMessage =>
+      'Votre portefeuille a répondu par une erreur. Réessayez dans un instant.';
+
+  @override
+  String get nwcRelayBlockedOnWebMessage =>
+      'Le relais de ce portefeuille utilise ws://, qu\'une page web sécurisée ne peut pas ouvrir. Utilisez un relais wss:// ou l\'app Android ou de bureau.';
+
+  @override
   String relaysConnectedOfTotal(int connected, int total) {
     return '$connected sur $total connectés';
   }

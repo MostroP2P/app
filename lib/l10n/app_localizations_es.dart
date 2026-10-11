@@ -2600,6 +2600,26 @@ class AppLocalizationsEs extends AppLocalizations {
   String get nwcWalletNotConnected => 'Sin conectar';
 
   @override
+  String get nwcWalletUnreachableMessage =>
+      'No se pudo contactar con tu billetera. Comprueba que esté en línea e inténtalo de nuevo.';
+
+  @override
+  String get nwcWalletRejectedMessage =>
+      'Tu billetera rechazó esta conexión. Crea una nueva conexión en tu billetera y pega esa URI.';
+
+  @override
+  String get nwcWalletUnsupportedMessage =>
+      'Tu billetera respondió, pero no admite lo que Mostro necesita. Revisa su configuración NWC o usa otra billetera.';
+
+  @override
+  String get nwcWalletErrorMessage =>
+      'Tu billetera respondió con un error. Inténtalo de nuevo en un momento.';
+
+  @override
+  String get nwcRelayBlockedOnWebMessage =>
+      'El relay de esta billetera usa ws://, que una página web segura no puede abrir. Usa un relay wss:// o la app de Android o de escritorio.';
+
+  @override
   String relaysConnectedOfTotal(int connected, int total) {
     return '$connected de $total conectados';
   }

@@ -2580,6 +2580,26 @@ class AppLocalizationsEn extends AppLocalizations {
   String get nwcWalletNotConnected => 'Not connected';
 
   @override
+  String get nwcWalletUnreachableMessage =>
+      'Could not reach your wallet. Check that it is online and try again.';
+
+  @override
+  String get nwcWalletRejectedMessage =>
+      'Your wallet refused this connection. Create a new connection in your wallet and paste that URI.';
+
+  @override
+  String get nwcWalletUnsupportedMessage =>
+      'Your wallet answered, but does not support what Mostro needs. Check its NWC settings, or use another wallet.';
+
+  @override
+  String get nwcWalletErrorMessage =>
+      'Your wallet answered with an error. Try again in a moment.';
+
+  @override
+  String get nwcRelayBlockedOnWebMessage =>
+      'This wallet\'s relay uses ws://, which a secure web page may not open. Use a wss:// relay, or the Android or desktop app.';
+
+  @override
   String relaysConnectedOfTotal(int connected, int total) {
     return '$connected of $total connected';
   }

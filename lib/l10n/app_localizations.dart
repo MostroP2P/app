@@ -4396,6 +4396,36 @@ abstract class AppLocalizations {
   /// **'Not connected'**
   String get nwcWalletNotConnected;
 
+  /// Snackbar shown when neither the NWC relay nor the wallet answered
+  ///
+  /// In en, this message translates to:
+  /// **'Could not reach your wallet. Check that it is online and try again.'**
+  String get nwcWalletUnreachableMessage;
+
+  /// Snackbar shown when the wallet answered the connection attempt with an error, e.g. a revoked connection
+  ///
+  /// In en, this message translates to:
+  /// **'Your wallet refused this connection. Create a new connection in your wallet and paste that URI.'**
+  String get nwcWalletRejectedMessage;
+
+  /// Snackbar shown when the wallet answered the connection attempt with NOT_IMPLEMENTED
+  ///
+  /// In en, this message translates to:
+  /// **'Your wallet answered, but does not support what Mostro needs. Check its NWC settings, or use another wallet.'**
+  String get nwcWalletUnsupportedMessage;
+
+  /// Snackbar shown when the wallet answered the connection attempt with an error a retry may clear (RATE_LIMITED, INTERNAL, ...)
+  ///
+  /// In en, this message translates to:
+  /// **'Your wallet answered with an error. Try again in a moment.'**
+  String get nwcWalletErrorMessage;
+
+  /// Snackbar on web when every relay in the NWC URI is ws://, which an https page may not open
+  ///
+  /// In en, this message translates to:
+  /// **'This wallet\'s relay uses ws://, which a secure web page may not open. Use a wss:// relay, or the Android or desktop app.'**
+  String get nwcRelayBlockedOnWebMessage;
+
   /// Settings value: how many enabled relays are connected
   ///
   /// In en, this message translates to:

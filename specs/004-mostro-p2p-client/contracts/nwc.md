@@ -14,10 +14,24 @@ Parse NWC URI and establish connection to wallet service.
 **Validation**: URI MUST be valid NWC format with pubkey, at least one
 relay URL, and hex secret.
 
-**Side effects**: Stores encrypted credentials in secure storage.
-Connects to wallet relay(s). Queries wallet info.
+**Side effects**: Connects to wallet relay(s). Queries wallet info. The
+Dart layer keeps the URI, secret included, in SharedPreferences, in plain
+text, which on web is `localStorage` (T046f).
 
-**Errors**: `InvalidNwcUri`, `ConnectionFailed`, `StorageError`.
+**Errors**: each is a prefix on the error text, which the connect screen
+reads to tell the user what to do.
+- `InvalidNwcUri`: the URI does not parse, or no request can be built from
+  it (a wallet pubkey that is not a valid point). Only this one blames the URI.
+- `WalletRejected`: the wallet answered `get_info` with `UNAUTHORIZED` (a
+  revoked connection) or `RESTRICTED`. Retrying does not help; a new
+  connection URI does.
+- `WalletUnsupported`: the wallet answered `get_info` with `NOT_IMPLEMENTED`.
+  Neither a retry nor a new URI helps; another wallet does.
+- `WalletError`: the wallet answered `get_info` with any other error
+  (`RATE_LIMITED`, `INTERNAL`, `UNSUPPORTED_ENCRYPTION`, ...). A retry may
+  clear it.
+- `ConnectionFailed`: a relay could not be added, or nothing answered.
+- `StorageError`.
 
 ---
 
@@ -74,7 +88,7 @@ of `amount_sats`, converted to msats for the request. Returns the invoice.
   for the node's metadata before asking, since the request is made once.
 
 **Errors**: `InvalidAmount` (zero, or too large to express in msats),
-`NoWalletConnected`, `WalletError`. Not supported on web.
+`NoWalletConnected`, `WalletError`.
 
 ## Streams
 
