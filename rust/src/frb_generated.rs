@@ -53,7 +53,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueMoi,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1271703544;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 1792443776;
 
 // Section: executor
 
@@ -5903,6 +5903,42 @@ fn wire__crate__api__nwc__pay_invoice_impl(
         },
     )
 }
+fn wire__crate__api__orders__payout_amount_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
+    rust_vec_len_: i32,
+    data_len_: i32,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::SseCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "payout_amount",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let message = unsafe {
+                flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(
+                    ptr_,
+                    rust_vec_len_,
+                    data_len_,
+                )
+            };
+            let mut deserializer =
+                flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_order_id = <String>::sse_decode(&mut deserializer);
+            deserializer.end();
+            move |context| async move {
+                transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
+                    (move || async move {
+                        let output_ok = crate::api::orders::payout_amount(api_order_id).await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__types__push_platform_as_wire_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     ptr_: flutter_rust_bridge::for_generated::PlatformGeneralizedUint8ListPtr,
@@ -10584,138 +10620,139 @@ fn pde_ffi_dispatcher_primary_impl(
             wire__crate__api__orders__order_filters_default_impl(port, ptr, rust_vec_len, data_len)
         }
         144 => wire__crate__api__nwc__pay_invoice_impl(port, ptr, rust_vec_len, data_len),
-        145 => {
+        145 => wire__crate__api__orders__payout_amount_impl(port, ptr, rust_vec_len, data_len),
+        146 => {
             wire__crate__api__types__push_platform_as_wire_impl(port, ptr, rust_vec_len, data_len)
         }
-        146 => {
+        147 => {
             wire__crate__api__types__push_platform_from_wire_impl(port, ptr, rust_vec_len, data_len)
         }
-        147 => wire__crate__api__logging__recent_logs_impl(port, ptr, rust_vec_len, data_len),
-        148 => wire__crate__api__push__reconcile_push_impl(port, ptr, rust_vec_len, data_len),
-        149 => wire__crate__api__orders__recover_trades_impl(port, ptr, rust_vec_len, data_len),
-        150 => wire__crate__api__node_stats__refresh_mostro_node_info_cache_impl(
+        148 => wire__crate__api__logging__recent_logs_impl(port, ptr, rust_vec_len, data_len),
+        149 => wire__crate__api__push__reconcile_push_impl(port, ptr, rust_vec_len, data_len),
+        150 => wire__crate__api__orders__recover_trades_impl(port, ptr, rust_vec_len, data_len),
+        151 => wire__crate__api__node_stats__refresh_mostro_node_info_cache_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        151 => wire__crate__api__nodes__refresh_mostro_node_metadata_impl(
+        152 => wire__crate__api__nodes__refresh_mostro_node_metadata_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        152 => wire__crate__api__my_reputation__refresh_my_reputation_impl(
+        153 => wire__crate__api__my_reputation__refresh_my_reputation_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        153 => wire__crate__api__settings__rehydrate_active_mostro_node_impl(
+        154 => wire__crate__api__settings__rehydrate_active_mostro_node_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        154 => wire__crate__api__escrow__rehydrate_escrow_overrides_impl(
+        155 => wire__crate__api__escrow__rehydrate_escrow_overrides_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        155 => wire__crate__api__orders__release_order_impl(port, ptr, rust_vec_len, data_len),
-        156 => wire__crate__api__nodes__remove_custom_mostro_node_impl(
+        156 => wire__crate__api__orders__release_order_impl(port, ptr, rust_vec_len, data_len),
+        157 => wire__crate__api__nodes__remove_custom_mostro_node_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        157 => wire__crate__api__nostr__remove_relay_impl(port, ptr, rust_vec_len, data_len),
-        158 => wire__crate__api__orders__request_bond_invoice_again_impl(
+        158 => wire__crate__api__nostr__remove_relay_impl(port, ptr, rust_vec_len, data_len),
+        159 => wire__crate__api__orders__request_bond_invoice_again_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        159 => wire__crate__api__orders__restart_orders_subscription_impl(
+        160 => wire__crate__api__orders__restart_orders_subscription_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        160 => wire__crate__api__nostr__resync_impl(port, ptr, rust_vec_len, data_len),
-        161 => {
+        161 => wire__crate__api__nostr__resync_impl(port, ptr, rust_vec_len, data_len),
+        162 => {
             wire__crate__api__disputes__send_dispute_file_impl(port, ptr, rust_vec_len, data_len)
         }
-        162 => wire__crate__api__orders__send_fiat_sent_impl(port, ptr, rust_vec_len, data_len),
-        163 => wire__crate__api__messages__send_file_impl(port, ptr, rust_vec_len, data_len),
-        164 => wire__crate__api__orders__send_invoice_impl(port, ptr, rust_vec_len, data_len),
-        165 => wire__crate__api__messages__send_message_impl(port, ptr, rust_vec_len, data_len),
-        166 => wire__crate__api__messages__send_reaction_impl(port, ptr, rust_vec_len, data_len),
-        167 => wire__crate__api__settings__set_active_mostro_node_impl(
+        163 => wire__crate__api__orders__send_fiat_sent_impl(port, ptr, rust_vec_len, data_len),
+        164 => wire__crate__api__messages__send_file_impl(port, ptr, rust_vec_len, data_len),
+        165 => wire__crate__api__orders__send_invoice_impl(port, ptr, rust_vec_len, data_len),
+        166 => wire__crate__api__messages__send_message_impl(port, ptr, rust_vec_len, data_len),
+        167 => wire__crate__api__messages__send_reaction_impl(port, ptr, rust_vec_len, data_len),
+        168 => wire__crate__api__settings__set_active_mostro_node_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        168 => wire__crate__api__escrow__set_cashu_mint_url_override_impl(
+        169 => wire__crate__api__escrow__set_cashu_mint_url_override_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        169 => wire__crate__api__settings__set_default_fiat_code_impl(
+        170 => wire__crate__api__settings__set_default_fiat_code_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        170 => wire__crate__api__settings__set_default_lightning_address_impl(
+        171 => wire__crate__api__settings__set_default_lightning_address_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        171 => wire__crate__api__escrow__set_escrow_mode_override_impl(
+        172 => wire__crate__api__escrow__set_escrow_mode_override_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        172 => wire__crate__api__settings__set_language_impl(port, ptr, rust_vec_len, data_len),
-        173 => {
+        173 => wire__crate__api__settings__set_language_impl(port, ptr, rust_vec_len, data_len),
+        174 => {
             wire__crate__api__settings__set_logging_enabled_impl(port, ptr, rust_vec_len, data_len)
         }
-        174 => {
+        175 => {
             wire__crate__api__reputation__set_privacy_mode_impl(port, ptr, rust_vec_len, data_len)
         }
-        175 => wire__crate__api__push__set_push_enabled_impl(port, ptr, rust_vec_len, data_len),
-        176 => wire__crate__api__push__set_push_token_impl(port, ptr, rust_vec_len, data_len),
-        177 => wire__crate__api__settings__set_test_order_expiry_impl(
+        176 => wire__crate__api__push__set_push_enabled_impl(port, ptr, rust_vec_len, data_len),
+        177 => wire__crate__api__push__set_push_token_impl(port, ptr, rust_vec_len, data_len),
+        178 => wire__crate__api__settings__set_test_order_expiry_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        178 => wire__crate__api__settings__set_theme_impl(port, ptr, rust_vec_len, data_len),
-        179 => wire__crate__api__disputes__share_chat_key_with_solver_impl(
+        179 => wire__crate__api__settings__set_theme_impl(port, ptr, rust_vec_len, data_len),
+        180 => wire__crate__api__disputes__share_chat_key_with_solver_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        180 => wire__crate__api__disputes__solver_role_impl(port, ptr, rust_vec_len, data_len),
-        181 => wire__crate__api__bond__submit_bond_payout_invoice_impl(
+        181 => wire__crate__api__disputes__solver_role_impl(port, ptr, rust_vec_len, data_len),
+        182 => wire__crate__api__bond__submit_bond_payout_invoice_impl(
             port,
             ptr,
             rust_vec_len,
             data_len,
         ),
-        182 => wire__crate__api__disputes__submit_evidence_impl(port, ptr, rust_vec_len, data_len),
-        183 => wire__crate__api__reputation__submit_rating_impl(port, ptr, rust_vec_len, data_len),
-        184 => wire__crate__api__orders__subscribe_orders_impl(port, ptr, rust_vec_len, data_len),
-        185 => wire__crate__api__orders__take_order_impl(port, ptr, rust_vec_len, data_len),
-        186 => {
+        183 => wire__crate__api__disputes__submit_evidence_impl(port, ptr, rust_vec_len, data_len),
+        184 => wire__crate__api__reputation__submit_rating_impl(port, ptr, rust_vec_len, data_len),
+        185 => wire__crate__api__orders__subscribe_orders_impl(port, ptr, rust_vec_len, data_len),
+        186 => wire__crate__api__orders__take_order_impl(port, ptr, rust_vec_len, data_len),
+        187 => {
             wire__crate__api__invoice__trade_step_started_at_impl(port, ptr, rust_vec_len, data_len)
         }
         _ => unreachable!(),
