@@ -16,6 +16,7 @@ import 'package:mostro/features/order/screens/my_order_screen.dart';
 import 'package:mostro/features/order/screens/take_order_screen.dart';
 import 'package:mostro/features/chat/screens/chat_room_screen.dart';
 import 'package:mostro/features/chat/screens/chat_rooms_screen.dart';
+import 'package:mostro/features/deep_links/screens/order_link_screen.dart';
 import 'package:mostro/features/disputes/screens/dispute_chat_screen.dart';
 import 'package:mostro/features/rate/screens/rate_counterpart_screen.dart';
 import 'package:mostro/features/about/screens/about_screen.dart';
@@ -72,6 +73,12 @@ abstract final class AppRoute {
   static const lockEscrow = '/lock_escrow/:orderId';
 
   static String lockEscrowPath(String orderId) => '/lock_escrow/$orderId';
+
+  /// Opens a `mostro:` order link handed over by the OS, carried in `link`.
+  static const orderLink = '/order_link';
+
+  static String orderLinkPath(String link) =>
+      Uri(path: orderLink, queryParameters: {'link': link}).toString();
 
   /// Build a path with a single [id] substituted for the `:orderId` segment.
   static String tradeDetailPath(String orderId) => '/trade_detail/$orderId';
@@ -282,6 +289,12 @@ final GoRouter appRouter = GoRouter(
       builder:
           (context, state) =>
               LockEscrowScreen(orderId: state.pathParameters['orderId']!),
+    ),
+    GoRoute(
+      path: AppRoute.orderLink,
+      builder:
+          (context, state) =>
+              OrderLinkScreen(link: state.uri.queryParameters['link'] ?? ''),
     ),
   ],
 );

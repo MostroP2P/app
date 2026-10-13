@@ -4447,4 +4447,48 @@ class AppLocalizationsEs extends AppLocalizations {
   String myReputationOnNode(String node) {
     return 'En $node';
   }
+
+  @override
+  String get orderLinkTitle => 'Enlace a una orden';
+
+  @override
+  String get orderLinkLooking => 'Buscando la orden…';
+
+  @override
+  String orderLinkSwitching(String nodeName) {
+    return 'Cambiando a $nodeName…';
+  }
+
+  @override
+  String get orderLinkInvalidTitle => 'No se puede abrir este enlace';
+
+  @override
+  String get orderLinkInvalidBody =>
+      'No es un enlace a una orden de Mostro, o le falta una parte.';
+
+  @override
+  String get orderLinkNotFoundBody =>
+      'Ningún relay respondió con esta orden. Revisa tu conexión e inténtalo de nuevo.';
+
+  @override
+  String get orderLinkUnavailableTitle => 'La orden ya no está disponible';
+
+  @override
+  String get orderLinkUnavailableBody =>
+      'Alguien ya la tomó, o se canceló o expiró.';
+
+  @override
+  String get orderLinkFailedTitle => 'No se pudo abrir la orden';
+
+  @override
+  String get orderLinkOtherNodeTitle => 'Orden en otro nodo';
+
+  @override
+  String orderLinkOtherNodeBody(String nodeName) {
+    return 'Esta orden se publicó en $nodeName. Para verla y tomarla, cambia a ese nodo.';
+  }
+
+  @override
+  String get orderLinkUnknownNodeWarning =>
+      'Este nodo no está en tu lista. Cambia a él solo si confías en quien te envió el enlace: el nodo en el que operas liquida tus operaciones y resuelve sus disputas.';
 }

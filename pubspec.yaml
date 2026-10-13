@@ -92,6 +92,9 @@ dependencies:
   open_filex: ^4.7.0
   # 4.5 needs Dart 3.11; this app still supports Dart 3.7 (environment above).
   emoji_picker_flutter: ">=4.4.0 <4.5.0"
+  # `mostro:` order links from the OS (lib/features/deep_links/). 7.x needs Dart
+  # 3.10 (7.1 and later Flutter 3.44); this app still supports Dart 3.7.
+  app_links: ^6.4.1
 
 dependency_overrides:
   # permission_handler_html 0.1.4+0 (published 2026-07-31) fails to compile

@@ -4452,4 +4452,48 @@ class AppLocalizationsNl extends AppLocalizations {
   String myReputationOnNode(String node) {
     return 'Op $node';
   }
+
+  @override
+  String get orderLinkTitle => 'Orderlink';
+
+  @override
+  String get orderLinkLooking => 'Order zoeken…';
+
+  @override
+  String orderLinkSwitching(String nodeName) {
+    return 'Overschakelen naar $nodeName…';
+  }
+
+  @override
+  String get orderLinkInvalidTitle => 'Deze link kan niet worden geopend';
+
+  @override
+  String get orderLinkInvalidBody =>
+      'Het is geen link naar een Mostro-order, of er ontbreekt een deel.';
+
+  @override
+  String get orderLinkNotFoundBody =>
+      'Geen enkele relay antwoordde met deze order. Controleer je verbinding en probeer het opnieuw.';
+
+  @override
+  String get orderLinkUnavailableTitle => 'Order niet meer beschikbaar';
+
+  @override
+  String get orderLinkUnavailableBody =>
+      'Iemand heeft hem al geaccepteerd, of hij is geannuleerd of verlopen.';
+
+  @override
+  String get orderLinkFailedTitle => 'De order kon niet worden geopend';
+
+  @override
+  String get orderLinkOtherNodeTitle => 'Order op een andere node';
+
+  @override
+  String orderLinkOtherNodeBody(String nodeName) {
+    return 'Deze order is gepubliceerd op $nodeName. Schakel over naar die node om hem te zien en te accepteren.';
+  }
+
+  @override
+  String get orderLinkUnknownNodeWarning =>
+      'Deze node staat niet in je lijst. Schakel er alleen naar over als je vertrouwt wie je de link stuurde: de node waarop je handelt rondt je trades af en beslist over hun disputen.';
 }

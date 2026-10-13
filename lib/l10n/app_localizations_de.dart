@@ -4475,4 +4475,48 @@ class AppLocalizationsDe extends AppLocalizations {
   String myReputationOnNode(String node) {
     return 'Auf $node';
   }
+
+  @override
+  String get orderLinkTitle => 'Order-Link';
+
+  @override
+  String get orderLinkLooking => 'Order wird gesucht…';
+
+  @override
+  String orderLinkSwitching(String nodeName) {
+    return 'Wechsel zu $nodeName…';
+  }
+
+  @override
+  String get orderLinkInvalidTitle => 'Dieser Link lässt sich nicht öffnen';
+
+  @override
+  String get orderLinkInvalidBody =>
+      'Er ist kein Link zu einer Mostro-Order, oder ein Teil fehlt.';
+
+  @override
+  String get orderLinkNotFoundBody =>
+      'Kein Relay hat mit dieser Order geantwortet. Prüfe deine Verbindung und versuche es erneut.';
+
+  @override
+  String get orderLinkUnavailableTitle => 'Order nicht mehr verfügbar';
+
+  @override
+  String get orderLinkUnavailableBody =>
+      'Jemand hat sie bereits angenommen, oder sie wurde storniert oder ist abgelaufen.';
+
+  @override
+  String get orderLinkFailedTitle => 'Die Order konnte nicht geöffnet werden';
+
+  @override
+  String get orderLinkOtherNodeTitle => 'Order auf einem anderen Knoten';
+
+  @override
+  String orderLinkOtherNodeBody(String nodeName) {
+    return 'Diese Order wurde auf $nodeName veröffentlicht. Um sie zu sehen und anzunehmen, wechsle zu diesem Knoten.';
+  }
+
+  @override
+  String get orderLinkUnknownNodeWarning =>
+      'Dieser Knoten ist nicht in deiner Liste. Wechsle nur zu ihm, wenn du der Person vertraust, die dir den Link geschickt hat: Der Knoten, auf dem du handelst, wickelt deine Trades ab und entscheidet ihre Streitfälle.';
 }

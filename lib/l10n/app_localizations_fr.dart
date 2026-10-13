@@ -4479,4 +4479,48 @@ class AppLocalizationsFr extends AppLocalizations {
   String myReputationOnNode(String node) {
     return 'Sur $node';
   }
+
+  @override
+  String get orderLinkTitle => 'Lien vers un ordre';
+
+  @override
+  String get orderLinkLooking => 'Recherche de l\'ordre…';
+
+  @override
+  String orderLinkSwitching(String nodeName) {
+    return 'Passage à $nodeName…';
+  }
+
+  @override
+  String get orderLinkInvalidTitle => 'Impossible d\'ouvrir ce lien';
+
+  @override
+  String get orderLinkInvalidBody =>
+      'Ce n\'est pas un lien vers un ordre Mostro, ou il en manque une partie.';
+
+  @override
+  String get orderLinkNotFoundBody =>
+      'Aucun relais n\'a répondu avec cet ordre. Vérifiez votre connexion et réessayez.';
+
+  @override
+  String get orderLinkUnavailableTitle => 'Ordre plus disponible';
+
+  @override
+  String get orderLinkUnavailableBody =>
+      'Quelqu\'un l\'a déjà pris, ou il a été annulé ou a expiré.';
+
+  @override
+  String get orderLinkFailedTitle => 'Impossible d\'ouvrir l\'ordre';
+
+  @override
+  String get orderLinkOtherNodeTitle => 'Ordre sur un autre nœud';
+
+  @override
+  String orderLinkOtherNodeBody(String nodeName) {
+    return 'Cet ordre a été publié sur $nodeName. Pour le voir et le prendre, passez à ce nœud.';
+  }
+
+  @override
+  String get orderLinkUnknownNodeWarning =>
+      'Ce nœud n\'est pas dans votre liste. N\'y passez que si vous faites confiance à la personne qui vous a envoyé le lien : le nœud sur lequel vous échangez règle vos échanges et tranche leurs litiges.';
 }

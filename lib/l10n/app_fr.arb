@@ -1362,5 +1362,17 @@
   "myReputationPrivacyMode": "Le mode confidentialité totale ne conserve aucune réputation. Choisissez le mode réputation ci-dessous pour en bâtir une.",
   "myReputationLoading": "Interrogation de votre nœud…",
   "myReputationUnavailable": "Votre nœud n'a pas encore répondu.",
-  "myReputationOnNode": "Sur {node}"
+  "myReputationOnNode": "Sur {node}",
+  "orderLinkTitle": "Lien vers un ordre",
+  "orderLinkLooking": "Recherche de l'ordre…",
+  "orderLinkSwitching": "Passage à {nodeName}…",
+  "orderLinkInvalidTitle": "Impossible d'ouvrir ce lien",
+  "orderLinkInvalidBody": "Ce n'est pas un lien vers un ordre Mostro, ou il en manque une partie.",
+  "orderLinkNotFoundBody": "Aucun relais n'a répondu avec cet ordre. Vérifiez votre connexion et réessayez.",
+  "orderLinkUnavailableTitle": "Ordre plus disponible",
+  "orderLinkUnavailableBody": "Quelqu'un l'a déjà pris, ou il a été annulé ou a expiré.",
+  "orderLinkFailedTitle": "Impossible d'ouvrir l'ordre",
+  "orderLinkOtherNodeTitle": "Ordre sur un autre nœud",
+  "orderLinkOtherNodeBody": "Cet ordre a été publié sur {nodeName}. Pour le voir et le prendre, passez à ce nœud.",
+  "orderLinkUnknownNodeWarning": "Ce nœud n'est pas dans votre liste. N'y passez que si vous faites confiance à la personne qui vous a envoyé le lien : le nœud sur lequel vous échangez règle vos échanges et tranche leurs litiges."
 }

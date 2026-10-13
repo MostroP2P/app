@@ -1362,5 +1362,17 @@
   "myReputationPrivacyMode": "De volledige privacymodus houdt geen reputatie bij. Kies hieronder de reputatiemodus om er een op te bouwen.",
   "myReputationLoading": "Je node wordt gevraagd…",
   "myReputationUnavailable": "Je node heeft nog niet geantwoord.",
-  "myReputationOnNode": "Op {node}"
+  "myReputationOnNode": "Op {node}",
+  "orderLinkTitle": "Orderlink",
+  "orderLinkLooking": "Order zoeken…",
+  "orderLinkSwitching": "Overschakelen naar {nodeName}…",
+  "orderLinkInvalidTitle": "Deze link kan niet worden geopend",
+  "orderLinkInvalidBody": "Het is geen link naar een Mostro-order, of er ontbreekt een deel.",
+  "orderLinkNotFoundBody": "Geen enkele relay antwoordde met deze order. Controleer je verbinding en probeer het opnieuw.",
+  "orderLinkUnavailableTitle": "Order niet meer beschikbaar",
+  "orderLinkUnavailableBody": "Iemand heeft hem al geaccepteerd, of hij is geannuleerd of verlopen.",
+  "orderLinkFailedTitle": "De order kon niet worden geopend",
+  "orderLinkOtherNodeTitle": "Order op een andere node",
+  "orderLinkOtherNodeBody": "Deze order is gepubliceerd op {nodeName}. Schakel over naar die node om hem te zien en te accepteren.",
+  "orderLinkUnknownNodeWarning": "Deze node staat niet in je lijst. Schakel er alleen naar over als je vertrouwt wie je de link stuurde: de node waarop je handelt rondt je trades af en beslist over hun disputen."
 }

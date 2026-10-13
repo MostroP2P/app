@@ -7371,6 +7371,78 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'On {node}'**
   String myReputationOnNode(String node);
+
+  /// App bar title of the screen that opens a mostro: order link
+  ///
+  /// In en, this message translates to:
+  /// **'Order link'**
+  String get orderLinkTitle;
+
+  /// Order link screen: shown while the relays are asked for the linked order
+  ///
+  /// In en, this message translates to:
+  /// **'Looking for the order…'**
+  String get orderLinkLooking;
+
+  /// Order link screen: shown while the app changes to the node that published the linked order
+  ///
+  /// In en, this message translates to:
+  /// **'Changing to {nodeName}…'**
+  String orderLinkSwitching(String nodeName);
+
+  /// Order link screen: title when the link is not a valid Mostro order link
+  ///
+  /// In en, this message translates to:
+  /// **'This link can\'t be opened'**
+  String get orderLinkInvalidTitle;
+
+  /// Order link screen: explanation when the link is not a valid Mostro order link
+  ///
+  /// In en, this message translates to:
+  /// **'It isn\'t a link to a Mostro order, or part of it is missing.'**
+  String get orderLinkInvalidBody;
+
+  /// Order link screen: explanation when no relay returned the linked order (the title is orderNotFoundTitle)
+  ///
+  /// In en, this message translates to:
+  /// **'No relay answered with this order. Check your connection and try again.'**
+  String get orderLinkNotFoundBody;
+
+  /// Order link screen: title when the linked order exists but can no longer be taken
+  ///
+  /// In en, this message translates to:
+  /// **'Order no longer available'**
+  String get orderLinkUnavailableTitle;
+
+  /// Order link screen: explanation when the linked order was taken, canceled or expired
+  ///
+  /// In en, this message translates to:
+  /// **'Someone already took it, or it was canceled or expired.'**
+  String get orderLinkUnavailableBody;
+
+  /// Order link screen: title when changing node or reading the trades failed (the body says which)
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t open the order'**
+  String get orderLinkFailedTitle;
+
+  /// Title of the dialog asking to change to the node that published a linked order
+  ///
+  /// In en, this message translates to:
+  /// **'Order on another node'**
+  String get orderLinkOtherNodeTitle;
+
+  /// Body of the dialog asking to change to the node that published a linked order
+  ///
+  /// In en, this message translates to:
+  /// **'This order was published on {nodeName}. To see it and take it, change to that node.'**
+  String orderLinkOtherNodeBody(String nodeName);
+
+  /// Warning in the change-node dialog when the linked order's node is neither trusted nor added by the user
+  ///
+  /// In en, this message translates to:
+  /// **'This node isn\'t in your list. Change to it only if you trust whoever sent you the link: the node you trade on settles your trades and resolves their disputes.'**
+  String get orderLinkUnknownNodeWarning;
 }
 
 class _AppLocalizationsDelegate

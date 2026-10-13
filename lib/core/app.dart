@@ -5,6 +5,7 @@ import 'package:mostro/l10n/app_localizations.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/features/deep_links/deep_link_listener.dart';
 import 'package:mostro/features/notifications/services/push_notification_service.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
 import 'package:mostro/shared/widgets/test_environment_banner.dart';
@@ -68,7 +69,9 @@ class _MostroAppState extends ConsumerState<MostroApp> {
       // app was started through lib/main_mortsom.dart.
       builder:
           (context, child) => TestEnvironmentBanner(
-            child: TradeActionListener(child: child ?? const SizedBox.shrink()),
+            child: TradeActionListener(
+              child: DeepLinkListener(child: child ?? const SizedBox.shrink()),
+            ),
           ),
     );
   }

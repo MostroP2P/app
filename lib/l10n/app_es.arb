@@ -1362,5 +1362,17 @@
   "myReputationPrivacyMode": "El modo de privacidad total no guarda reputación. Elige el modo reputación abajo para construirla.",
   "myReputationLoading": "Consultando a tu nodo…",
   "myReputationUnavailable": "Tu nodo aún no ha respondido.",
-  "myReputationOnNode": "En {node}"
+  "myReputationOnNode": "En {node}",
+  "orderLinkTitle": "Enlace a una orden",
+  "orderLinkLooking": "Buscando la orden…",
+  "orderLinkSwitching": "Cambiando a {nodeName}…",
+  "orderLinkInvalidTitle": "No se puede abrir este enlace",
+  "orderLinkInvalidBody": "No es un enlace a una orden de Mostro, o le falta una parte.",
+  "orderLinkNotFoundBody": "Ningún relay respondió con esta orden. Revisa tu conexión e inténtalo de nuevo.",
+  "orderLinkUnavailableTitle": "La orden ya no está disponible",
+  "orderLinkUnavailableBody": "Alguien ya la tomó, o se canceló o expiró.",
+  "orderLinkFailedTitle": "No se pudo abrir la orden",
+  "orderLinkOtherNodeTitle": "Orden en otro nodo",
+  "orderLinkOtherNodeBody": "Esta orden se publicó en {nodeName}. Para verla y tomarla, cambia a ese nodo.",
+  "orderLinkUnknownNodeWarning": "Este nodo no está en tu lista. Cambia a él solo si confías en quien te envió el enlace: el nodo en el que operas liquida tus operaciones y resuelve sus disputas."
 }

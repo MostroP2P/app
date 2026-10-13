@@ -4460,4 +4460,48 @@ class AppLocalizationsIt extends AppLocalizations {
   String myReputationOnNode(String node) {
     return 'Su $node';
   }
+
+  @override
+  String get orderLinkTitle => 'Link a un ordine';
+
+  @override
+  String get orderLinkLooking => 'Ricerca dell\'ordine…';
+
+  @override
+  String orderLinkSwitching(String nodeName) {
+    return 'Passaggio a $nodeName…';
+  }
+
+  @override
+  String get orderLinkInvalidTitle => 'Impossibile aprire questo link';
+
+  @override
+  String get orderLinkInvalidBody =>
+      'Non è un link a un ordine di Mostro, oppure ne manca una parte.';
+
+  @override
+  String get orderLinkNotFoundBody =>
+      'Nessun relay ha risposto con questo ordine. Controlla la connessione e riprova.';
+
+  @override
+  String get orderLinkUnavailableTitle => 'Ordine non più disponibile';
+
+  @override
+  String get orderLinkUnavailableBody =>
+      'Qualcuno l\'ha già preso, oppure è stato annullato o è scaduto.';
+
+  @override
+  String get orderLinkFailedTitle => 'Impossibile aprire l\'ordine';
+
+  @override
+  String get orderLinkOtherNodeTitle => 'Ordine su un altro nodo';
+
+  @override
+  String orderLinkOtherNodeBody(String nodeName) {
+    return 'Questo ordine è stato pubblicato su $nodeName. Per vederlo e prenderlo, passa a quel nodo.';
+  }
+
+  @override
+  String get orderLinkUnknownNodeWarning =>
+      'Questo nodo non è nella tua lista. Passaci solo se ti fidi di chi ti ha inviato il link: il nodo su cui operi regola le tue operazioni e decide le loro dispute.';
 }

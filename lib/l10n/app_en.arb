@@ -4636,5 +4636,63 @@
         "type": "String"
       }
     }
+  },
+  "orderLinkTitle": "Order link",
+  "@orderLinkTitle": {
+    "description": "App bar title of the screen that opens a mostro: order link"
+  },
+  "orderLinkLooking": "Looking for the order…",
+  "@orderLinkLooking": {
+    "description": "Order link screen: shown while the relays are asked for the linked order"
+  },
+  "orderLinkSwitching": "Changing to {nodeName}…",
+  "@orderLinkSwitching": {
+    "description": "Order link screen: shown while the app changes to the node that published the linked order",
+    "placeholders": {
+      "nodeName": {
+        "type": "String"
+      }
+    }
+  },
+  "orderLinkInvalidTitle": "This link can't be opened",
+  "@orderLinkInvalidTitle": {
+    "description": "Order link screen: title when the link is not a valid Mostro order link"
+  },
+  "orderLinkInvalidBody": "It isn't a link to a Mostro order, or part of it is missing.",
+  "@orderLinkInvalidBody": {
+    "description": "Order link screen: explanation when the link is not a valid Mostro order link"
+  },
+  "orderLinkNotFoundBody": "No relay answered with this order. Check your connection and try again.",
+  "@orderLinkNotFoundBody": {
+    "description": "Order link screen: explanation when no relay returned the linked order (the title is orderNotFoundTitle)"
+  },
+  "orderLinkUnavailableTitle": "Order no longer available",
+  "@orderLinkUnavailableTitle": {
+    "description": "Order link screen: title when the linked order exists but can no longer be taken"
+  },
+  "orderLinkUnavailableBody": "Someone already took it, or it was canceled or expired.",
+  "@orderLinkUnavailableBody": {
+    "description": "Order link screen: explanation when the linked order was taken, canceled or expired"
+  },
+  "orderLinkFailedTitle": "Couldn't open the order",
+  "@orderLinkFailedTitle": {
+    "description": "Order link screen: title when changing node or reading the trades failed (the body says which)"
+  },
+  "orderLinkOtherNodeTitle": "Order on another node",
+  "@orderLinkOtherNodeTitle": {
+    "description": "Title of the dialog asking to change to the node that published a linked order"
+  },
+  "orderLinkOtherNodeBody": "This order was published on {nodeName}. To see it and take it, change to that node.",
+  "@orderLinkOtherNodeBody": {
+    "description": "Body of the dialog asking to change to the node that published a linked order",
+    "placeholders": {
+      "nodeName": {
+        "type": "String"
+      }
+    }
+  },
+  "orderLinkUnknownNodeWarning": "This node isn't in your list. Change to it only if you trust whoever sent you the link: the node you trade on settles your trades and resolves their disputes.",
+  "@orderLinkUnknownNodeWarning": {
+    "description": "Warning in the change-node dialog when the linked order's node is neither trusted nor added by the user"
   }
 }
