@@ -12,6 +12,7 @@ pub mod node_stats;
 pub mod nodes;
 pub mod nostr;
 pub mod nwc;
+pub mod order_link;
 pub mod orders;
 pub mod push;
 pub mod reputation;

@@ -20,6 +20,7 @@ import 'api/node_stats.dart';
 import 'api/nodes.dart';
 import 'api/nostr.dart';
 import 'api/nwc.dart';
+import 'api/order_link.dart';
 import 'api/orders.dart';
 import 'api/push.dart';
 import 'api/reputation.dart';
@@ -1045,6 +1046,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   OrderKind dco_decode_order_kind(dynamic raw);
+
+  @protected
+  OrderLinkTarget dco_decode_order_link_target(dynamic raw);
 
   @protected
   OrderStatus dco_decode_order_status(dynamic raw);
@@ -2141,6 +2145,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   OrderKind sse_decode_order_kind(SseDeserializer deserializer);
+
+  @protected
+  OrderLinkTarget sse_decode_order_link_target(SseDeserializer deserializer);
 
   @protected
   OrderStatus sse_decode_order_status(SseDeserializer deserializer);
@@ -3506,6 +3513,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_order_kind(OrderKind self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_order_link_target(
+    OrderLinkTarget self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_order_status(OrderStatus self, SseSerializer serializer);

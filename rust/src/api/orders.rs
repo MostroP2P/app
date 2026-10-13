@@ -8898,12 +8898,6 @@ fn dispute_id_from_payload(payload: Option<&mostro_core::message::Payload>) -> O
     }
 }
 
-/// Parse a Kind 38383 event and upsert it into the order book, applying
-/// maker-order reconciliation (is_mine detection, local→daemon id bridging,
-/// trade-status sync).
-///
-/// Shared by the live subscription loop and the node-switch refetch so both
-/// paths populate the book identically.
 /// When an ingested event reaches subscribers.
 #[derive(Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Publish {
@@ -8914,7 +8908,14 @@ pub(crate) enum Publish {
     WhenBatchEnds,
 }
 
-async fn ingest_order_event(event: &nostr_sdk::prelude::Event) {
+/// Parse a Kind 38383 event and upsert it into the order book, applying
+/// maker-order reconciliation (is_mine detection, local→daemon id bridging,
+/// trade-status sync).
+///
+/// Shared by the live subscription loop, the node-switch refetch and an
+/// opened order link (`api::order_link`), so every path populates the book
+/// identically. The caller checks that the active node authored `event`.
+pub(crate) async fn ingest_order_event(event: &nostr_sdk::prelude::Event) {
     ingest_order_event_with(event, Publish::Coalesced).await;
 }
 
