@@ -28,5 +28,20 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+	<!-- `mostro:` order links, as a node writes them into an order's
+	     `source` tag. app_links hands them to lib/features/deep_links/. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLName</key>
+			<string>foundation.mostro.app.order-link</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>mostro</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>

@@ -49,6 +49,20 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+            <!-- `mostro:` order links, as a node writes them into an order's
+                 `source` tag. app_links hands them to lib/features/deep_links/. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="mostro"/>
+            </intent-filter>
+            <!-- Links are read by app_links, never given to the router as a
+                 route: a `mostro:` URI is no path go_router knows. -->
+            <meta-data
+              android:name="flutter_deeplinking_enabled"
+              android:value="false"
+              />
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

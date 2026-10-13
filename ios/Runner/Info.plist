@@ -58,5 +58,23 @@
 	<string>Mostro uses the camera to scan QR codes when you connect a Lightning wallet, and to take a photo you send in a trade chat.</string>
 	<key>NSPhotoLibraryUsageDescription</key>
 	<string>Mostro lets you pick a photo to send, encrypted, in a trade chat.</string>
+	<!-- `mostro:` order links, as a node writes them into an order's
+	     `source` tag. app_links hands them to lib/features/deep_links/. -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLName</key>
+			<string>foundation.mostro.app.order-link</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>mostro</string>
+			</array>
+		</dict>
+	</array>
+	<!-- Links are read by app_links, never given to the router as a route. -->
+	<key>FlutterDeepLinkingEnabled</key>
+	<false/>
 </dict>
 </plist>

@@ -96,9 +96,8 @@ void main() {
 
     test('the menu describes the app in every locale the app speaks', () {
       // Arrange
-      final entry = File(
-        'linux/packaging/${applicationId()}.desktop',
-      ).readAsLinesSync();
+      final entry =
+          File('linux/packaging/${applicationId()}.desktop').readAsLinesSync();
       final locales = Directory('lib/l10n')
           .listSync()
           .map((f) => RegExp(r'app_(\w+)\.arb$').firstMatch(f.path)?.group(1))
@@ -167,7 +166,13 @@ void main() {
     ProcessResult run([List<String> args = const []]) => Process.runSync(
       'sh',
       ['${bundle.path}/install.sh', ...args],
-      environment: {'XDG_DATA_HOME': dataHome.path},
+      // HOME and XDG_CONFIG_HOME too: `xdg-mime default` writes the user's
+      // mimeapps.list, which a test must not touch.
+      environment: {
+        'HOME': temp.path,
+        'XDG_CONFIG_HOME': '${temp.path}/config',
+        'XDG_DATA_HOME': dataHome.path,
+      },
     );
 
     test(
@@ -191,8 +196,9 @@ void main() {
         final exec = entry.readAsLinesSync().singleWhere(
           (l) => l.startsWith('Exec='),
         );
-        // The link keeps the bundle's `"`, `$` and `%` out of the entry.
-        expect(exec, 'Exec="${link.path}/mostro"');
+        // The link keeps the bundle's `"`, `$` and `%` out of the entry;
+        // `%u` is the `mostro:` link the app is opened with.
+        expect(exec, 'Exec="${link.path}/mostro" %u');
       },
       skip: Platform.isWindows,
     );
@@ -201,9 +207,9 @@ void main() {
       'gives an entry that GLib can launch',
       () {
         // Arrange
-        File('${bundle.path}/mostro').writeAsStringSync(
-          '#!/bin/sh\ntouch "${temp.path}/launched"\n',
-        );
+        File(
+          '${bundle.path}/mostro',
+        ).writeAsStringSync('#!/bin/sh\ntouch "${temp.path}/launched"\n');
         expect(run().exitCode, 0);
 
         // Act: GLib rejects an entry whose program it cannot find, without

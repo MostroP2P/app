@@ -1,7 +1,8 @@
 #!/bin/sh
 # Adds Mostro to the desktop's application menu, with its icon, for the
-# current user. Run it from the unpacked folder, and again after moving that
-# folder; `./install.sh --uninstall` removes the entry, the icon and the link.
+# current user, and makes it the app that opens `mostro:` order links. Run it
+# from the unpacked folder, and again after moving that folder;
+# `./install.sh --uninstall` removes the entry, the icon and the link.
 #
 # The entry and the icon are named after the application ID: on Wayland the
 # compositor finds the entry by the window's app ID and ignores the icon the
@@ -52,9 +53,15 @@ ln -sfn "$BUNDLE" "$LINK"
 cp "$BUNDLE/data/$APP_ID.png" "$ICON"
 while IFS= read -r line; do
   case $line in
-    Exec=*) printf 'Exec="%s"\n' "$exec_path" ;;
+    # `%u` hands the app the `mostro:` link it was opened with.
+    Exec=*) printf 'Exec="%s" %%u\n' "$exec_path" ;;
     *) printf '%s\n' "$line" ;;
   esac
 done <"$BUNDLE/data/$APP_ID.desktop" >"$ENTRY"
 refresh_menu
+# The entry's MimeType makes Mostro a handler of `mostro:` links; this makes it
+# the one they open with, should another app claim the scheme too.
+if command -v xdg-mime >/dev/null 2>&1; then
+  xdg-mime default "$APP_ID.desktop" x-scheme-handler/mostro || true
+fi
 echo "Added Mostro to the application menu ($ENTRY)."
