@@ -341,5 +341,12 @@ bridged by flutter_rust_bridge.
   `/api/notify`. For a solver's message the sender is mostrix, which does not yet
   (mostrix#177). Don't make `wake_peer` ring the solver (not a push client), and don't register
   `pub(K_conv)` with the push server as a workaround (§7.3 says why).
+- **A `mostro:` order link changes nothing on its own** (`docs/DEEP_LINKS.md`). The format is
+  the daemon's Kind 38383 `source` tag. Its relays are asked through a throwaway client and
+  never join the pool — no persisted relay, no `live_subs` REQ on them — and the node switch it
+  may ask for waits for the user's yes, then takes the Settings path (`selectNode`). `app_links`
+  stays on 6.x until the app builds with Flutter 3.44 (7.1+). Release Linux and Windows builds
+  are single-instance on purpose — that is how a link reaches the window already open — and
+  debug builds are not, so `flutter run` still works next to an open release.
 
 <!-- MANUAL ADDITIONS END -->

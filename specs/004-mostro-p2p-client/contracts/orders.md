@@ -399,12 +399,12 @@ Get completed trades ordered by completion time (newest first).
 ---
 
 ### share_order(order_id: String) → OrderShareInfo
-Generate a shareable deep link and QR data for an order.
+Generate a shareable deep link and QR data for an order. *Not implemented.*
 
 **Returns**:
 ```text
 OrderShareInfo {
-  deep_link: String     # mostro://order/<id>
+  deep_link: String     # the order's `source` tag: mostro:<id>?relays=…&mostro=<node>
   qr_data: String       # Data to encode in QR code
   order: OrderInfo
 }
@@ -412,9 +412,32 @@ OrderShareInfo {
 
 ---
 
-### resolve_deep_link(uri: String) → String?
-Parse a `mostro://order/<id>` deep link and return the order ID.
-Returns null if URI is not a valid Mostro deep link.
+### resolve_order_link(link: String) → OrderLinkTarget
+**Module**: `rust/src/api/order_link.rs` — see `docs/DEEP_LINKS.md`.
+
+Find the order a `mostro:` link points at. The link is what a node writes into
+a pending order's Kind 38383 `source` tag:
+`mostro:<order-id>?relays=<relay>,<relay>&mostro=<node pubkey>`. A link
+without `mostro=` (daemons before mostro#678) is the active node's.
+
+The newest revision of the Kind 38383 event the node signed for that order id
+is looked up on the pool's relays and on the link's, which never join the
+pool. On the active node the event is also filed in the order book, through
+the live subscription's ingest. Nothing else changes: switching to another
+node is the caller's to ask the user, before resolving the link again.
+
+**Returns**:
+```text
+OrderLinkTarget {
+  order: OrderInfo        # newest revision: kind and status decide where it leads
+  node_pubkey: String     # hex, the node that published it
+  on_active_node: bool
+}
+```
+
+**Errors**: `InvalidOrderLink` (not an order link, an id that is not a UUID,
+a `mostro=` that is not a key), `OrderLinkNotFound` (no relay answered with
+the order).
 
 ## Streams
 

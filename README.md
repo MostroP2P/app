@@ -73,13 +73,13 @@ Status of the client's features across the Rust core and the Flutter UI.
 - [x] Anti-abuse bond
 - [x] Multi-language (en, de, es, fr, it, nl)
 - [x] Log report (Rust core logs, shared as a sanitized text report)
+- [x] Order links — a `mostro:` link opens its order, asking before a node switch (Android, iOS, macOS, Linux, Windows; see `docs/DEEP_LINKS.md`)
 - [~] Disputes — open, solver chat and evidence work; the disputes list only fills after a resume or once the dispute is opened, not at cold start nor live when the peer opens one
 - [~] Lightning address — pre-fills the add-invoice screen, but is not synced to the Rust store, so Mostro never pays it directly on take
 - [~] Push notifications — Android / iOS client complete; web push built but disabled until the push server supports it
 - [~] Reputation / privacy mode — works within a session, but the setting does not persist across restarts
 - [~] Cashu escrow — embedded wallet and seller escrow lock (phases C0–C5); pending: release / redeem, cooperative cancel, disputes / expiry, web, and the release-blocking resilience work — wallet backup / restore, proof-state reconciliation, in-flight escrows on restore, seller refund path (C6–C10, see `docs/cashu/README.md`)
 - [ ] Configurable session retention
-- [ ] Deep link `mostro:` URI
 - [ ] Tor / anonymous relays
 
 ---
