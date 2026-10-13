@@ -28,7 +28,7 @@ import 'package:mostro/src/rust/api/node_stats.dart' show MostroNodeStats;
 import 'package:mostro/src/rust/api/types.dart';
 
 export 'package:mostro/features/settings/models/node_display.dart'
-    show localizedNodeError, nodeDisplayName, regionFlag;
+    show localizedNodeError, nodeDisplayName, nodeNameOf, regionFlag;
 export 'package:mostro/features/settings/providers/mostro_nodes_provider.dart'
     show mostroPubkeyProvider, truncatePubkey;
 export 'package:mostro/features/settings/widgets/add_custom_node_dialog.dart'
@@ -74,26 +74,10 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
     );
   }
 
-  /// A trade that has neither finished nor been resolved keeps living on the
-  /// node it started on; switching then deserves a word first. `null` when
-  /// the lookup itself failed — the caller must not switch on a guess.
-  Future<bool?> _hasTradeInProgress() async {
-    try {
-      final trades = await ref.read(rawTradesProvider.future);
-      return trades.any((t) => t.completedAt == null && t.outcome == null);
-    } catch (e) {
-      debugPrint('[MostroNodeSelector] trades lookup failed: $e');
-      return null;
-    }
-  }
-
-  String _activeNodeName() {
-    final nodes = ref.read(mostroNodesProvider).valueOrNull ?? const [];
-    for (final n in nodes) {
-      if (n.isActive) return nodeDisplayName(n);
-    }
-    return truncatePubkey(ref.read(mostroPubkeyProvider));
-  }
+  String _activeNodeName() => nodeNameOf(
+    ref.read(mostroPubkeyProvider),
+    ref.read(mostroNodesProvider).valueOrNull ?? const [],
+  );
 
   Future<void> _onNodeTap(MostroNodeEntry entry) async {
     if (entry.isActive || _switching) return;
@@ -111,7 +95,9 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
     final messenger = ScaffoldMessenger.of(context);
     final navigator = Navigator.of(context);
 
-    final inProgress = await _hasTradeInProgress();
+    // A trade in progress stays on the node it started on: switching then
+    // deserves a word first.
+    final inProgress = await ref.read(tradeInProgressLookupProvider)();
     if (!mounted) return;
     if (inProgress == null) {
       // Unknown whether a trade would be left behind: do not switch on a

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
@@ -109,6 +110,26 @@ final tradeInfoProvider = FutureProvider.autoDispose
       final trades = await ref.watch(rawTradesProvider.future);
       return trades.where((t) => t.order.id == orderId).firstOrNull;
     });
+
+/// Whether [trade] has neither finished nor been resolved: it keeps living on
+/// the node it started on, so a node switch leaves it behind.
+bool isTradeInProgress(rust_types.TradeInfo trade) =>
+    trade.completedAt == null && trade.outcome == null;
+
+/// Whether the user has a trade in progress ([isTradeInProgress]) — the
+/// question every node switch asks first. `null` when the trades could not be
+/// read: the caller must not switch on a guess.
+final tradeInProgressLookupProvider = Provider<Future<bool?> Function()>(
+  (ref) => () async {
+    try {
+      final trades = await ref.read(rawTradesProvider.future);
+      return trades.any(isTradeInProgress);
+    } catch (e) {
+      debugPrint('[trades] in-progress lookup failed: $e');
+      return null;
+    }
+  },
+);
 
 /// Invalidates the raw trades cache, forcing a fresh DB fetch on next read.
 ///

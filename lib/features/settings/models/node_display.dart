@@ -33,6 +33,15 @@ String nodeDisplayName(MostroNodeEntry entry) {
   return name;
 }
 
+/// Display title of the node with [pubkey] ([nodeDisplayName]), or its
+/// truncated pubkey when [nodes] — the registry — does not hold it.
+String nodeNameOf(String pubkey, Iterable<MostroNodeEntry> nodes) {
+  for (final node in nodes) {
+    if (node.pubkey == pubkey) return nodeDisplayName(node);
+  }
+  return truncatePubkey(pubkey);
+}
+
 /// Map a Rust marker error to a localized message. Markers are stable codes —
 /// see `rust/src/api/nodes.rs`; prose never crosses the bridge.
 String localizedNodeError(AppLocalizations l10n, Object error) {

@@ -4,11 +4,21 @@ import 'package:mostro/core/node_selector_palette.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 
 /// The operator disclaimer in full, v1's text, wherever a node is chosen:
-/// the first run's node choice and the Settings selector. A warning, so amber
-/// (DS-COL-9), in the warning box of the add-own-node dialog; the icon is
-/// decoration, the text says it.
+/// the first run's node choice and the Settings selector.
 class NodeOperatorDisclaimer extends StatelessWidget {
   const NodeOperatorDisclaimer({super.key});
+
+  @override
+  Widget build(BuildContext context) =>
+      NodeWarningNote(AppLocalizations.of(context).nodeOperatorDisclaimer);
+}
+
+/// A warning about choosing a node: amber (DS-COL-9), in the warning box of
+/// the add-own-node dialog. The icon is decoration, the text says it.
+class NodeWarningNote extends StatelessWidget {
+  const NodeWarningNote(this.text, {super.key});
+
+  final String text;
 
   @override
   Widget build(BuildContext context) {
@@ -34,7 +44,7 @@ class NodeOperatorDisclaimer extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              AppLocalizations.of(context).nodeOperatorDisclaimer,
+              text,
               style: TextStyle(fontSize: 12, height: 1.45, color: pal.warnInk),
             ),
           ),
