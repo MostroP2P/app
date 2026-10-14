@@ -829,7 +829,7 @@ mod tests {
 
     #[test]
     fn trade_order_filter_is_unwindowed_so_the_stale_sweep_can_reconcile() {
-        // `fetch_public_order_status` (api::orders) leans on this: it is the
+        // `fetch_public_order_revision` (api::orders) leans on this: it is the
         // only path that can see a terminal status older than
         // `RECENT_ORDERS_WINDOW_SECS`, so a `since` or `limit` here would
         // strand trades whose cancellation arrived while the app was offline.
