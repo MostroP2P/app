@@ -2797,6 +2797,7 @@ mod tests {
             settings_keys::trade_wiped("order-a"),
             settings_keys::BOND_CLAIM_RETAINED_NODES.to_string(),
             settings_keys::RESTORE_SNAPSHOT.to_string(),
+            settings_keys::restore_snapshot("node-a"),
             settings_keys::MY_REPUTATION.to_string(),
             settings_keys::PENDING_REPUTATION_ATTESTATION.to_string(),
         ] {
@@ -2845,6 +2846,7 @@ mod tests {
             settings_keys::trade_wiped("order-a"),
             settings_keys::BOND_CLAIM_RETAINED_NODES.to_string(),
             settings_keys::RESTORE_SNAPSHOT.to_string(),
+            settings_keys::restore_snapshot("node-a"),
             settings_keys::MY_REPUTATION.to_string(),
             settings_keys::PENDING_REPUTATION_ATTESTATION.to_string(),
         ] {

@@ -87,6 +87,18 @@ identity first, so that is every import it makes (issue #555).
      as "just now", and an invoice request whose step window ran out opens
      no screen.
 
+   A restore speaks only for the node it was sent to (#812). Trade indices
+   are one counter per identity, so one node's floor covers the trades of
+   every other node, and its live set does not list them. Its snapshot is
+   stored under that node (`restore_snapshot:<node>`), and each trade is
+   judged only by its own node's: another node's trades, and a row that does
+   not know its node, are never dropped, hidden or read as history. The
+   whole restore uses that node: the `LastTradeIndex` request, the order
+   details and the node written on the rows it rebuilds. A reply that lands
+   once another node is active is discarded (`NodeChanged`). The single
+   snapshot stored before snapshots were kept per node names no node, and a
+   history pass drops it.
+
 **Note**: Recovery only works if identity is NOT in privacy mode.
 
 **Errors**: `InvalidMnemonic`, `StorageError`, `RecoveryFailed`,
@@ -169,11 +181,11 @@ it (issue #533).
   chat messages, payout claims, the outbound queue, the cached order book
   (its `is_mine` marks) and the per-order settings (chat and status cursors,
   dispute markers, invoice-step starts, wipe tombstones, retained claim
-  nodes, the last restore's snapshot). `Storage::clear_identity_data`, one
-  transaction on both stores (SQLite and IndexedDB): a wipe that fails keeps
-  all of it, the identity row and the trade-key mappings with the trades
-  they name (review of #573).
-- The restore snapshot also names the identity that took it. A history pass
+  nodes, each node's last restore snapshot). `Storage::clear_identity_data`,
+  one transaction on both stores (SQLite and IndexedDB): a wipe that fails
+  keeps all of it, the identity row and the trade-key mappings with the
+  trades they name (review of #573).
+- A restore snapshot also names the identity that took it. A history pass
   ignores (and drops) any snapshot that is not the loaded identity's,
   including one stored before snapshots named theirs, and any snapshot whose
   floor is above the identity's trade-key counter (the key sequence started

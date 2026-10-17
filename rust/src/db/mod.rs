@@ -33,12 +33,19 @@ pub mod settings_keys {
     /// kind-14 filter (docs/ANTI_ABUSE_BOND.md §6.4).
     pub const BOND_CLAIM_RETAINED_NODES: &str = "bond_claim_retained_nodes";
 
-    /// What the last restore reported as in progress, as JSON
-    /// ([`crate::mostro::restore_history::RestoreSnapshot`]). Identity-scoped:
-    /// its trade-index floor and live set describe the identity that ran the
-    /// restore, and read against the next one they wipe its live trades as
-    /// history (#614).
+    /// The single restore snapshot stored before they were kept per node
+    /// ([`RESTORE_SNAPSHOT_PREFIX`], #812). It does not say which node's
+    /// trades it describes, so the history pass drops it. Identity-scoped
+    /// like them.
     pub const RESTORE_SNAPSHOT: &str = "restore_snapshot";
+
+    /// What the last restore of each node reported as in progress, as JSON
+    /// ([`crate::mostro::restore_history::RestoreSnapshot`]), one key per
+    /// node (#812): a restore describes only the trades of the node it was
+    /// sent to. Identity-scoped: its trade-index floor and live set describe
+    /// the identity that ran the restore, and read against the next one they
+    /// wipe its live trades as history (#614).
+    pub const RESTORE_SNAPSHOT_PREFIX: &str = "restore_snapshot:";
 
     /// The user's own reputation as each node last reported it (`user-info`),
     /// JSON map of node pubkey (hex) →
@@ -285,7 +292,7 @@ pub mod settings_keys {
     /// [`super::Storage::clear_identity_data`] drops it with the rows. What
     /// is left in the store is device preference: the active node, custom
     /// nodes, node caches, push token and toggle, developer overrides.
-    pub const IDENTITY_SCOPED_PREFIXES: [&str; 11] = [
+    pub const IDENTITY_SCOPED_PREFIXES: [&str; 12] = [
         CHAT_CURSOR_PREFIX,
         DISPUTE_ADMIN_PREFIX,
         DISPUTE_ADMIN_AT_PREFIX,
@@ -297,6 +304,7 @@ pub mod settings_keys {
         PAYOUT_AMOUNT_PREFIX,
         PAYOUT_ROUTE_PREFIX,
         TRADE_WIPED_PREFIX,
+        RESTORE_SNAPSHOT_PREFIX,
     ];
 
     /// The single keys that describe the identity, not the device, dropped
@@ -308,6 +316,11 @@ pub mod settings_keys {
         MY_REPUTATION,
         PENDING_REPUTATION_ATTESTATION,
     ];
+
+    /// Build the settings key of the restore snapshot of `node` (hex).
+    pub fn restore_snapshot(node: &str) -> String {
+        format!("{RESTORE_SNAPSHOT_PREFIX}{}", node.to_ascii_lowercase())
+    }
 
     /// Build the settings key marking `order_id`'s trade row as wiped.
     pub fn trade_wiped(order_id: &str) -> String {

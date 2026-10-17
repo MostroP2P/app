@@ -15,14 +15,17 @@
 //! like a wiped trade's, and a history pass drops any row that predates
 //! the snapshot. An imported account shows what the daemon still counts as
 //! in progress, and nothing that ended before this device knew it.
+//!
+//! A restore speaks only for the node it was sent to (#812). The trade-key
+//! counter is one per identity, so a node's floor covers the trades of every
+//! other node, and its reply does not list them: each node keeps its own
+//! snapshot, and a trade is judged only by its own node's
+//! ([`RestoreSnapshot::is_for`]). A trade whose node is not known may be any
+//! node's, and is never history.
 
 use std::collections::{HashMap, HashSet};
 
 use crate::api::types::{IdentityInfo, OrderStatus, TradeInfo};
-
-/// Settings key the snapshot of the last restore is stored under. Wiped with
-/// the identity (#614).
-pub const SNAPSHOT_KEY: &str = crate::db::settings_keys::RESTORE_SNAPSHOT;
 
 /// What the last restore reported as still in progress.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
@@ -41,13 +44,18 @@ pub struct RestoreSnapshot {
     /// snapshots stored before the field existed (#614).
     #[serde(default)]
     pub identity: Option<String>,
+    /// The node (hex) the restore was sent to: the node whose trades the
+    /// floor and the live set describe. Absent in snapshots stored before
+    /// the field existed (#812).
+    #[serde(default)]
+    pub node: Option<String>,
 }
 
 impl RestoreSnapshot {
     /// True when this snapshot describes the trades of [identity], the one
-    /// now loaded. [is_history] is only sound under that condition: "at or
-    /// below the floor and not listed" singles out history only while every
-    /// trade this identity starts gets an index above the floor. Read
+    /// now loaded. [`Self::is_history`] is only sound under that condition:
+    /// "at or below the floor and not listed" singles out history only while
+    /// every trade this identity starts gets an index above the floor. Read
     /// otherwise, it takes live trades for history and a pass wipes them
     /// mid-trade (#614). Two things must hold:
     ///
@@ -71,10 +79,26 @@ impl RestoreSnapshot {
         same_identity && identity.trade_key_index >= self.floor
     }
 
-    /// True when the trade on [order_id] with [trade_index] predates the
-    /// restore and the daemon no longer counts it as in progress.
-    pub fn is_history(&self, order_id: &str, trade_index: u32) -> bool {
-        trade_index <= self.floor && !self.live.contains(order_id)
+    /// True when this snapshot describes the trades of `node`: the restore
+    /// was sent to it. A restore says nothing about another node's trades —
+    /// trade indices are one counter per identity, so its floor covers them
+    /// and its live set does not list them (#812). A trade whose node is not
+    /// known may be any node's, and a snapshot that does not name its node
+    /// cannot vouch for one.
+    pub fn is_for(&self, node: Option<&str>) -> bool {
+        matches!(
+            (self.node.as_deref(), node),
+            (Some(own), Some(node)) if own.eq_ignore_ascii_case(node)
+        )
+    }
+
+    /// True when the trade on [order_id] with [trade_index], on `node`,
+    /// predates the restore and the daemon no longer counts it as in
+    /// progress. `node` is the trade's node, `None` when its row does not
+    /// know it: only a trade of this snapshot's node can be history
+    /// ([`Self::is_for`]).
+    pub fn is_history(&self, node: Option<&str>, order_id: &str, trade_index: u32) -> bool {
+        self.is_for(node) && trade_index <= self.floor && !self.live.contains(order_id)
     }
 
     /// The peer the restore named for the trade on [order_id], if that trade
@@ -83,8 +107,9 @@ impl RestoreSnapshot {
     /// A trade started afterwards (an index above the floor) is a new take of
     /// the order, possibly by someone else: its peer comes from its own
     /// reveal, never from what the daemon said about the earlier one.
-    pub fn peer_of(&self, order_id: &str, trade_index: u32) -> Option<&str> {
-        (trade_index <= self.floor)
+    /// `node` is the trade's node, as for [`Self::is_history`].
+    pub fn peer_of(&self, node: Option<&str>, order_id: &str, trade_index: u32) -> Option<&str> {
+        (self.is_for(node) && trade_index <= self.floor)
             .then(|| self.peers.get(order_id))
             .flatten()
             .map(String::as_str)
@@ -104,16 +129,16 @@ pub fn restore_answer_is_for(asked_by: Option<&str>, current: Option<&str>) -> b
     )
 }
 
-/// Delete the stored snapshot, but only while it is still [rejected], the
-/// JSON a history pass read and found not to apply. A restore may have
+/// Delete the snapshot stored under [key], but only while it is still
+/// [rejected], the JSON a history pass read and found not to apply. A restore may have
 /// stored a newer, valid one in between, and deleting by key alone would
 /// leave its history unsettled (PR #616 review). The storage has no
 /// compare-and-delete, so a write landing between the read and the delete
 /// here is still possible — this only narrows it to that instant.
-pub async fn drop_snapshot_if_unchanged(db: &impl crate::db::Storage, rejected: &str) {
-    match db.get_setting(SNAPSHOT_KEY).await {
+pub async fn drop_snapshot_if_unchanged(db: &impl crate::db::Storage, key: &str, rejected: &str) {
+    match db.get_setting(key).await {
         Ok(Some(stored)) if stored == rejected => {
-            if let Err(e) = db.delete_setting(SNAPSHOT_KEY).await {
+            if let Err(e) = db.delete_setting(key).await {
                 log::warn!("[restore] stale restore snapshot not dropped: {e}");
             }
         }
@@ -191,24 +216,49 @@ mod tests {
             live: ["disputed-order".to_string()].into_iter().collect(),
             peers: HashMap::new(),
             identity: Some("owner".to_string()),
+            node: Some(NODE.to_string()),
         }
     }
 
+    const NODE: &str = "node";
+
     #[test]
     fn an_old_trade_the_daemon_did_not_return_is_history() {
-        assert!(snapshot().is_history("old-order", 40));
-        assert!(snapshot().is_history("old-order", 97));
+        assert!(snapshot().is_history(Some(NODE), "old-order", 40));
+        assert!(snapshot().is_history(Some(NODE), "old-order", 97));
     }
 
     #[test]
     fn a_trade_the_daemon_returned_is_not_history() {
-        assert!(!snapshot().is_history("disputed-order", 16));
+        assert!(!snapshot().is_history(Some(NODE), "disputed-order", 16));
+    }
+
+    /// #812: a restore speaks for the node it was sent to, and only for it.
+    #[test]
+    fn a_snapshot_speaks_only_for_its_own_node() {
+        assert!(snapshot().is_for(Some(NODE)));
+        assert!(snapshot().is_for(Some("NODE")));
+        assert!(!snapshot().is_for(Some("other-node")));
+        assert!(!snapshot().is_for(None), "a trade whose node is not known");
+        let unnamed = RestoreSnapshot {
+            node: None,
+            ..snapshot()
+        };
+        assert!(!unnamed.is_for(Some(NODE)), "a snapshot that names no node");
+
+        assert!(!snapshot().is_history(Some("other-node"), "old-order", 40));
+        let mut snapshot = snapshot();
+        snapshot.peers.insert("taken-order".into(), "peer".into());
+        assert_eq!(
+            snapshot.peer_of(Some("other-node"), "taken-order", 97),
+            None
+        );
     }
 
     #[test]
     fn a_trade_started_after_the_restore_is_not_history() {
         // Its index is above the floor, whatever the daemon returned.
-        assert!(!snapshot().is_history("new-order", 98));
+        assert!(!snapshot().is_history(Some(NODE), "new-order", 98));
     }
 
     #[test]
@@ -216,10 +266,13 @@ mod tests {
         let mut snapshot = snapshot();
         snapshot.peers.insert("taken-order".into(), "peer".into());
 
-        assert_eq!(snapshot.peer_of("taken-order", 97), Some("peer"));
+        assert_eq!(
+            snapshot.peer_of(Some(NODE), "taken-order", 97),
+            Some("peer")
+        );
         // A retake after the restore: a new trade, maybe a new peer.
-        assert_eq!(snapshot.peer_of("taken-order", 98), None);
-        assert_eq!(snapshot.peer_of("untaken-order", 40), None);
+        assert_eq!(snapshot.peer_of(Some(NODE), "taken-order", 98), None);
+        assert_eq!(snapshot.peer_of(Some(NODE), "untaken-order", 40), None);
     }
 
     #[test]
@@ -256,16 +309,17 @@ mod tests {
             .await
             .unwrap();
         let (stale, fresh) = (r#"{"floor":9,"live":[]}"#, r#"{"floor":1,"live":[]}"#);
+        let key = crate::db::settings_keys::restore_snapshot(NODE);
 
         // A newer snapshot replaced the rejected one: it stays.
-        db.set_setting(SNAPSHOT_KEY, fresh).await.unwrap();
-        drop_snapshot_if_unchanged(&db, stale).await;
-        assert_eq!(db.get_setting(SNAPSHOT_KEY).await.unwrap().as_deref(), Some(fresh));
+        db.set_setting(&key, fresh).await.unwrap();
+        drop_snapshot_if_unchanged(&db, &key, stale).await;
+        assert_eq!(db.get_setting(&key).await.unwrap().as_deref(), Some(fresh));
 
         // Still the rejected one: it goes.
-        db.set_setting(SNAPSHOT_KEY, stale).await.unwrap();
-        drop_snapshot_if_unchanged(&db, stale).await;
-        assert_eq!(db.get_setting(SNAPSHOT_KEY).await.unwrap(), None);
+        db.set_setting(&key, stale).await.unwrap();
+        drop_snapshot_if_unchanged(&db, &key, stale).await;
+        assert_eq!(db.get_setting(&key).await.unwrap(), None);
     }
 
     #[test]
@@ -275,6 +329,7 @@ mod tests {
             live: HashSet::new(),
             peers: HashMap::new(),
             identity: identity.map(str::to_string),
+            node: Some(NODE.to_string()),
         };
         let loaded = |pubkey: &str, trade_key_index: u32| IdentityInfo {
             public_key: pubkey.to_string(),
@@ -298,6 +353,7 @@ mod tests {
         let legacy: RestoreSnapshot =
             serde_json::from_str(r#"{"floor":97,"live":[]}"#).expect("old shape still reads");
         assert_eq!(legacy.identity, None);
+        assert_eq!(legacy.node, None, "nor does the node");
     }
 
     #[test]
