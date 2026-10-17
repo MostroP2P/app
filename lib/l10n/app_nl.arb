@@ -3,7 +3,6 @@
   "@@last_modified": "2026-09-21",
   "appName": "Mostro",
   "loading": "Laden…",
-  "error": "Fout",
   "actionFailedAnnouncement": "Actie mislukt",
   "cancel": "Annuleren",
   "confirm": "Bevestigen",
@@ -15,15 +14,15 @@
   "disputeWriteMessageHint": "Schrijf een bericht…",
   "disputeSend": "Versturen",
   "orderDispute": "Dispuut over de order",
-  "disputeSolverAssigned": "Een solver heeft je dispuut opgepakt. Hij neemt hier binnenkort contact met je op.",
+  "disputeSolverAssigned": "Een solver heeft je dispuut opgepakt en neemt hier binnenkort contact met je op.",
   "disputeChatClosed": "Dit dispuut is opgelost. De chat is gesloten.",
   "messageCopied": "Gekopieerd",
   "disputeLoadError": "De disputen konden niet worden geladen. Probeer het opnieuw.",
-  "disputeSolverNotAssigned": "Nog geen solver heeft dit dispuut opgepakt. Je kunt schrijven zodra iemand dat doet.",
+  "disputeSolverNotAssigned": "Er heeft nog geen solver dit dispuut opgepakt. Je kunt schrijven zodra iemand dat doet.",
   "disputeNotFound": "Dispuut niet gevonden.",
   "disputeNotFoundForOrder": "Geen dispuut gevonden voor deze order.",
   "disputeResolved": "Opgelost",
-  "disputeSuccessfullyCompleted": "Afgerond",
+  "disputeSuccessfullyCompleted": "Met succes afgerond",
   "disputeCoopCancelMessage": "De order is in overleg geannuleerd. Er is geen geld overgemaakt.",
   "orderLabel": "Order {orderId}",
   "disputeStatusClosed": "Gesloten",
@@ -39,7 +38,7 @@
   "disputeInstruction3": "Reageer je niet, dan gaat het systeem ervan uit dat je niet wilt meewerken en kun je het dispuut verliezen.",
   "disputeOpenedByYouAgainstSeller": "Jij hebt dit dispuut geopend tegen verkoper {counterparty}; lees hieronder aandachtig verder:",
   "disputeOpenedByYouAgainstBuyer": "Jij hebt dit dispuut geopend tegen koper {counterparty}; lees hieronder aandachtig verder:",
-  "disputeWaitingForAdmin": "Wacht op toewijzing van een beheerder",
+  "disputeWaitingForAdmin": "Wachten tot een solver is toegewezen",
   "disputeLostFundsToBuyer": "De solver heeft het dispuut in het voordeel van de koper beslist. De sats zijn aan de koper vrijgegeven.",
   "disputeLostFundsToSeller": "De solver heeft de order geannuleerd en de sats aan de verkoper teruggegeven. Jij hebt de sats niet ontvangen.",
   "walkthroughWelcomeTitle": "P2P-bitcoin, zonder KYC",
@@ -58,7 +57,7 @@
   "walkthroughHeldBody2": "De app is bovendien gemaakt om voor iedereen vanzelfsprekend te werken.",
   "walkthroughChatTitle": "Volledig versleutelde chat",
   "walkthroughChatBody1": "Elke trade heeft een eigen privéchat, end-to-end versleuteld. Alleen jij en je tegenpartij kunnen hem lezen, tenzij een van jullie de sleutel deelt.",
-  "walkthroughChatBody2": "Bij een dispuut kan een solver de chat lezen als je de sleutel met hem deelt, en zo helpen de zaak op te lossen.",
+  "walkthroughChatBody2": "Bij een dispuut kan een solver de chat lezen als je de sleutel met de solver deelt, en zo helpen de zaak op te lossen.",
   "walkthroughTakeTitle": "Een order accepteren",
   "walkthroughTakeBody1": "Blader door het orderboek, kies een order die je bevalt en loop de trade stap voor stap door.",
   "walkthroughTakeBody2": "Je kunt het profiel van je tegenpartij bekijken, veilig chatten en de trade zonder gedoe afronden.",
@@ -76,17 +75,17 @@
   "justNow": "Zojuist",
   "minutesAgo": "{m} min geleden",
   "hoursAgo": "{h} uur geleden",
-  "daysAgo": "{d} d geleden",
+  "daysAgo": "{d, plural, =1{1 dag geleden} other{{d} dagen geleden}}",
   "invoiceRejected": "De node heeft deze invoice geweigerd. Controleer het bedrag en de vervaldatum en voeg een nieuwe toe.",
   "invoiceCopied": "Invoice gekopieerd",
   "submitButtonLabel": "Versturen",
   "orderAlreadyTaken": "Deze order is al geaccepteerd",
-  "nodeProtocolUnsupported": "Deze Mostro-node spreekt een protocolversie die de app niet ondersteunt. Kies een andere node in de instellingen, of kijk of er een app-update is",
-  "nodeCapabilitiesUnknown": "Nog aan het nagaan wat de gekozen Mostro-node ondersteunt. Probeer het zo weer",
+  "nodeProtocolUnsupported": "Deze Mostro-node spreekt een protocolversie die de app niet ondersteunt. Kies een andere node in Instellingen, of kijk of er een app-update is",
+  "nodeCapabilitiesUnknown": "Nog aan het nagaan wat de geselecteerde Mostro-node ondersteunt. Probeer het zo weer",
   "tradeOnOtherNode": "Deze trade hoort bij een andere Mostro-node. Schakel over naar die node om verder te gaan",
-  "mostroMaintenanceMode": "De Mostro-node waarmee je verbonden bent is in onderhoud. Probeer het later opnieuw, of verbind met een andere Mostro-node in de instellingen",
+  "mostroMaintenanceMode": "De Mostro-node waarmee je verbonden bent is in onderhoud. Probeer het later opnieuw, of verbind met een andere Mostro-node in Instellingen",
   "storageUnavailable": "De app kan geen orders plaatsen of accepteren zolang de lokale database niet beschikbaar is. Herstart de app en probeer het opnieuw",
-  "rangeOrderWithSats": "Een order met een bereik kan geen vast aantal sats hebben: hij wordt bij het aannemen tegen de marktprijs geprijsd.",
+  "rangeOrderWithSats": "Een bandbreedte-order kan geen vast aantal sats hebben: de prijs wordt bij het accepteren op de marktprijs vastgesteld.",
   "orderIdCopied": "Order-ID gekopieerd",
   "comingSoonMessage": "Komt binnenkort",
   "tradeStatusCompleted": "Afgerond",
@@ -241,9 +240,9 @@
   "tradeCardCancelRequestedByMeTitle": "Annulering aangevraagd",
   "tradeCardCancelRequestedByMeMessage": "Je hebt gevraagd deze trade te annuleren. Hij blijft open tot de tegenpartij ook annuleert. Reageert hij niet, dan kun je een dispuut openen.",
   "tradeCardCancelRequestedByPeerTitle": "De tegenpartij wil annuleren",
-  "tradeCardCancelRequestedByPeerMessage": "Hij heeft gevraagd deze trade te annuleren. Ga je akkoord, dan eindigt hij zonder dat er geld verschuift; anders gaat de handel door.",
+  "tradeCardCancelRequestedByPeerMessage": "De tegenpartij heeft gevraagd deze trade te annuleren. Ga je akkoord, dan eindigt hij zonder dat er geld verschuift; anders gaat de trade door.",
   "tradeCancelRequestedByMeNotice": "Je hebt gevraagd deze trade te annuleren. Hij blijft open tot de tegenpartij ook annuleert. Reageert hij niet, dan kun je een dispuut openen.",
-  "tradeCancelRequestedByPeerNotice": "De tegenpartij heeft gevraagd deze trade te annuleren. Ga je akkoord, dan eindigt hij zonder dat er geld verschuift; anders gaat de handel door.",
+  "tradeCancelRequestedByPeerNotice": "De tegenpartij heeft gevraagd deze trade te annuleren. Ga je akkoord, dan eindigt hij zonder dat er geld verschuift; anders gaat de trade door.",
   "acceptCancelButton": "Annulering accepteren",
   "cancelTradeDialogContentAccept": "De tegenpartij heeft om annulering gevraagd. Nu annuleren beëindigt de trade voor jullie allebei, zonder dat er geld verschuift.",
   "fiatSentFailed": "De fiat kon niet als verstuurd worden gemeld. Probeer het opnieuw.",
@@ -252,7 +251,7 @@
   "releaseSentNotice": "Vrijgave verzonden. De node kan tot een minuut nodig hebben om die te bevestigen.",
   "releaseUnconfirmedNotice": "De node heeft de vrijgave nog niet bevestigd. Als de order niet bijwerkt, kun je opnieuw vrijgeven.",
   "cancelTradeButton": "Trade annuleren",
-  "payHoldInvoiceButton": "Hold invoice betalen",
+  "payHoldInvoiceButton": "Invoice betalen",
   "openDisputeButton": "Dispuut openen",
   "releaseSatsButton": "Sats vrijgeven",
   "confirmReleaseSatsButton": "Bevestigen en sats vrijgeven",
@@ -290,8 +289,8 @@
   "aboutPriceSourcesFootnote": "De prijsbronnen zijn de aanbieders achter de koersen die de node nu publiceert; een aanbieder die faalde of werd weggelaten, staat er niet bij.",
   "aboutMostroVersionLabel": "Mostro-versie",
   "aboutMostroCommitLabel": "Mostro-commit",
-  "aboutHoldInvoiceExpLabel": "Verlooptijd hold invoice",
-  "aboutHoldInvoiceCltvLabel": "CLTV hold invoice",
+  "aboutHoldInvoiceExpLabel": "Tijd om sats vast te zetten",
+  "aboutHoldInvoiceCltvLabel": "CLTV bij vastzetten",
   "aboutInvoiceExpWindowLabel": "Geldigheidsduur invoice",
   "aboutProofOfWorkLabel": "Proof of work",
   "aboutMaxOrdersPerResponseLabel": "Max. orders per antwoord",
@@ -314,7 +313,7 @@
   "aboutBondBaseAmountLabel": "Minimale borg",
   "aboutBondNodeShareLabel": "Deel voor de node bij inhouding",
   "aboutBondSlashOnTimeoutLabel": "Inhouden bij te lang wachten",
-  "aboutBondClaimWindowLabel": "Termijn om op te halen",
+  "aboutBondClaimWindowLabel": "Ophaaltermijn",
   "aboutBondClaimWindowValue": "{count, plural, =1{{count} dag} other{{count} dagen}}",
   "openDisputeFailed": "Het dispuut kon niet worden geopend. Probeer het opnieuw.",
   "openDisputeTitle": "Dispuut openen",
@@ -323,9 +322,9 @@
   "tradeNotDisputable": "Een dispuut kan pas worden geopend zodra het geld voor deze trade vaststaat.",
   "tradeWaitingInvoiceBuyerInstruction": "Lever je Lightning-invoice aan, zodat de verkoper het geld kan vastzetten.",
   "tradeWaitingInvoiceSellerInstruction": "Wacht tot de koper zijn Lightning-invoice aanlevert.",
-  "tradeWaitingPaymentSellerInstruction": "Betaal de hold invoice om het geld vast te zetten en de trade te starten.",
+  "tradeWaitingPaymentSellerInstruction": "Betaal de invoice om de sats in je wallet vast te zetten en de trade te starten.",
   "tradeLoadError": "Er ging iets mis bij het laden van de trade.",
-  "tradeWaitingForHoldInvoice": "Wachten op de hold invoice…",
+  "tradeWaitingForHoldInvoice": "Wachten op de invoice…",
   "shareButtonLabel": "Delen",
   "shareFailed": "De invoice kon niet worden gedeeld",
   "waitingForPaymentConfirmation": "Wachten op bevestiging van de betaling…",
@@ -419,11 +418,11 @@
   "buyingBitcoin": "Bitcoin kopen",
   "tradeInstructionActiveBuyer": "Heb je het geld overgemaakt, meld dat dan hieronder. Open alleen een dispuut als de verkoper niet meer reageert.",
   "tradeInstructionFiatSentBuyer": "Je hebt de fiatbetaling als verstuurd gemeld. Wacht tot de verkoper de ontvangst bevestigt en je sats vrijgeeft.",
-  "tradeInstructionActiveSeller": "Geef de koper via de chat hierboven door hoe hij moet betalen.",
-  "tradeInstructionFiatSentSeller": "De koper heeft bevestigd dat hij de fiat heeft overgemaakt. Controleer of het binnen is en geef daarna de sats vrij.",
-  "tradeInstructionDisputed": "Er is een solver toegewezen. Hij neemt via de app contact met je op.",
+  "tradeInstructionActiveSeller": "Laat de koper via de chat hierboven weten hoe er betaald moet worden.",
+  "tradeInstructionFiatSentSeller": "De koper heeft bevestigd dat de fiat is overgemaakt. Controleer of het binnen is en geef daarna de sats vrij.",
+  "tradeInstructionDisputed": "Er is een solver toegewezen, die via de app contact met je opneemt.",
   "tradeInstructionPending": "Je order staat gepubliceerd en wacht op een tegenpartij. Je kunt hem altijd annuleren.",
-  "tradeInstructionCancelled": "Deze trade is geannuleerd. Er is geen geld geruild.",
+  "tradeInstructionCancelled": "Deze trade is geannuleerd. Er is geen geld overgemaakt.",
   "tradeInstructionInProgress": "Trade loopt.",
   "theAgreedAmount": "het afgesproken bedrag",
   "tradeHeadlinePending": "Wachten op een tegenpartij",
@@ -431,7 +430,7 @@
   "tradeHeadlineWaitingInvoiceBuyer": "Deel een Lightning-invoice om je sats te ontvangen",
   "tradeHeadlineWaitingInvoiceSeller": "Wachten tot de koper een invoice deelt",
   "tradeHeadlineWaitingPaymentBuyer": "Wachten tot de verkoper de sats vastzet",
-  "tradeHeadlineWaitingPaymentSeller": "Betaal de hold invoice om de sats vast te zetten",
+  "tradeHeadlineWaitingPaymentSeller": "Betaal de invoice om de sats vast te zetten",
   "tradeHeadlineActiveBuyer": "Maak {amount} over aan de verkoper",
   "tradeHeadlineActiveSeller": "Wachten tot de koper {amount} overmaakt",
   "tradeHeadlineFiatSentBuyer": "Wachten tot de verkoper je sats vrijgeeft",
@@ -463,7 +462,7 @@
   "invalidTradeId": "Ongeldig trade-ID",
   "selectForDetailsHint": "Kies ℹ of 👤\nvoor details",
   "noMessagesYet": "Nog geen berichten.\nZeg hallo tegen {handle}!",
-  "exchangeInfoTooltip": "Gegevens van de ruil",
+  "exchangeInfoTooltip": "Tradegegevens",
   "userInfoTooltip": "Gebruikersgegevens",
   "chattingWith": "Je chat met {handle}",
   "unknownPeerHandle": "Onbekend",
@@ -490,8 +489,8 @@
   "invoiceAwaitingNode": "Verzonden. De node heeft nog niet geantwoord; je gaat naar de trade zodra hij dat doet.",
   "invoiceAwaitingNodeLong": "Nog steeds geen antwoord van de node. Als de trade niet verdergaat, stuur hem opnieuw.",
   "invoiceSubmitInFlight": "Er wordt al een invoice voor deze order verstuurd. Wacht op het antwoord.",
-  "waitingForTradeAmount": "Wachten op het handelsbedrag. Probeer het zo weer.",
-  "fetchingTradeAmount": "Handelsbedrag ophalen…",
+  "waitingForTradeAmount": "Wachten op het tradebedrag. Probeer het zo weer.",
+  "fetchingTradeAmount": "Tradebedrag ophalen…",
   "enterInvoiceManually": "Invoice handmatig invullen",
   "rangeAmountTakeAction": "Order accepteren",
   "buyerReputation": "Reputatie van de koper",
@@ -508,7 +507,7 @@
   "premiumSectionLabel": "Premie",
   "fixedPriceRangeNotAvailable": "Een vaste prijs kan niet bij een bandbreedte-order. Zet de bandbreedte uit om een vaste prijs te gebruiken.",
   "priceTypesDialogTitle": "Prijssoorten",
-  "priceTypesDialogContent": "Marktprijs: je orderprijs volgt de marktkoers, met een premie of korting erbij.\n\nVaste prijs: je legt een exact bedrag in satoshi vast.",
+  "priceTypesDialogContent": "Marktprijs: je order volgt de marktkoers, met de premie of korting die je instelt.\n\nVaste prijs: je legt het exacte aantal sats vast; dat volgt de markt niet.",
   "newOrderTitle": "Nieuwe order",
   "amountSectionSell": "Hoeveel je verkoopt",
   "amountSectionBuy": "Hoeveel je koopt",
@@ -618,8 +617,8 @@
   "bondSlashedTradeNoticeDispute": "De node heeft je borg van {sats} sats ingehouden in dit dispuut.",
   "bondSlashedTradeNoticeTimeout": "De node heeft je borg van {sats} sats ingehouden nadat een stap te lang duurde.",
   "bondSlashedTitle": "Borg ingehouden",
-  "bondSlashedMessageTimeout": "Je borg tegen misbruik van {amount} sats voor order {orderId} is vervallen nadat een wachtstap te lang duurde. De status van je order verandert niet.",
-  "bondSlashedMessageDispute": "Je borg tegen misbruik van {amount} sats voor order {orderId} is vervallen na de uitkomst van een dispuut. De status van je order verandert niet.",
+  "bondSlashedMessageTimeout": "Je borg tegen misbruik van {amount} sats voor order {orderId} is verbeurd nadat een wachtstap te lang duurde. De status van je order verandert niet.",
+  "bondSlashedMessageDispute": "Je borg tegen misbruik van {amount} sats voor order {orderId} is verbeurd na de uitkomst van een dispuut. De status van je order verandert niet.",
   "bondSlashedCauseTimeout": "Te lang in de wachtstand",
   "bondSlashedCauseDispute": "Uitkomst van het dispuut",
   "bondSlashedDetailOrder": "Order",
@@ -648,190 +647,42 @@
   "tradeHeadlinePayoutPending": "Wachten op de uitbetaling aan de koper",
   "tradeInstructionPayoutPending": "De verkoper heeft de escrow vrijgegeven. Wachten tot de Lightning-betaling aan de koper slaagt.",
   "tradeScreenTitle": "Jouw trade",
-  "@tradeScreenTitle": {
-    "description": "App bar title of the trade screen"
-  },
   "tradeChipWaiting": "WACHTEN",
-  "@tradeChipWaiting": {
-    "description": "Status chip while the user waits on the counterpart (uppercase)"
-  },
   "tradeChipActive": "ACTIEF",
-  "@tradeChipActive": {
-    "description": "Status chip of an active trade while the counterpart acts (uppercase)"
-  },
   "tradeChipYourTurn": "ACTIE VEREIST",
-  "@tradeChipYourTurn": {
-    "description": "Status chip when the user has something to do (uppercase)"
-  },
   "tradeChipDispute": "DISPUUT",
-  "@tradeChipDispute": {
-    "description": "Status chip of a disputed trade (uppercase)"
-  },
   "tradeChatLockedNote": "Nog geen chat: zolang de trade niet actief is, weet geen van beiden wie de ander is.",
-  "@tradeChatLockedNote": {
-    "description": "Line shown in place of the chat card until the trade is active"
-  },
   "tradeChatEncrypted": "End-to-end versleuteld",
-  "@tradeChatEncrypted": {
-    "description": "Second line of the trade screen's chat card under the role title"
-  },
   "tradeChatClosed": "Gesprek gesloten · berichten bekijken",
   "tradeChatWithBuyer": "Chat met de koper",
-  "@tradeChatWithBuyer": {
-    "description": "Title of the trade screen's chat card when the counterpart is the buyer (the user sells)"
-  },
   "tradeChatWithSeller": "Chat met de verkoper",
-  "@tradeChatWithSeller": {
-    "description": "Title of the trade screen's chat card when the counterpart is the seller (the user buys)"
-  },
   "tradeChatWithCounterpart": "Chat met je tegenpartij",
-  "@tradeChatWithCounterpart": {
-    "description": "Title of the trade screen's chat card while the counterpart's role is not known yet"
-  },
   "tradeChatNewMessages": "{count, plural, =1{1 nieuw bericht} other{{count} nieuwe berichten}}",
-  "@tradeChatNewMessages": {
-    "description": "Second line of the trade screen's chat card while it has unread messages; count is the number of unread messages",
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "tradeChatOpen": "Openen",
-  "@tradeChatOpen": {
-    "description": "Trailing action label of the trade screen's chat card; tapping the card opens the conversation"
-  },
   "tradeChatClosedAnnouncement": "Het gesprek is gesloten. Je kunt de berichten nog steeds lezen",
-  "tradeBodyWaitingPaymentBuyer": "Hij betaalt de hold invoice. Zodra de sats vaststaan, is het aan jou om de fiat over te maken.",
-  "@tradeBodyWaitingPaymentBuyer": {
-    "description": "Step body for the buyer while the seller pays the hold invoice"
-  },
+  "tradeBodyWaitingPaymentBuyer": "De verkoper zet de sats vast. Zodra ze vaststaan, is het aan jou om de fiat over te maken.",
   "tradeBodyActiveSeller": "Deel je {method}-gegevens in de chat hierboven.",
-  "@tradeBodyActiveSeller": {
-    "description": "Step body for the seller of an active trade; {method} is the payment method",
-    "placeholders": {
-      "method": {
-        "type": "String"
-      }
-    }
-  },
-  "tradeBodyActiveBuyer": "Via {method}, met de gegevens die hij in de chat heeft gedeeld. Heb je het overgemaakt, meld dat dan hieronder.",
-  "@tradeBodyActiveBuyer": {
-    "description": "Step body for the buyer of an active trade; {method} is the payment method",
-    "placeholders": {
-      "method": {
-        "type": "String"
-      }
-    }
-  },
+  "tradeBodyActiveBuyer": "Via {method}, met de gegevens die de verkoper in de chat heeft gedeeld. Heb je het overgemaakt, meld dat dan hieronder.",
   "tradeBodyFiatSentSeller": "De koper heeft de betaling als verstuurd gemeld. Controleer je {method}-rekening voordat je vrijgeeft.",
-  "@tradeBodyFiatSentSeller": {
-    "description": "Step body for the seller once the buyer marked the fiat as sent; {method} is the payment method",
-    "placeholders": {
-      "method": {
-        "type": "String"
-      }
-    }
-  },
   "tradeReleaseIrreversible": "De sats vrijgeven kan niet ongedaan worden gemaakt.",
-  "@tradeReleaseIrreversible": {
-    "description": "Warning inside the step block before releasing"
-  },
   "tradeTimerYouHave": "Jij hebt nog",
-  "@tradeTimerYouHave": {
-    "description": "Countdown label when the user must act"
-  },
-  "tradeTimerTheyHave": "Hij heeft nog",
-  "@tradeTimerTheyHave": {
-    "description": "Countdown label when the counterpart must act"
-  },
+  "tradeTimerTheyHave": "De tegenpartij heeft nog",
   "tradeTimerOrderHas": "Resterende tijd",
-  "@tradeTimerOrderHas": {
-    "description": "Countdown label of a pending order's time in the book"
-  },
   "tradeRoleBuyer": "Koper",
-  "@tradeRoleBuyer": {
-    "description": "Counterpart role on the reputation row"
-  },
   "tradeRoleSeller": "Verkoper",
-  "@tradeRoleSeller": {
-    "description": "Counterpart role on the reputation row"
-  },
   "reputationTradesCount": "{count, plural, =1{1 trade} other{{count} trades}}",
-  "@reputationTradesCount": {
-    "description": "Number of trades on the reputation row",
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "reputationDaysOnMostro": "{count, plural, =1{1 dag op Mostro} other{{count} dagen op Mostro}}",
-  "@reputationDaysOnMostro": {
-    "description": "Account age on the reputation row",
-    "placeholders": {
-      "count": {
-        "type": "int"
-      }
-    }
-  },
   "tradeFiatSentAction": "Ik heb betaald",
-  "@tradeFiatSentAction": {
-    "description": "Primary action of the buyer once the fiat is sent"
-  },
   "tradeCloseAction": "Sluiten",
-  "@tradeCloseAction": {
-    "description": "Closes the trade screen"
-  },
   "tradeSendRatingAction": "Beoordeling versturen",
-  "@tradeSendRatingAction": {
-    "description": "Submits the counterpart rating from the completed card"
-  },
   "tradeCompletedTitle": "Trade afgerond",
-  "@tradeCompletedTitle": {
-    "description": "Title of the completed card"
-  },
   "tradeRatedCounterpart": "Je hebt {alias} {score} gegeven",
-  "@tradeRatedCounterpart": {
-    "description": "Rating row of the completed card; {alias} is the counterpart, {score} 1–5",
-    "placeholders": {
-      "alias": {
-        "type": "String"
-      },
-      "score": {
-        "type": "String"
-      }
-    }
-  },
   "tradeIdLabel": "ID",
-  "@tradeIdLabel": {
-    "description": "Label before the shortened order id"
-  },
   "tradeCreatedTodayLabel": "vandaag aangemaakt om {time}",
-  "@tradeCreatedTodayLabel": {
-    "description": "Creation time of an order created today; {time} is HH:mm",
-    "placeholders": {
-      "time": {
-        "type": "String"
-      }
-    }
-  },
   "releaseSheetTitle": "De sats vrijgeven?",
-  "@releaseSheetTitle": {
-    "description": "Title of the release confirmation sheet"
-  },
   "releaseSheetBody": "Dit kan niet ongedaan worden gemaakt. Geef pas vrij als het geld op je rekening staat.",
-  "@releaseSheetBody": {
-    "description": "Body of the release confirmation sheet"
-  },
   "releaseSheetConfirm": "Ja, vrijgeven",
-  "@releaseSheetConfirm": {
-    "description": "Confirms the release from the sheet"
-  },
   "releaseSheetBack": "Terug",
-  "@releaseSheetBack": {
-    "description": "Dismisses the release sheet"
-  },
   "orderSideChipSell": "Je verkoopt BTC",
   "orderSideChipBuy": "Je koopt BTC",
   "orderDetailMarketPremium": "Marktprijs · premie {premium}",
@@ -864,7 +715,7 @@
   "takeOrderButton": "Order accepteren",
   "takeOrderTaking": "Accepteren…",
   "takeOrderUnavailable": "Niet meer beschikbaar",
-  "takeOrderFailed": "De order kon niet worden aangenomen. Probeer het opnieuw.",
+  "takeOrderFailed": "De order kon niet worden geaccepteerd. Probeer het opnieuw.",
   "takeOrderClosed": "Gesloten",
   "easterEggWhitepaper": "31 oktober 2008: negen pagina's, niemand om toestemming gevraagd. Fijne Halloween.",
   "easterEggGenesis": "The Times 03/Jan/2009 Chancellor on brink of second bailout for banks",
@@ -940,7 +791,7 @@
   "aboutNodeDepositFloor": "min. {amount} sats",
   "aboutDepositCell": "Borg",
   "aboutCurrenciesCell": "Valuta",
-  "aboutOrderExpiryCell": "Verloop",
+  "aboutOrderExpiryCell": "Verlooptijd",
   "aboutNodeTechnicalDataRow": "Technische gegevens van de node",
   "aboutFieldCount": "{count, plural, =1{{count} veld} other{{count} velden}}",
   "aboutTechnicalDataTitle": "Technische gegevens",
@@ -960,7 +811,7 @@
   "tradesGroupInProgress": "Lopend",
   "tradesGroupClosed": "Gesloten",
   "tradesDirectionSell": "Je verkoopt",
-  "tradesDirectionBondClaim": "Borg ophalen",
+  "tradesDirectionBondClaim": "Borguitbetaling",
   "tradesDirectionBuy": "Je koopt",
   "tradesCounterpartyTo": "aan {handle}",
   "tradesCounterpartyFrom": "van {handle}",
@@ -1040,7 +891,7 @@
   "bondContextEquals": "De borg bedraagt",
   "bondContextPercent": "{pct} % van het bedrag",
   "bondDontPublish": "De order niet publiceren",
-  "bondAbandoned": "Order laten vallen. Er is niets gepubliceerd en niets in rekening gebracht.",
+  "bondAbandoned": "Order ingetrokken. Er is niets gepubliceerd en niets in rekening gebracht.",
   "bondPublishesIn": "Nog niet gepubliceerd: de order vervalt als je niet binnen {time} betaalt",
   "bondInvoiceMissingMaker": "Dit apparaat heeft geen kopie van de borg-invoice, en de node stuurt die niet opnieuw voor een order die jij hebt geplaatst. Laat de order vallen en maak hem opnieuw aan.",
   "bondExpiredBodyMaker": "Er is niet op tijd betaald: de order is nooit gepubliceerd en er zijn geen sats uit je wallet gegaan.",
@@ -1048,12 +899,12 @@
   "orderStatusWaitingBond": "Wacht op je borg, nog niet gepubliceerd",
   "bondAlreadyLocked": "Je borg is al betaald, dus de order is gepubliceerd. Annuleer hem vanaf het orderscherm.",
   "bondCancelRefusedTitle": "De node heeft de borg niet geannuleerd",
-  "bondCancelRefusedBody": "Deze Mostro-node ondersteunt het annuleren van een onbetaalde borg misschien nog niet, of je borg is net betaald. Heb je hem niet betaald, dan kun je de order van dit apparaat verwijderen. Wordt de factuur later betaald, dan wordt de order toch gepubliceerd.",
+  "bondCancelRefusedBody": "Deze Mostro-node ondersteunt het annuleren van een onbetaalde borg misschien nog niet, of je borg is net betaald. Heb je hem niet betaald, dan kun je de order van dit apparaat verwijderen. Wordt de invoice later betaald, dan wordt de order toch gepubliceerd.",
   "bondRemoveFromDevice": "Verwijderen van dit apparaat",
   "bondLeaveMakerTitle": "Deze order niet publiceren?",
-  "bondLeaveMakerBody": "De order wordt niet gepubliceerd en de borgfactuur wordt geannuleerd.",
+  "bondLeaveMakerBody": "De order wordt niet gepubliceerd en de borg-invoice wordt geannuleerd.",
   "bondLeaveTakerTitle": "Deze order niet accepteren?",
-  "bondLeaveTakerBody": "De order blijft voor anderen in het orderboek en de borgfactuur wordt geannuleerd.",
+  "bondLeaveTakerBody": "De order blijft voor anderen in het orderboek en de borg-invoice wordt geannuleerd.",
   "bondKeepWaiting": "Blijven wachten",
   "createOrderBondNoticeEstimate": "Deze node vraagt je een terugbetaalbare borg van ≈ {sats} sats vast te zetten voordat de order wordt gepubliceerd; die komt terug als de trade eerlijk verloopt.",
   "createOrderBondNotice": "Deze node vraagt je een terugbetaalbare borg vast te zetten voordat de order wordt gepubliceerd; die komt terug als de trade eerlijk verloopt.",
@@ -1100,7 +951,7 @@
   "bondClaimPaidTitle": "Uitbetaling van de borg ontvangen",
   "bondClaimPaidMessage": "Uitbetaling van {sats} sats uit de borg ontvangen.",
   "bondDontTake": "De order niet accepteren",
-  "bondLockedNowEscrow": "Borg vastgezet. Zet nu het handelsbedrag vast.",
+  "bondLockedNowEscrow": "Borg vastgezet. Zet nu het tradebedrag vast.",
   "bondLostRace": "Een andere gebruiker heeft deze order geaccepteerd voordat je borg betaald was",
   "bondMakerCanceled": "De plaatser heeft deze order geannuleerd",
   "bondExpiredNotice": "De borg-invoice is verlopen; de order is terug in het orderboek",
@@ -1116,7 +967,6 @@
   "invoiceFeeIncluded": "Inclusief {sats} sats aan Mostro-kosten",
   "invoiceTimeToSend": "Je hebt {time} om hem te versturen",
   "invoiceExpiresIn": "De invoice verloopt over {time}",
-  "invoiceFieldLabel": "Lightning-invoice of -adres",
   "invoiceFieldHint": "lnbc… of gebruiker@domein",
   "invoiceFieldPromptLabel": "Plak hier je invoice",
   "invoiceFieldFilledLabel": "Lightning-invoice",
@@ -1153,7 +1003,7 @@
   "tradeCardWaitingBuyerInvoiceTitle": "Wachten op de invoice van de koper",
   "tradeCardWaitingBuyerInvoiceMessage": "De trade gaat verder zodra de koper een Lightning-invoice toevoegt.",
   "tradeCardWaitingPaymentTitle": "Wachten op de betaling van de verkoper",
-  "tradeCardWaitingPaymentMessage": "De trade gaat verder zodra de verkoper de hold invoice betaalt.",
+  "tradeCardWaitingPaymentMessage": "De trade gaat verder zodra de verkoper de sats vastzet.",
   "tradeCardWaitingTakerBondTitle": "Borgbetaling staat open",
   "tradeCardWaitingTakerBondMessage": "De borg tegen misbruik van wie de order accepteert moet betaald zijn voordat de trade begint.",
   "tradeCardActiveTitle": "Trade actief",
@@ -1203,10 +1053,10 @@
   "fundsAtRiskBody": "Als je doorgaat, worden de sleutels van deze gebruiker vervangen en kan niets van wat hier staat nog vanaf dit apparaat worden afgerond of hersteld. Dit wordt afgeraden: je kunt deze sats kwijtraken.",
   "fundsAtRiskSellerEscrow": "Sats vastgezet in escrow voor een verkoop",
   "fundsAtRiskBondLocked": "Borg vastgezet",
-  "fundsAtRiskPayoutClaim": "Borguitbetaling nog niet geïnd",
+  "fundsAtRiskPayoutClaim": "Borguitbetaling nog niet opgehaald",
   "fundsAtRiskTradeInProgress": "Trade bezig",
-  "fundsAtRiskBondInvoicePending": "Borgfactuur nog te betalen",
-  "fundsAtRiskCashuBalance": "Ecash in de Cashu-portemonnee",
+  "fundsAtRiskBondInvoicePending": "Borg-invoice nog te betalen",
+  "fundsAtRiskCashuBalance": "Ecash in de Cashu-wallet",
   "fundsAtRiskCashuHint": "Alleen de woorden van deze gebruiker brengen het terug",
   "fundsAtRiskKeep": "Deze gebruiker houden",
   "fundsAtRiskContinue": "Toch doorgaan",
@@ -1243,7 +1093,7 @@
   "attachmentUnsupported": "Alleen JPEG-, PNG- en PDF-bestanden kunnen worden verstuurd.",
   "attachmentInvalidImage": "Deze afbeelding kon niet worden gelezen.",
   "attachmentReadFailed": "Het bestand kon niet worden gelezen.",
-  "attachmentPeerUnknown": "Je kunt bestanden versturen zodra iemand de order heeft aangenomen.",
+  "attachmentPeerUnknown": "Je kunt bestanden versturen zodra iemand de order heeft geaccepteerd.",
   "attachmentUploadFailed": "Uploaden mislukt. Controleer je verbinding en probeer het opnieuw.",
   "attachmentSendFailed": "Het bestand kon niet worden verstuurd.",
   "attachmentDownloadFailed": "Het bestand kon niet worden gedownload.",
@@ -1262,8 +1112,7 @@
   "attachmentOpenFailed": "Het bestand kon niet worden geopend.",
   "attachmentShareFailed": "Het bestand kon niet worden gedeeld.",
   "attachmentSaveOnly": "Dit type bestand kan alleen worden opgeslagen.",
-  "cashuWalletTitle": "Cashu-portemonnee",
-  "cashuWalletSubtitle": "Bewaar ecash voor trades op deze node",
+  "cashuWalletTitle": "Cashu-wallet",
   "cashuBalanceLabel": "Saldo",
   "cashuMintLabel": "Mint: {mint}",
   "cashuNotConnected": "Niet verbonden met een mint",
@@ -1275,9 +1124,9 @@
   "cashuMintFieldHint": "https://mint.example.com",
   "cashuChangeMintTitle": "Mint wijzigen?",
   "cashuChangeMintWarning": "Je {sats} sats blijven bij {mint}. Ze komen terug zodra je weer met die mint verbindt.",
-  "cashuErrorNoMint": "Stel eerst een mint in de Cashu-portemonnee in.",
+  "cashuErrorNoMint": "Stel eerst een mint in de Cashu-wallet in.",
   "cashuErrorInvalidMintUrl": "Dat is geen bruikbare mint-URL. Hij moet beginnen met https://.",
-  "cashuErrorWalletOnOtherMint": "Je Cashu-portemonnee gebruikt een andere mint. Schakel in Instellingen → Cashu-portemonnee over naar de mint van deze node en probeer het opnieuw.",
+  "cashuErrorWalletOnOtherMint": "Je Cashu-wallet gebruikt een andere mint. Schakel in Instellingen → Cashu-wallet over naar de mint van deze node en probeer het opnieuw.",
   "cashuReceiveButton": "Ontvangen",
   "cashuSendButton": "Versturen",
   "cashuReceiveHint": "Plak of scan een Cashu-token",
@@ -1293,62 +1142,62 @@
   "cashuTokenWarning": "Wie deze token inwisselt, houdt het geld. Behandel hem als contant geld: verstuur hem één keer, naar één persoon.",
   "cashuCopyToken": "Kopiëren",
   "cashuTokenCopied": "Token gekopieerd",
-  "cashuWalletExplanation": "Deze portemonnee bewaart ecash van de mint die je kiest. Hij dient om Cashu-trades te financieren en te ontvangen — het is geen portemonnee voor algemeen gebruik.",
+  "cashuWalletExplanation": "Deze wallet bewaart ecash van de mint die je kiest. Hij dient om Cashu-trades te financieren en te ontvangen; het is geen wallet voor algemeen gebruik.",
   "cashuErrorNotEnabled": "Deze Mostro-node rekent trades niet af met Cashu.",
-  "cashuErrorNotConnected": "De portemonnee is nog niet verbonden met een mint.",
+  "cashuErrorNotConnected": "De wallet is nog niet verbonden met een mint.",
   "cashuErrorMintUnreachable": "De mint is niet bereikbaar. Controleer je verbinding en probeer het opnieuw.",
-  "cashuErrorMintUnusable": "Deze mint mist functies die de portemonnee nodig heeft. Kies een andere mint.",
-  "cashuErrorUnsupportedOnWeb": "De Cashu-portemonnee is nog niet beschikbaar in de webversie.",
+  "cashuErrorMintUnusable": "Deze mint mist functies die de wallet nodig heeft. Kies een andere mint.",
+  "cashuErrorUnsupportedOnWeb": "De Cashu-wallet is nog niet beschikbaar in de webversie.",
   "cashuErrorAmountZero": "Voer een bedrag groter dan nul in.",
   "cashuErrorAmountTooLarge": "Je hebt maar {sats} sats.",
   "cashuErrorReceiveFailed": "Deze token kon niet worden ingewisseld. Hij komt misschien van een andere mint of is al uitgegeven.",
   "cashuErrorSendFailed": "De token kon niet worden aangemaakt. Misschien heb je niet genoeg saldo.",
-  "cashuErrorNoIdentity": "Maak een account aan of importeer er een voordat je de portemonnee gebruikt.",
-  "cashuErrorGeneric": "Er ging iets mis met de portemonnee. Probeer het opnieuw.",
-  "cashuLastTokenPending": "Je hebt een token geëxporteerd. Het is geld totdat iemand hem inwisselt — bewaar hem tot je zeker weet dat hij is aangekomen.",
+  "cashuErrorNoIdentity": "Maak een account aan of importeer er een voordat je de wallet gebruikt.",
+  "cashuErrorGeneric": "Er ging iets mis met de wallet. Probeer het opnieuw.",
+  "cashuLastTokenPending": "Je hebt een token geëxporteerd. Het is geld totdat iemand hem inwisselt: bewaar hem tot je zeker weet dat hij is aangekomen.",
   "cashuShowLastToken": "Opnieuw tonen",
   "cashuLastTokenDone": "Ik heb hem verstuurd",
   "cashuTokenTooLargeForQr": "Deze token is te groot voor een QR-code. Kopieer hem in plaats daarvan.",
-  "cashuErrorNoMnemonic": "Dit account is geïmporteerd vanuit een nsec, dus er is geen herstelzin om de portemonnee van af te leiden. De Cashu-portemonnee heeft een account nodig dat met een herstelzin is aangemaakt.",
+  "cashuErrorNoMnemonic": "Dit account is geïmporteerd met een privésleutel, dus er zijn geen geheime woorden om de wallet van af te leiden. De Cashu-wallet heeft een account nodig dat met geheime woorden is aangemaakt.",
   "cashuErrorTokenUnverified": "Deze token kon niet worden geverifieerd: hij bevat geen bewijs van de handtekening van de mint, dus hij is niet geaccepteerd.",
-  "cashuErrorUnsupportedUnit": "Deze portemonnee bevat alleen sats en deze token is in een andere eenheid (bijvoorbeeld millisats of dollars). Hij is niet aangeraakt: je kunt hem inwisselen in een portemonnee die die eenheid ondersteunt.",
-  "cashuErrorUnsupportedUnitNamed": "Deze portemonnee bevat alleen sats en deze token is in {unit}. Hij is niet aangeraakt: je kunt hem inwisselen in een portemonnee die deze eenheid ondersteunt.",
+  "cashuErrorUnsupportedUnit": "Deze wallet bevat alleen sats en deze token is in een andere eenheid (bijvoorbeeld millisats of dollars). Hij is niet aangeraakt: je kunt hem inwisselen in een wallet die die eenheid ondersteunt.",
+  "cashuErrorUnsupportedUnitNamed": "Deze wallet bevat alleen sats en deze token is in {unit}. Hij is niet aangeraakt: je kunt hem inwisselen in een wallet die deze eenheid ondersteunt.",
   "cashuUnitMsat": "millisats",
   "cashuUnitUsd": "dollars (USD)",
   "cashuUnitEur": "euro's (EUR)",
-  "cashuErrorSendUnresolved": "Het versturen is mislukt en de portemonnee kon niet bevestigen dat het geld terug is. Synchroniseer met de mint voordat je het opnieuw probeert.",
+  "cashuErrorSendUnresolved": "Het versturen is mislukt en de wallet kon niet bevestigen dat het geld terug is. Synchroniseer met de mint voordat je het opnieuw probeert.",
   "lockEscrowTitle": "De escrow vergrendelen",
-  "lockEscrowExplanation": "Vergrendel je ecash in een 2-van-3-escrow bij de mint van deze node. Noch jij noch de koper kan het alleen verplaatsen — en als de node verdwijnt, kun je het zelf terugvorderen zodra de locktime verstreken is.",
+  "lockEscrowExplanation": "Vergrendel je ecash in een 2-van-3-escrow bij de mint van deze node. Noch jij noch de koper kan het alleen verplaatsen. En als de node verdwijnt, kun je het zelf terugvorderen zodra de locktime verstreken is.",
   "lockEscrowAmount": "Escrow",
-  "lockEscrowFee": "Mostro-vergoeding",
+  "lockEscrowFee": "Mostro-kosten",
   "lockEscrowTotal": "Totaal",
   "lockEscrowBalance": "Je saldo",
   "lockEscrowConfirm": "Escrow vergrendelen",
-  "lockEscrowFundWallet": "Portemonnee opwaarderen",
+  "lockEscrowFundWallet": "Wallet opwaarderen",
   "lockEscrowSubmitted": "Escrow vergrendeld en verstuurd",
-  "lockEscrowInsufficientFunds": "Je portemonnee bevat niet genoeg voor de escrow en de vergoeding.",
+  "lockEscrowInsufficientFunds": "Je wallet bevat niet genoeg voor de escrow en de kosten.",
   "lockEscrowNotTheSeller": "Alleen de verkoper financiert de escrow.",
   "lockEscrowInvalidToken": "De escrow kon niet correct worden opgebouwd. Er is niets verstuurd.",
   "lockEscrowFailed": "De mint kon de escrow niet vergrendelen. Je geld is niet verplaatst.",
   "lockEscrowMint": "Mint: {mint}",
   "lockEscrowLocktime": "Na {days} dagen door jou terug te vorderen",
-  "lockEscrowRequestMissing": "Deze trade heeft nog geen escrow-verzoek. Wacht tot de take van de koper binnenkomt en probeer het dan opnieuw.",
-  "lockEscrowWrongTradeKey": "Dit apparaat heeft niet de sleutel waarmee deze order is genomen. Herstel je account op het apparaat waarop je de trade bent begonnen.",
+  "lockEscrowRequestMissing": "Deze trade heeft nog geen escrow-verzoek. Wacht tot de acceptatie van de koper binnenkomt en probeer het dan opnieuw.",
+  "lockEscrowWrongTradeKey": "Dit apparaat heeft niet de sleutel waarmee deze order is geaccepteerd. Herstel je account op het apparaat waarop je de trade bent begonnen.",
   "lockEscrowLocktimeNotReached": "De escrow is nog vergrendeld. Je kunt hem zelf terugvorderen zodra de locktime verstreken is.",
   "lockEscrowClockInvalid": "De klok van je apparaat klopt niet, dus de escrow kan niet correct worden getimed. Corrigeer de datum en probeer het opnieuw.",
   "lockEscrowRetry": "Opnieuw versturen",
-  "lockEscrowPendingSubmission": "Je escrow is vergrendeld, maar de node heeft het nog niet bevestigd. Opnieuw proberen is veilig — hij wordt niet een tweede keer vergrendeld.",
+  "lockEscrowPendingSubmission": "Je escrow is vergrendeld, maar de node heeft hem nog niet bevestigd. Opnieuw proberen is veilig: hij wordt niet een tweede keer vergrendeld.",
   "lockEscrowMintNotSupported": "Deze node laat elke order zijn eigen mint kiezen, en deze versie van de app kan de escrow alleen vergrendelen op een node met één mint.",
   "lockEscrowNotRecorded": "De escrow heeft de node bereikt, maar dit apparaat kon er geen kopie van opslaan. De trade kan doorgaan, maar dit apparaat kan de escrow niet terugvorderen.",
-  "lockEscrowRejectedToken": "De node heeft deze escrow niet geaccepteerd. Hij is opzijgezet — hij komt naar je terug als zijn vergrendeling afloopt — en de volgende poging vergrendelt een nieuwe.",
-  "lockEscrowRejectedMint": "De node gebruikt een andere mint. Deze escrow is opzijgezet — hij komt naar je terug als zijn vergrendeling afloopt. Controleer de mint van de node voordat je het opnieuw probeert.",
+  "lockEscrowRejectedToken": "De node heeft deze escrow niet geaccepteerd. Hij is opzijgezet en komt naar je terug als zijn vergrendeling afloopt; de volgende poging vergrendelt een nieuwe.",
+  "lockEscrowRejectedMint": "De node gebruikt een andere mint. Deze escrow is opzijgezet en komt naar je terug als zijn vergrendeling afloopt. Controleer de mint van de node voordat je het opnieuw probeert.",
   "lockEscrowMintUnavailableAtNode": "De node kon de mint niet bereiken om je escrow te controleren. Probeer het opnieuw: dezelfde escrow wordt opnieuw verstuurd, niets wordt twee keer vergrendeld.",
   "lockEscrowRejectedGeneric": "De node heeft de escrow geweigerd. Hij blijft op dit apparaat opgeslagen; probeer het zo meteen opnieuw.",
   "lockEscrowNoAnswer": "De node heeft nog niet geantwoord. Je escrow is opgeslagen; opnieuw proberen verstuurt dezelfde.",
   "lockEscrowOrderMovedOn": "De node zegt dat deze order niet meer op de escrow wacht. Je escrow blijft op dit apparaat opgeslagen; de status van de trade wordt bijgewerkt zodra de node die meldt.",
   "tradeHeadlineWaitingPaymentSellerCashu": "Vergrendel de escrow om de trade te starten",
   "tradeWaitingPaymentSellerInstructionCashu": "Vergrendel je ecash in de escrow bij de mint van de node. Dat start de trade, en het komt naar je terug als de node verdwijnt.",
-  "tradeBodyWaitingPaymentBuyerCashu": "Ze vergrendelen de sats in de escrow. Zodra die vergrendeld is, ben jij aan de beurt om de fiat te betalen.",
+  "tradeBodyWaitingPaymentBuyerCashu": "De verkoper vergrendelt de sats in de escrow. Zodra die vergrendeld is, ben jij aan de beurt om de fiat te betalen.",
   "shareChatKeyAction": "Chatsleutel delen met de solver",
   "shareChatKeyTitle": "Chatsleutel delen met de solver?",
   "shareChatKeyBody": "Als je bevestigt, kan de solver van dit dispuut de hele chat tussen jou en je tegenpartij in deze order lezen, en alleen die chat: niet de chats van je eerdere of latere trades. Dit kan niet ongedaan worden gemaakt. Delen is optioneel, maar het helpt de solver het dispuut sneller op te lossen.",
@@ -1374,9 +1223,9 @@
   "myReputationTitle": "Jouw reputatie",
   "myReputationReviews": "{count, plural, =1{1 beoordeling} other{{count} beoordelingen}}",
   "myReputationSince": "sinds {date}",
-  "myReputationNoReviews": "Nog geen beoordelingen. Je reputatie begint bij je eerste beoordeelde ruil.",
-  "myReputationPrivacyMode": "De volledige privacymodus houdt geen reputatie bij. Kies hieronder de reputatiemodus om er een op te bouwen.",
-  "myReputationLoading": "Je node wordt gevraagd…",
+  "myReputationNoReviews": "Nog geen beoordelingen. Je reputatie begint bij je eerste beoordeelde trade.",
+  "myReputationPrivacyMode": "In de modus Volledig privé wordt geen reputatie bijgehouden. Kies hieronder Reputatiemodus om er een op te bouwen.",
+  "myReputationLoading": "Je node raadplegen…",
   "myReputationUnavailable": "Je node heeft nog niet geantwoord.",
   "myReputationOnNode": "Op {node}",
   "orderLinkTitle": "Orderlink",
@@ -1393,8 +1242,8 @@
   "orderLinkUnknownNodeWarning": "Deze node staat niet in je lijst. Schakel er alleen naar over als je vertrouwt wie je de link stuurde: de node waarop je handelt rondt je trades af en beslist over hun disputen.",
   "reputationNodeDoesNotExport": "Deze Mostro exporteert geen reputatie.",
   "reputationNodeDoesNotImport": "Deze Mostro importeert geen reputatie.",
-  "reputationIdentityRequired": "Reputatie kan alleen worden verplaatst vanaf een account dat zijn reputatie bewaart. Zet de volledige privacymodus uit en probeer het opnieuw.",
-  "reputationNotEligible": "Je account kan zijn reputatie nog niet exporteren: er zijn minstens 10 voltooide transacties en 5 ontvangen beoordelingen nodig.",
+  "reputationIdentityRequired": "Reputatie kan alleen worden verplaatst vanaf een account dat zijn reputatie bewaart. Zet de modus Volledig privé uit en probeer het opnieuw.",
+  "reputationNotEligible": "Je account kan zijn reputatie nog niet exporteren: er zijn minstens 10 voltooide trades en 5 ontvangen beoordelingen nodig.",
   "reputationBoundToOtherIdentity": "Je reputatie daar is al gekoppeld aan een andere identiteit. Geef toestemming voor de verplaatsing vanuit de identiteit waaraan ze gekoppeld is.",
   "reputationInvalidRebind": "De toestemming om je reputatie te verplaatsen is ongeldig of verlopen. Maak een nieuwe aan.",
   "reputationExpiredAttestation": "Deze reputatie is verlopen. Vraag ze opnieuw aan bij de bron.",
@@ -1412,9 +1261,9 @@
   "reputationFigures": "{reviews, plural, =1{1 ontvangen beoordeling} other{{reviews} ontvangen beoordelingen}}, gemiddeld {rating}, {days, plural, =1{handelt al 1 dag} other{handelt al {days} dagen}}",
   "reputationFiguresNote": "Geïmporteerde reputatie wordt opgeteld bij die van hier; je tegenpartijen zien ze samen.",
   "reputationOpenLnp2pbotFailed": "Telegram kon niet worden geopend. Open lnp2pBot zelf in Telegram en plak hier wat hij je stuurt.",
-  "reputationIdentityHint": "Controleer voordat je in lnp2pBot bevestigt of dezelfde openbare sleutel wordt getoond:",
+  "reputationIdentityHint": "Controleer voordat je in lnp2pBot bevestigt of dezelfde publieke sleutel wordt getoond:",
   "reputationUnavailable": "Kan niet controleren of de reputatie kan worden geïmporteerd. Probeer het opnieuw.",
-  "reputationIdentityChanged": "Je identiteit is gewijzigd. Controleer de openbare sleutel die hier wordt getoond voordat je het opnieuw probeert.",
+  "reputationIdentityChanged": "Je identiteit is gewijzigd. Controleer de publieke sleutel die hier wordt getoond voordat je het opnieuw probeert.",
   "reputationSettingTitle": "Reputatie",
   "reputationImportCardBody": "Breng de reputatie die je op lnp2pBot of een andere Mostro verdiende naar deze.",
   "reputationExportTitle": "Mijn reputatie exporteren",

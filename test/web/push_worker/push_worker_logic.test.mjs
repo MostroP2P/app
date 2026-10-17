@@ -126,7 +126,8 @@ test('the chat-wake notice follows the browser language', () => {
   const payload = { data: { type: 'chat_wake' } };
   assert.equal(noticeFor(payload, ['es-AR', 'en']).body, 'Tienes un mensaje nuevo');
   assert.equal(noticeFor(payload, ['fr-CA']).body, 'Vous avez un nouveau message');
-  assert.equal(noticeFor(payload, ['pt-BR', 'de-DE']).body, 'Du hast eine neue Nachricht');
+  assert.equal(noticeFor(payload, ['pt-BR']).body, 'Você tem uma nova mensagem');
+  assert.equal(noticeFor(payload, ['ja-JP', 'de-DE']).body, 'Du hast eine neue Nachricht');
 });
 
 test('a language the app does not ship falls back to English', () => {

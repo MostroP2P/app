@@ -15,9 +15,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get loading => 'Chargement…';
 
   @override
-  String get error => 'Erreur';
-
-  @override
   String get actionFailedAnnouncement => 'Action échouée';
 
   @override
@@ -48,7 +45,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get disputeSend => 'Envoyer';
 
   @override
-  String get orderDispute => 'Litige de commande';
+  String get orderDispute => 'Litige sur l\'ordre';
 
   @override
   String get disputeSolverAssigned =>
@@ -72,22 +69,21 @@ class AppLocalizationsFr extends AppLocalizations {
   String get disputeNotFound => 'Litige introuvable.';
 
   @override
-  String get disputeNotFoundForOrder =>
-      'Aucun litige trouvé pour cette commande.';
+  String get disputeNotFoundForOrder => 'Aucun litige trouvé pour cet ordre.';
 
   @override
   String get disputeResolved => 'Résolu';
 
   @override
-  String get disputeSuccessfullyCompleted => 'Complété avec succès';
+  String get disputeSuccessfullyCompleted => 'Terminé avec succès';
 
   @override
   String get disputeCoopCancelMessage =>
-      'La commande a été annulée coopérativement. Aucun fonds n\'a été transféré.';
+      'L\'ordre a été annulé d\'un commun accord. Aucun fonds n\'a été transféré.';
 
   @override
   String orderLabel(String orderId) {
-    return 'Commande $orderId';
+    return 'Ordre $orderId';
   }
 
   @override
@@ -95,7 +91,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String disputeWith(String role, String counterparty) {
-    return 'Différend avec $role : $counterparty';
+    return 'Litige avec $role : $counterparty';
   }
 
   @override
@@ -115,33 +111,33 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get disputeInProgress =>
-      'Ce différend est actuellement en cours. Un résolveur examine votre cas.';
+      'Ce litige est actuellement en cours. Un médiateur examine votre cas.';
 
   @override
   String get disputeInstruction1 =>
-      'Attendez qu\'un résolveur prenne votre différend. Une fois qu\'il arrive, partagez toute preuve pertinente pour aider à clarifier la situation.';
+      'Attendez qu\'un médiateur prenne en charge votre litige. Une fois qu\'il est là, partagez toute preuve pertinente pour aider à clarifier la situation.';
 
   @override
   String get disputeInstruction2 =>
-      'La décision finale sera prise basée sur les preuves présentées.';
+      'La décision finale sera prise sur la base des preuves présentées.';
 
   @override
   String get disputeInstruction3 =>
-      'Si vous ne répondez pas, le système supposera que vous ne voulez pas coopérer et vous pourriez perdre le différend.';
+      'Si vous ne répondez pas, le système supposera que vous ne voulez pas coopérer et vous pourriez perdre le litige.';
 
   @override
   String disputeOpenedByYouAgainstSeller(String counterparty) {
-    return 'Vous avez ouvert ce différend contre le vendeur $counterparty, veuillez lire attentivement ci-dessous :';
+    return 'Vous avez ouvert ce litige contre le vendeur $counterparty, veuillez lire attentivement ci-dessous :';
   }
 
   @override
   String disputeOpenedByYouAgainstBuyer(String counterparty) {
-    return 'Vous avez ouvert ce différend contre l\'acheteur $counterparty, veuillez lire attentivement ci-dessous :';
+    return 'Vous avez ouvert ce litige contre l\'acheteur $counterparty, veuillez lire attentivement ci-dessous :';
   }
 
   @override
   String get disputeWaitingForAdmin =>
-      'En attente d\'assignation d\'administrateur';
+      'En attente de l\'attribution d\'un médiateur';
 
   @override
   String get disputeLostFundsToBuyer =>
@@ -149,14 +145,14 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get disputeLostFundsToSeller =>
-      'Le médiateur a annulé la commande et retourné les sats au vendeur. Vous n\'avez pas reçu les sats.';
+      'Le médiateur a annulé l\'ordre et rendu les sats au vendeur. Vous n\'avez pas reçu les sats.';
 
   @override
   String get walkthroughWelcomeTitle => 'Bitcoin en P2P, sans KYC';
 
   @override
   String get walkthroughWelcomeBody1 =>
-      'Mostro est un exchange pair-à-pair qui vous permet d\'échanger du Bitcoin contre n\'importe quelle devise, avec la méthode de paiement de votre choix, sans KYC et sans communiquer vos données à qui que ce soit.';
+      'Mostro est un exchange pair-à-pair qui vous permet d\'échanger du Bitcoin contre n\'importe quelle devise, avec le moyen de paiement de votre choix, sans KYC et sans communiquer vos données à qui que ce soit.';
 
   @override
   String get walkthroughWelcomeBody2 =>
@@ -234,7 +230,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get walkthroughMakeBody2 =>
-      'Définissez le montant et votre méthode de paiement préférée. Mostro s\'occupe du reste.';
+      'Définissez le montant et votre moyen de paiement préféré. Mostro s\'occupe du reste.';
 
   @override
   String get walkthroughNext => 'Suivant';
@@ -277,7 +273,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String minutesAgo(int m) {
-    return 'il y a ${m}m';
+    return 'il y a $m min';
   }
 
   @override
@@ -313,7 +309,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get tradeOnOtherNode =>
-      'Cette opération appartient à un autre nœud Mostro. Passez sur ce nœud pour la poursuivre';
+      'Cette transaction appartient à un autre nœud Mostro. Passez sur ce nœud pour la poursuivre';
 
   @override
   String get mostroMaintenanceMode =>
@@ -352,18 +348,18 @@ class AppLocalizationsFr extends AppLocalizations {
   String get privacyCardTitle => 'Confidentialité';
 
   @override
-  String get reputationMode => 'Mode Réputation';
+  String get reputationMode => 'Mode réputation';
 
   @override
   String get reputationModeSubtitle =>
-      'Vos échanges comptent pour votre réputation publique';
+      'Vos transactions comptent pour votre réputation publique';
 
   @override
-  String get fullPrivacyMode => 'Mode Confidentialité Totale';
+  String get fullPrivacyMode => 'Mode confidentialité totale';
 
   @override
   String get fullPrivacyModeSubtitle =>
-      'Chaque échange utilise une nouvelle identité, sans réputation';
+      'Chaque transaction utilise une nouvelle identité, sans réputation';
 
   @override
   String get generateNewUserButton => 'Générer un nouvel utilisateur';
@@ -489,7 +485,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get relayErrorDuplicate => 'Le relais est déjà dans la liste';
 
   @override
-  String get pasteQrCodeHeading => 'Coller le contenu du QR code';
+  String get pasteQrCodeHeading => 'Coller le contenu du code QR';
 
   @override
   String get pasteButtonLabel => 'Coller';
@@ -589,14 +585,14 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get nodeFeeLabel => 'commission';
+  String get nodeFeeLabel => 'frais';
 
   @override
   String get nodeFeeTooltip =>
-      'Mostro répartit la commission entre les deux parties.';
+      'Mostro répartit les frais entre les deux parties.';
 
   @override
-  String get nodePerTradeLabel => 'par opération';
+  String get nodePerTradeLabel => 'par transaction';
 
   @override
   String get nodeCustodyLightning => 'Garde Lightning';
@@ -611,11 +607,11 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String nodeBondPct(String pct) {
-    return 'Caution $pct%';
+    return 'Dépôt $pct %';
   }
 
   @override
-  String get nodeBondNone => 'Sans caution';
+  String get nodeBondNone => 'Sans dépôt';
 
   @override
   String nodeStatusOnline(int count) {
@@ -678,7 +674,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String nodeSwitchConfirmBody(String currentNode, String newNode) {
-    return 'Vous avez une opération en cours sur $currentNode. Elle y reste ; le carnet affichera désormais $newNode.';
+    return 'Vous avez une transaction en cours sur $currentNode. Elle y reste ; le carnet affichera désormais $newNode.';
   }
 
   @override
@@ -686,7 +682,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get nodeTradesCheckFailed =>
-      'Impossible de vérifier vos opérations. Réessayez.';
+      'Impossible de vérifier vos transactions. Réessayez.';
 
   @override
   String get notificationsScreenTitle => 'Notifications';
@@ -735,7 +731,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get relaysLabel => 'Relais';
 
   @override
-  String get footerTagline => 'Open-source. Non-custodial. Privé.';
+  String get footerTagline => 'Open source. Non dépositaire. Privé.';
 
   @override
   String get drawerTitle => 'Mostro';
@@ -803,19 +799,19 @@ class AppLocalizationsFr extends AppLocalizations {
       'C\'est encore incorrect. Veuillez vérifier et sauvegarder vos mots secrets, puis recommencer la vérification depuis le début.';
 
   @override
-  String get cancelTradeDialogTitle => 'Annuler l\'échange ?';
+  String get cancelTradeDialogTitle => 'Annuler la transaction ?';
 
   @override
   String get cancelTradeDialogContent =>
-      'Annulation coopérative demandée. L\'autre partie doit également accepter pour que l\'échange soit entièrement annulé.';
+      'Vous allez demander une annulation coopérative. La contrepartie doit également accepter pour que la transaction soit entièrement annulée.';
 
   @override
   String get cancelTradeDialogContentNotStarted =>
-      'L\'échange n\'a pas encore commencé, il est donc annulé immédiatement. L\'autre partie n\'a pas besoin d\'accepter.';
+      'La transaction n\'a pas encore commencé, elle est donc annulée immédiatement. La contrepartie n\'a pas besoin d\'accepter.';
 
   @override
   String get cancelTradeDialogContentMaybeStarted =>
-      'Si l\'échange n\'a pas encore commencé, il est annulé immédiatement. S\'il a déjà commencé, l\'autre partie doit également accepter.';
+      'Si la transaction n\'a pas encore commencé, elle est annulée immédiatement. Si elle a déjà commencé, la contrepartie doit également accepter.';
 
   @override
   String get noButtonLabel => 'Non';
@@ -838,11 +834,11 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get tradeCardCancelRequestedByMeMessage =>
-      'Vous avez demandé l\'annulation de cette transaction. Elle reste ouverte jusqu\'à ce que l\'autre partie annule aussi. Sans réponse de sa part, vous pouvez ouvrir un litige.';
+      'Vous avez demandé l\'annulation de cette transaction. Elle reste ouverte jusqu\'à ce que la contrepartie annule aussi. Sans réponse de sa part, vous pouvez ouvrir un litige.';
 
   @override
   String get tradeCardCancelRequestedByPeerTitle =>
-      'L\'autre partie veut annuler';
+      'La contrepartie veut annuler';
 
   @override
   String get tradeCardCancelRequestedByPeerMessage =>
@@ -850,18 +846,18 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get tradeCancelRequestedByMeNotice =>
-      'Vous avez demandé l\'annulation de cet échange. Il reste ouvert jusqu\'à ce que l\'autre partie annule aussi. Sans réponse de sa part, vous pouvez ouvrir un litige.';
+      'Vous avez demandé l\'annulation de cette transaction. Elle reste ouverte jusqu\'à ce que la contrepartie annule aussi. Sans réponse de sa part, vous pouvez ouvrir un litige.';
 
   @override
   String get tradeCancelRequestedByPeerNotice =>
-      'L\'autre partie a demandé l\'annulation de cet échange. Acceptez pour y mettre fin sans mouvement de fonds, ou poursuivez l\'échange.';
+      'La contrepartie a demandé l\'annulation de cette transaction. Acceptez pour y mettre fin sans mouvement de fonds, ou poursuivez la transaction.';
 
   @override
   String get acceptCancelButton => 'Accepter l\'annulation';
 
   @override
   String get cancelTradeDialogContentAccept =>
-      'L\'autre partie a demandé l\'annulation. Annuler maintenant met fin à l\'échange pour vous deux, sans mouvement de fonds.';
+      'La contrepartie a demandé l\'annulation. Annuler maintenant met fin à la transaction pour vous deux, sans mouvement de fonds.';
 
   @override
   String get fiatSentFailed =>
@@ -882,10 +878,10 @@ class AppLocalizationsFr extends AppLocalizations {
       'Le nœud n\'a pas encore confirmé la libération. Si l\'ordre ne se met pas à jour, vous pouvez libérer à nouveau.';
 
   @override
-  String get cancelTradeButton => 'Annuler l\'échange';
+  String get cancelTradeButton => 'Annuler la transaction';
 
   @override
-  String get payHoldInvoiceButton => 'Payer la facture hold';
+  String get payHoldInvoiceButton => 'Payer la facture';
 
   @override
   String get openDisputeButton => 'Ouvrir un litige';
@@ -906,14 +902,14 @@ class AppLocalizationsFr extends AppLocalizations {
   String get orderPillYouAreBuying => 'VOUS ACHETEZ';
 
   @override
-  String get myOrderSellTitle => 'Ton ordre de vente';
+  String get myOrderSellTitle => 'Votre ordre de vente';
 
   @override
-  String get myOrderBuyTitle => 'Ton ordre d\'achat';
+  String get myOrderBuyTitle => 'Votre ordre d\'achat';
 
   @override
   String get cancelOrderFailed =>
-      'Échec de l\'annulation de la commande. Veuillez réessayer.';
+      'Échec de l\'annulation de l\'ordre. Veuillez réessayer.';
 
   @override
   String get closeButtonLabel => 'Fermer';
@@ -928,19 +924,19 @@ class AppLocalizationsFr extends AppLocalizations {
   String get orderStatusInProgress => 'En cours';
 
   @override
-  String get orderStatusExpired => 'Expirée';
+  String get orderStatusExpired => 'Expiré';
 
   @override
-  String get copyOrderIdTooltip => 'Copier l\'ID de la commande';
+  String get copyOrderIdTooltip => 'Copier l\'ID de l\'ordre';
 
   @override
-  String get orderNotFoundTitle => 'Commande introuvable';
+  String get orderNotFoundTitle => 'Ordre introuvable';
 
   @override
-  String get orderNotFoundMessage => 'Cette commande n\'est plus disponible.';
+  String get orderNotFoundMessage => 'Cet ordre n\'est plus disponible.';
 
   @override
-  String get orderCancelledSuccess => 'Commande annulée avec succès.';
+  String get orderCancelledSuccess => 'Ordre annulé avec succès.';
 
   @override
   String get aboutDocumentationTitle => 'Documentation';
@@ -1002,10 +998,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get aboutMostroCommitLabel => 'Commit Mostro';
 
   @override
-  String get aboutHoldInvoiceExpLabel => 'Expiration de la hold invoice';
+  String get aboutHoldInvoiceExpLabel => 'Expiration de la facture de retenue';
 
   @override
-  String get aboutHoldInvoiceCltvLabel => 'CLTV de la hold invoice';
+  String get aboutHoldInvoiceCltvLabel => 'CLTV de la facture de retenue';
 
   @override
   String get aboutInvoiceExpWindowLabel => 'Fenêtre d\'expiration de facture';
@@ -1014,7 +1010,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get aboutProofOfWorkLabel => 'Preuve de travail';
 
   @override
-  String get aboutMaxOrdersPerResponseLabel => 'Max commandes/réponse';
+  String get aboutMaxOrdersPerResponseLabel => 'Max ordres/réponse';
 
   @override
   String get aboutLndVersionLabel => 'Version LND';
@@ -1035,19 +1031,19 @@ class AppLocalizationsFr extends AppLocalizations {
   String get aboutFiatCurrenciesAll => 'Toutes';
 
   @override
-  String get aboutAntiAbuseBondSection => 'Caution anti-abus';
+  String get aboutAntiAbuseBondSection => 'Dépôt anti-abus';
 
   @override
-  String get aboutBondEnabledValue => 'Activée';
+  String get aboutBondEnabledValue => 'Activé';
 
   @override
-  String get aboutBondDisabledValue => 'Désactivée';
+  String get aboutBondDisabledValue => 'Désactivé';
 
   @override
-  String get aboutBondUnsupportedValue => 'Non prise en charge';
+  String get aboutBondUnsupportedValue => 'Non pris en charge';
 
   @override
-  String get aboutBondStatusLabel => 'État de la caution';
+  String get aboutBondStatusLabel => 'État du dépôt';
 
   @override
   String get aboutBondAppliesToLabel => 'S\'applique à';
@@ -1062,10 +1058,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get aboutBondAppliesToBoth => 'Créateurs et preneurs';
 
   @override
-  String get aboutBondAmountLabel => 'Montant de la caution';
+  String get aboutBondAmountLabel => 'Montant du dépôt';
 
   @override
-  String get aboutBondBaseAmountLabel => 'Caution minimale';
+  String get aboutBondBaseAmountLabel => 'Dépôt minimal';
 
   @override
   String get aboutBondNodeShareLabel => 'Part du nœud en cas de saisie';
@@ -1096,15 +1092,15 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get openDisputeConfirmation =>
-      'Êtes-vous sûr de vouloir ouvrir un litige ? Cela transmet l\'échange à un médiateur et ne peut pas être annulé.';
+      'Êtes-vous sûr de vouloir ouvrir un litige ? Cela transmet la transaction à un médiateur et ne peut pas être annulé.';
 
   @override
   String get disputeAlreadyOpen =>
-      'Un litige est déjà ouvert pour cet échange.';
+      'Un litige est déjà ouvert pour cette transaction.';
 
   @override
   String get tradeNotDisputable =>
-      'Un litige ne peut être ouvert qu\'une fois les fonds bloqués pour cet échange.';
+      'Un litige ne peut être ouvert qu\'une fois les fonds bloqués pour cette transaction.';
 
   @override
   String get tradeWaitingInvoiceBuyerInstruction =>
@@ -1116,14 +1112,14 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get tradeWaitingPaymentSellerInstruction =>
-      'Payez la facture hold pour bloquer les fonds et démarrer l\'échange.';
+      'Payez la facture pour bloquer les fonds et démarrer la transaction.';
 
   @override
   String get tradeLoadError =>
-      'Une erreur s\'est produite lors du chargement de l\'échange.';
+      'Une erreur s\'est produite lors du chargement de la transaction.';
 
   @override
-  String get tradeWaitingForHoldInvoice => 'En attente de la facture hold...';
+  String get tradeWaitingForHoldInvoice => 'En attente de la facture…';
 
   @override
   String get shareButtonLabel => 'Partager';
@@ -1133,7 +1129,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get waitingForPaymentConfirmation =>
-      'En attente de la confirmation du paiement...';
+      'En attente de la confirmation du paiement…';
 
   @override
   String get orderNoLongerActive => 'Cet ordre n\'est plus actif';
@@ -1175,7 +1171,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get pendingWipeBannerBody =>
-      'La suppression de l\'identité précédente n\'a pas pu effacer ses échanges et ses discussions de cet appareil. L\'application réessaiera à la prochaine création ou importation d\'un nouvel utilisateur.';
+      'La suppression de l\'identité précédente n\'a pas pu effacer ses transactions et ses discussions de cet appareil. L\'application réessaiera à la prochaine création ou importation d\'un nouvel utilisateur.';
 
   @override
   String get pendingWipeBlockedMessage =>
@@ -1339,7 +1335,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get chooseNotificationEventsSubtitle =>
-      'Choisissez quels événements affichent une notification dans l’app.';
+      'Choisissez quels événements affichent une notification dans l\'app.';
 
   @override
   String get notifTradeUpdatesTitle => 'Mises à jour des transactions';
@@ -1476,7 +1472,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get tradeHeadlineInProgress =>
-      'L\'échange est en cours de préparation';
+      'La transaction est en cours de préparation';
 
   @override
   String get tradeHeadlineWaitingInvoiceBuyer =>
@@ -1488,11 +1484,11 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get tradeHeadlineWaitingPaymentBuyer =>
-      'En attente que le vendeur verrouille les sats';
+      'En attente que le vendeur bloque les sats';
 
   @override
   String get tradeHeadlineWaitingPaymentSeller =>
-      'Payez la facture de retenue pour verrouiller les sats';
+      'Payez la facture pour bloquer les sats';
 
   @override
   String tradeHeadlineActiveBuyer(String amount) {
@@ -1535,15 +1531,15 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get tradeTimerEscrowCancels =>
-      'Temps approximatif. S\'il s\'écoule, Mostro annule l\'échange.';
+      'Temps approximatif. S\'il expire, Mostro annule la transaction.';
 
   @override
   String get tradeTimerEscrowDisputes =>
-      'Temps approximatif. S\'il s\'écoule, Mostro ouvre un litige.';
+      'Temps approximatif. S\'il expire, Mostro ouvre un litige.';
 
   @override
   String get tradeTimerEscrowCancelling =>
-      'Mostro est sur le point d\'annuler l\'échange et de retourner les sats au vendeur.';
+      'Mostro est sur le point d\'annuler la transaction et de rendre les sats au vendeur.';
 
   @override
   String get tradeTimerEscrowDisputing =>
@@ -1571,7 +1567,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get tradeStepReleaseSeller => 'Vous confirmez et libérez les sats';
 
   @override
-  String get tradeStepRate => 'Vous notez l\'opération';
+  String get tradeStepRate => 'Vous notez la transaction';
 
   @override
   String tradeCreatedAtLabel(String date) {
@@ -1608,7 +1604,7 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get exchangeInfoTooltip => 'Infos sur l\'échange';
+  String get exchangeInfoTooltip => 'Infos sur la transaction';
 
   @override
   String get userInfoTooltip => 'Infos utilisateur';
@@ -1631,7 +1627,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get tradeInformationTitle => 'Informations sur la transaction';
 
   @override
-  String get orderIdLabel => 'ID de commande';
+  String get orderIdLabel => 'ID de l\'ordre';
 
   @override
   String get fiatAmountLabel => 'Montant fiat';
@@ -1691,11 +1687,11 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get invoiceAwaitingNode =>
-      'Envoyée. Le nœud n\'a pas encore répondu ; vous serez redirigé vers l\'échange dès qu\'il le fera.';
+      'Envoyée. Le nœud n\'a pas encore répondu ; vous serez redirigé vers la transaction dès qu\'il le fera.';
 
   @override
   String get invoiceAwaitingNodeLong =>
-      'Toujours pas de réponse du nœud. Si l\'échange n\'avance pas, renvoyez-la.';
+      'Toujours pas de réponse du nœud. Si la transaction n\'avance pas, renvoyez-la.';
 
   @override
   String get invoiceSubmitInFlight =>
@@ -1766,7 +1762,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get priceTypesDialogContent =>
-      'Prix du marché : le prix de votre ordre suit le taux du marché avec un pourcentage de prime/remise appliqué.\n\nPrix fixe : vous définissez un prix exact en satoshis.';
+      'Prix du marché : votre ordre suit le taux du marché, avec la prime ou la remise que vous fixez.\n\nPrix fixe : vous fixez le montant exact en sats ; il ne suit pas le marché.';
 
   @override
   String get newOrderTitle => 'Nouvel ordre';
@@ -1781,7 +1777,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get amountModeSingle => 'Unique';
 
   @override
-  String get amountModeRange => 'Plage';
+  String get amountModeRange => 'Fourchette';
 
   @override
   String get amountMinLabel => 'Minimum';
@@ -1815,22 +1811,22 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String premiumSellAbove(String premium) {
-    return 'Vous vendez $premium% au-dessus du prix du marché';
+    return 'Vous vendez $premium % au-dessus du prix du marché';
   }
 
   @override
   String premiumSellBelow(String premium) {
-    return 'Vous vendez $premium% sous le marché';
+    return 'Vous vendez $premium % sous le marché';
   }
 
   @override
   String premiumBuyBelow(String premium) {
-    return 'Vous payez $premium% de moins que le marché';
+    return 'Vous payez $premium % de moins que le marché';
   }
 
   @override
   String premiumBuyAbove(String premium) {
-    return 'Vous payez $premium% de plus';
+    return 'Vous payez $premium % de plus';
   }
 
   @override
@@ -1904,7 +1900,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get paymentMethodsLabel => 'Moyens de paiement';
 
   @override
-  String get customPaymentMethodHint => 'Moyen de paiement personnalisé...';
+  String get customPaymentMethodHint => 'Moyen de paiement personnalisé…';
 
   @override
   String amountRangeError(String min, String max) {
@@ -1940,7 +1936,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get disputeDetailsTitle => 'Détails du litige';
 
   @override
-  String get disputeIdLabel => 'ID du différend';
+  String get disputeIdLabel => 'ID du litige';
 
   @override
   String disputeReasonLabel(String reason) {
@@ -2031,7 +2027,7 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get sortNewest => 'Plus récentes';
+  String get sortNewest => 'Plus récents';
 
   @override
   String ordersCount(int count) {
@@ -2039,7 +2035,7 @@ class AppLocalizationsFr extends AppLocalizations {
       count,
       locale: localeName,
       other: '$count ordres',
-      one: '1 ordre',
+      one: '$count ordre',
     );
     return '$_temp0';
   }
@@ -2077,7 +2073,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get bottomNavTrades => 'Transactions';
 
   @override
-  String get fabDismissHint => 'Touchez à l’extérieur pour fermer';
+  String get fabDismissHint => 'Touchez à l\'extérieur pour fermer';
 
   @override
   String get addOrderFabLabel => 'Créer un ordre';
@@ -2134,13 +2130,13 @@ class AppLocalizationsFr extends AppLocalizations {
   String get notificationDeletedUndo => 'Annuler';
 
   @override
-  String get payingStatus => 'Paiement...';
+  String get payingStatus => 'Paiement…';
 
   @override
   String get payWithWalletButton => 'Payer avec le portefeuille';
 
   @override
-  String get generatingInvoiceNwc => 'Génération de la facture via NWC...';
+  String get generatingInvoiceNwc => 'Génération de la facture via NWC…';
 
   @override
   String get unableToGenerateInvoice =>
@@ -2161,7 +2157,7 @@ class AppLocalizationsFr extends AppLocalizations {
       'Litige résolu en faveur du vendeur';
 
   @override
-  String get disputeDescCooperativeCancel => 'Commande annulée coopérativement';
+  String get disputeDescCooperativeCancel => 'Ordre annulé d\'un commun accord';
 
   @override
   String get disputeDescResolved => 'Litige résolu';
@@ -2207,7 +2203,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get bondSlashedViewPolicy => 'Voir la politique';
 
   @override
-  String get bondSlashedViewTrade => 'Voir l\'échange';
+  String get bondSlashedViewTrade => 'Voir la transaction';
 
   @override
   String bondSlashedTradeNoticeDispute(String sats) {
@@ -2220,16 +2216,16 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get bondSlashedTitle => 'Caution confisquée';
+  String get bondSlashedTitle => 'Dépôt confisqué';
 
   @override
   String bondSlashedMessageTimeout(String amount, String orderId) {
-    return 'Votre caution anti-abus de $amount sats pour la commande $orderId a été confisquée après l\'expiration du délai d\'attente. Le statut de votre commande est inchangé.';
+    return 'Votre dépôt anti-abus de $amount sats pour l\'ordre $orderId a été confisqué après l\'expiration du délai d\'attente. Le statut de votre ordre est inchangé.';
   }
 
   @override
   String bondSlashedMessageDispute(String amount, String orderId) {
-    return 'Votre caution anti-abus de $amount sats pour la commande $orderId a été confisquée après la résolution d\'un litige. Le statut de votre commande est inchangé.';
+    return 'Votre dépôt anti-abus de $amount sats pour l\'ordre $orderId a été confisqué après la résolution d\'un litige. Le statut de votre ordre est inchangé.';
   }
 
   @override
@@ -2239,10 +2235,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get bondSlashedCauseDispute => 'Résolution du litige';
 
   @override
-  String get bondSlashedDetailOrder => 'Commande';
+  String get bondSlashedDetailOrder => 'Ordre';
 
   @override
-  String get bondSlashedDetailAmount => 'Montant de la caution';
+  String get bondSlashedDetailAmount => 'Montant du dépôt';
 
   @override
   String get bondSlashedDetailCause => 'Cause';
@@ -2271,7 +2267,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get aboutCashuMintUrlLabel => 'Mint';
 
   @override
-  String get aboutCashuLocktimeLabel => 'Verrouillage du séquestre';
+  String get aboutCashuLocktimeLabel => 'Délai de blocage du séquestre';
 
   @override
   String get aboutCashuSettlementMarginLabel => 'Marge de règlement';
@@ -2325,14 +2321,14 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get tradeHeadlinePayoutPending =>
-      'En attente du paiement à l’acheteur';
+      'En attente du paiement à l\'acheteur';
 
   @override
   String get tradeInstructionPayoutPending =>
-      'Le vendeur a libéré les fonds en séquestre. En attente de la réussite du paiement Lightning à l’acheteur.';
+      'Le vendeur a libéré les fonds en séquestre. En attente de la réussite du paiement Lightning à l\'acheteur.';
 
   @override
-  String get tradeScreenTitle => 'Votre opération';
+  String get tradeScreenTitle => 'Votre transaction';
 
   @override
   String get tradeChipWaiting => 'EN ATTENTE';
@@ -2348,7 +2344,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get tradeChatLockedNote =>
-      'Pas encore de chat : tant que l\'opération n\'est pas active, aucune des deux parties ne sait qui est l\'autre.';
+      'Pas encore de chat : tant que la transaction n\'est pas active, aucune des deux parties ne sait qui est l\'autre.';
 
   @override
   String get tradeChatEncrypted => 'Chiffré de bout en bout';
@@ -2385,7 +2381,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get tradeBodyWaitingPaymentBuyer =>
-      'Le vendeur paie la facture de dépôt. Une fois les sats bloqués, ce sera à vous de payer le fiat.';
+      'Le vendeur paie la facture. Une fois les sats bloqués, ce sera à vous de payer le fiat.';
 
   @override
   String tradeBodyActiveSeller(String method) {
@@ -2410,7 +2406,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get tradeTimerYouHave => 'Il vous reste';
 
   @override
-  String get tradeTimerTheyHave => 'Il leur reste';
+  String get tradeTimerTheyHave => 'Il lui reste';
 
   @override
   String get tradeTimerOrderHas => 'Temps restant';
@@ -2426,8 +2422,8 @@ class AppLocalizationsFr extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count opérations',
-      one: '1 opération',
+      other: '$count transactions',
+      one: '$count transaction',
     );
     return '$_temp0';
   }
@@ -2438,7 +2434,7 @@ class AppLocalizationsFr extends AppLocalizations {
       count,
       locale: localeName,
       other: '$count jours sur Mostro',
-      one: '1 jour sur Mostro',
+      one: '$count jour sur Mostro',
     );
     return '$_temp0';
   }
@@ -2453,7 +2449,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get tradeSendRatingAction => 'Envoyer la note';
 
   @override
-  String get tradeCompletedTitle => 'Opération terminée';
+  String get tradeCompletedTitle => 'Transaction terminée';
 
   @override
   String tradeRatedCounterpart(String alias, String score) {
@@ -2465,7 +2461,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String tradeCreatedTodayLabel(String time) {
-    return 'créée aujourd\'hui à $time';
+    return 'créé aujourd\'hui à $time';
   }
 
   @override
@@ -2482,10 +2478,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get releaseSheetBack => 'Retour';
 
   @override
-  String get orderSideChipSell => 'Tu vends du BTC';
+  String get orderSideChipSell => 'Vous vendez du BTC';
 
   @override
-  String get orderSideChipBuy => 'Tu achètes du BTC';
+  String get orderSideChipBuy => 'Vous achetez du BTC';
 
   @override
   String orderDetailMarketPremium(String premium) {
@@ -2494,18 +2490,18 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String myOrderWaitingNote(String ago) {
-    return 'Publiée $ago. On te prévient dès que quelqu\'un la prend : tu peux fermer cet écran.';
+    return 'Publié $ago. Nous vous préviendrons dès que quelqu\'un le prendra : vous pouvez fermer cet écran.';
   }
 
   @override
   String get orderStatusTakenWaitingInvoice =>
-      'Prise · en attente de la facture';
+      'Pris · en attente de la facture';
 
   @override
-  String get orderStatusTakenWaitingPayment => 'Prise · en attente du paiement';
+  String get orderStatusTakenWaitingPayment => 'Pris · en attente du paiement';
 
   @override
-  String get orderDetailCreatedLabel => 'Créée';
+  String get orderDetailCreatedLabel => 'Créé';
 
   @override
   String get orderDetailIdLabel => 'ID';
@@ -2529,13 +2525,13 @@ class AppLocalizationsFr extends AppLocalizations {
   String get goBackButtonLabel => 'Retour';
 
   @override
-  String get takeOrderYouPay => 'Tu paies';
+  String get takeOrderYouPay => 'Vous payez';
 
   @override
-  String get takeOrderYouReceive => 'Tu reçois';
+  String get takeOrderYouReceive => 'Vous recevez';
 
   @override
-  String get takeOrderYouSend => 'Tu envoies';
+  String get takeOrderYouSend => 'Vous envoyez';
 
   @override
   String takeOrderSatsFrom(String sats) {
@@ -2568,8 +2564,8 @@ class AppLocalizationsFr extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count échanges',
-      one: '$count échange',
+      other: '$count transactions',
+      one: '$count transaction',
     );
     return '$_temp0';
   }
@@ -2586,21 +2582,21 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get takeOrderPayWithLabel => 'Tu paies avec';
+  String get takeOrderPayWithLabel => 'Vous payez avec';
 
   @override
-  String get takeOrderPaidWithLabel => 'On te paie avec';
+  String get takeOrderPaidWithLabel => 'On vous paie avec';
 
   @override
-  String get takeOrderPublishedLabel => 'Publiée';
+  String get takeOrderPublishedLabel => 'Publié';
 
   @override
   String get takeOrderNoteBuyer =>
-      'Quand tu la prends, le vendeur bloque les sats dans Mostro. Tu ne paies qu\'une fois qu\'ils sont bloqués.';
+      'Quand vous le prenez, le vendeur bloque les sats dans Mostro. Vous ne payez qu\'une fois qu\'ils sont bloqués.';
 
   @override
   String get takeOrderNoteSeller =>
-      'Quand tu la prends, tu bloques les sats dans Mostro. L\'acheteur paie ensuite.';
+      'Quand vous le prenez, vous bloquez les sats dans Mostro. L\'acheteur paie ensuite.';
 
   @override
   String get takeOrderButton => 'Prendre l\'ordre';
@@ -2615,7 +2611,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get takeOrderFailed => 'Impossible de prendre l\'ordre. Réessayez.';
 
   @override
-  String get takeOrderClosed => 'Fermée';
+  String get takeOrderClosed => 'Fermé';
 
   @override
   String get easterEggWhitepaper =>
@@ -2686,7 +2682,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get lastRelayBlockedMessage =>
-      'Gardez au moins un relais actif : sans relais, vous ne pouvez ni voir ni publier d’ordres.';
+      'Gardez au moins un relais actif : sans relais, vous ne pouvez ni voir ni publier d\'ordres.';
 
   @override
   String get nwcExplainerTitle => 'Connecter votre portefeuille';
@@ -2696,7 +2692,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get nwcExplainerBody =>
-      'Mostro encaissera et paiera les factures de vos opérations depuis ce portefeuille, sans que vous ayez à copier une facture à la main.';
+      'Mostro encaissera et paiera les factures de vos transactions depuis ce portefeuille, sans que vous ayez à copier une facture à la main.';
 
   @override
   String get nwcUriFieldLabel => 'URI de connexion';
@@ -2706,7 +2702,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get nwcStorageFootnote =>
-      'L’URI est stockée uniquement sur cet appareil et n’est jamais publiée sur Nostr.';
+      'L\'URI est stockée uniquement sur cet appareil et n\'est jamais publiée sur Nostr.';
 
   @override
   String get walletConnectedMessage => 'Portefeuille connecté';
@@ -2735,22 +2731,22 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get notificationsPrivacyFootnote =>
-      'Les notifications ne contiennent ni montants ni contreparties. Un push passe par les serveurs de Google ou d’Apple et signale seulement qu’il y a quelque chose à voir.';
+      'Les notifications ne contiennent ni montants ni contreparties. Un push passe par les serveurs de Google ou d\'Apple et signale seulement qu\'il y a quelque chose à voir.';
 
   @override
   String get pushMasterToggleTitle => 'Notifications push';
 
   @override
   String get pushMasterToggleSubtitle =>
-      'Réveille l’app quand une mise à jour d’échange ou un message arrive. La notification elle-même ne contient rien.';
+      'Réveille l\'app quand une mise à jour de transaction ou un message arrive. La notification elle-même ne contient rien.';
 
   @override
   String get pushWebStopsWithTab =>
-      'S’arrête 30 à 48 h après la dernière ouverture de Mostro dans cet onglet';
+      'S\'arrête 30 à 48 h après la dernière ouverture de Mostro dans cet onglet';
 
   @override
   String get pushStatusOff =>
-      'Désactivées : rien n’est enregistré auprès du serveur push';
+      'Désactivées : rien n\'est enregistré auprès du serveur push';
 
   @override
   String pushStatusCleanupPending(int count) {
@@ -2767,15 +2763,16 @@ class AppLocalizationsFr extends AppLocalizations {
   String get pushStatusNoToken => 'En attente du jeton push de cet appareil';
 
   @override
-  String get pushStatusIdle => 'Activées : aucun échange ouvert à enregistrer';
+  String get pushStatusIdle =>
+      'Activées : aucune transaction ouverte à enregistrer';
 
   @override
   String pushStatusRegistered(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Enregistré pour $count échanges',
-      one: 'Enregistré pour 1 échange',
+      other: 'Enregistré pour $count transactions',
+      one: 'Enregistré pour 1 transaction',
     );
     return '$_temp0';
   }
@@ -2791,7 +2788,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get pushStatusNodeRefused =>
-      'Ce nœud Mostro n’est pas accepté par le serveur push';
+      'Ce nœud Mostro n\'est pas accepté par le serveur push';
 
   @override
   String get pushStatusRateLimited =>
@@ -2810,7 +2807,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get notificationPrefSaveFailed =>
-      'Impossible d’enregistrer cette préférence';
+      'Impossible d\'enregistrer cette préférence';
 
   @override
   String get logsScreenTitle => 'Journaux';
@@ -2819,7 +2816,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get logFilterAll => 'Tous';
 
   @override
-  String get logFilterRelays => 'Relays';
+  String get logFilterRelays => 'Relais';
 
   @override
   String get logFilterOrders => 'Ordres';
@@ -2834,7 +2831,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get verboseLoggingSubtitle => 'Plus de détail, plus de consommation';
 
   @override
-  String get newLogsChipLabel => 'Nouveaux journaux';
+  String get newLogsChipLabel => 'Nouvelles entrées';
 
   @override
   String get noLogsForFilter => 'Aucune entrée pour ce filtre';
@@ -2861,10 +2858,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get aboutConnectedNodeTitle => 'Nœud connecté';
 
   @override
-  String get aboutMinOrderCell => 'Commande min.';
+  String get aboutMinOrderCell => 'Ordre min.';
 
   @override
-  String get aboutMaxOrderCell => 'Commande max.';
+  String get aboutMaxOrderCell => 'Ordre max.';
 
   @override
   String get aboutFeeCell => 'Frais';
@@ -2912,7 +2909,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get aboutPublicKeyLabel => 'Clé publique';
 
   @override
-  String get aboutOrderExpiryLabel => 'Expiration de commande';
+  String get aboutOrderExpiryLabel => 'Expiration de l\'ordre';
 
   @override
   String get aboutWaitingTimeoutLabel => 'Délai d\'attente';
@@ -2981,7 +2978,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get tradeListChipYourTurn => 'À vous';
 
   @override
-  String get tradeListChipPublished => 'Publiée';
+  String get tradeListChipPublished => 'Publié';
 
   @override
   String get tradeListChipInProgress => 'En cours';
@@ -3005,7 +3002,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get tradeListChipCancelled => 'Annulée';
 
   @override
-  String get tradeListChipExpired => 'Expirée';
+  String get tradeListChipExpired => 'Expiré';
 
   @override
   String get tradeVerbAddInvoice => 'Ajouter la facture';
@@ -3014,7 +3011,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get tradeVerbPayBond => 'Payer le dépôt';
 
   @override
-  String get tradeHeadlineWaitingBond => 'Verrouille ton dépôt pour continuer';
+  String get tradeHeadlineWaitingBond => 'Bloquez votre dépôt pour continuer';
 
   @override
   String get tradeInstructionWaitingBond =>
@@ -3022,11 +3019,11 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get takeOrderBondNotice =>
-      'Ce nœud demande à qui prend l\'ordre de verrouiller d\'abord un dépôt remboursable ; il revient quand l\'échange se termine honnêtement.';
+      'Ce nœud demande à qui prend l\'ordre de bloquer d\'abord un dépôt remboursable ; il revient quand la transaction se termine honnêtement.';
 
   @override
   String takeOrderBondNoticeEstimate(String sats) {
-    return 'Ce nœud demande à qui prend l\'ordre de verrouiller d\'abord un dépôt remboursable de ≈ $sats sats ; il revient quand l\'échange se termine honnêtement.';
+    return 'Ce nœud demande à qui prend l\'ordre de bloquer d\'abord un dépôt remboursable de ≈ $sats sats ; il revient quand la transaction se termine honnêtement.';
   }
 
   @override
@@ -3054,7 +3051,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get tradeListFilterCancelled => 'Annulées';
 
   @override
-  String get tradeListFilterTitle => 'Afficher les échanges';
+  String get tradeListFilterTitle => 'Afficher les transactions';
 
   @override
   String get relativeTimeNow => 'maintenant';
@@ -3083,7 +3080,7 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get chatGroupActive => 'Échanges actifs';
+  String get chatGroupActive => 'Transactions actives';
 
   @override
   String chatContextSellActive(String amount, String currency) {
@@ -3128,18 +3125,18 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get chatListFootnote =>
-      'Chaque conversation appartient à un échange et est chiffrée de bout en bout. Une fois l\'échange terminé, elle reste consultable ici.';
+      'Chaque conversation appartient à une transaction et est chiffrée de bout en bout. Une fois la transaction terminée, la conversation reste consultable ici.';
 
   @override
   String get chatListEmptyTitle => 'Pas encore de conversations';
 
   @override
   String get chatListEmptyBody =>
-      'Le chat s\'ouvre quand un échange devient actif.';
+      'Le chat s\'ouvre quand une transaction devient active.';
 
   @override
   String get chatClosedNotice =>
-      'L\'échange est terminé. La conversation reste consultable ici.';
+      'La transaction est terminée. La conversation reste consultable ici.';
 
   @override
   String disputeOpenedByYou(String time) {
@@ -3152,10 +3149,10 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get invoiceReceiveTitle => 'Recevoir tes sats';
+  String get invoiceReceiveTitle => 'Recevoir vos sats';
 
   @override
-  String get invoiceLockTitle => 'Bloquer tes sats';
+  String get invoiceLockTitle => 'Bloquer vos sats';
 
   @override
   String get bondTitle => 'Dépôt de garantie';
@@ -3164,11 +3161,11 @@ class AppLocalizationsFr extends AppLocalizations {
   String get bondRefundableLabel => 'Dépôt remboursable';
 
   @override
-  String get bondComesBack => 'te revient une fois l\'échange terminé';
+  String get bondComesBack => 'vous revient une fois la transaction terminée';
 
   @override
   String bondFiatComesBack(String fiat) {
-    return '≈ $fiat · te revient une fois l\'échange terminé';
+    return '≈ $fiat · vous revient une fois la transaction terminée';
   }
 
   @override
@@ -3178,7 +3175,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String bondReleasesIn(String time) {
-    return 'L\'ordre est libéré si tu ne paies pas dans $time';
+    return 'L\'ordre est libéré si vous ne payez pas dans $time';
   }
 
   @override
@@ -3187,11 +3184,11 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get bondRowHeldBold => 'bloqués dans ton portefeuille';
+  String get bondRowHeldBold => 'retenus dans votre portefeuille';
 
   @override
   String bondRowReleased(String bold) {
-    return 'Si l\'échange se termine bien, $bold';
+    return 'Si la transaction se termine bien, $bold';
   }
 
   @override
@@ -3199,35 +3196,35 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String bondRowLost(String bold) {
-    return 'Tu ne le perds que s\'il y a un litige et que $bold';
+    return 'Vous ne le perdez que s\'il y a un litige et que $bold';
   }
 
   @override
   String bondRowLostTimeout(String bold) {
-    return 'Tu le perds si tu laisses expirer une étape, ou s\'il y a un litige et que $bold';
+    return 'Vous le perdez si vous laissez expirer une étape, ou s\'il y a un litige et que $bold';
   }
 
   @override
-  String get bondRowLostBold => 'tu le perds';
+  String get bondRowLostBold => 'vous le perdez';
 
   @override
   String get bondWhyTitle => 'Pourquoi Mostro demande un dépôt';
 
   @override
   String get bondWhyCustody =>
-      'Mostro ne garde pas de fonds, il ne peut donc pas sanctionner qui abandonne un échange ; le dépôt fait ce travail et protège tous les utilisateurs contre les escrocs.';
+      'Mostro ne garde pas de fonds, il ne peut donc pas sanctionner qui abandonne une transaction ; le dépôt fait ce travail et protège tous les utilisateurs contre les escrocs.';
 
   @override
   String get bondWhyHold =>
-      'Ton portefeuille retient les sats sans les envoyer ; à la fin de l\'échange, ils sont libérés tout seuls.';
+      'Votre portefeuille retient les sats sans les envoyer ; à la fin de la transaction, ils sont libérés tout seuls.';
 
   @override
   String get bondWhyDispute =>
-      'Si tu ouvres un litige et que tu gagnes, tu le récupères aussi. Il n\'est prélevé que si tu perds un litige.';
+      'Si vous ouvrez un litige et que vous gagnez, vous le récupérez aussi. Il n\'est prélevé que si vous perdez un litige.';
 
   @override
   String get bondWhyDisputeTimeout =>
-      'Si tu ouvres un litige et que tu gagnes, tu le récupères aussi. Il n\'est prélevé que si tu perds un litige ou si tu laisses expirer une étape.';
+      'Si vous ouvrez un litige et que vous gagnez, vous le récupérez aussi. Il n\'est prélevé que si vous perdez un litige ou si vous laissez expirer une étape.';
 
   @override
   String get bondReadDocs => 'Lire la documentation';
@@ -3237,12 +3234,12 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String bondContextBuy(String fiat) {
-    return 'Tu achètes $fiat';
+    return 'Vous achetez $fiat';
   }
 
   @override
   String bondContextSell(String fiat) {
-    return 'Tu vends $fiat';
+    return 'Vous vendez $fiat';
   }
 
   @override
@@ -3250,7 +3247,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String bondContextPercent(String pct) {
-    return '$pct % du montant';
+    return '$pct % du montant';
   }
 
   @override
@@ -3314,12 +3311,12 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String createOrderBondNoticeEstimate(String sats) {
-    return 'Ce nœud vous demande de verrouiller un dépôt remboursable de ≈ $sats sats avant de publier l\'ordre ; il revient quand l\'échange se termine honnêtement.';
+    return 'Ce nœud vous demande de bloquer un dépôt remboursable de ≈ $sats sats avant de publier l\'ordre ; il revient quand la transaction se termine honnêtement.';
   }
 
   @override
   String get createOrderBondNotice =>
-      'Ce nœud vous demande de verrouiller un dépôt remboursable avant de publier l\'ordre ; il revient quand l\'échange se termine honnêtement.';
+      'Ce nœud vous demande de bloquer un dépôt remboursable avant de publier l\'ordre ; il revient quand la transaction se termine honnêtement.';
 
   @override
   String get bondClaimTitle => 'Réclamer votre part';
@@ -3334,7 +3331,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String bondClaimContext(String context) {
-    return 'De l\'échange de $context';
+    return 'De la transaction de $context';
   }
 
   @override
@@ -3344,7 +3341,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get bondClaimExplainer =>
-      'Le dépôt de l\'autre partie a été confisqué en votre faveur. Ajoutez une facture pour exactement ce montant et le nœud vous le paie.';
+      'Le dépôt de la contrepartie a été confisqué en votre faveur. Ajoutez une facture pour exactement ce montant et le nœud vous le paie.';
 
   @override
   String get bondClaimFieldLabel => 'Facture Lightning';
@@ -3408,7 +3405,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get bondClaimErrorNoKey =>
-      'Cet appareil n\'a pas la clé de cet échange et ne peut donc pas réclamer la part.';
+      'Cet appareil n\'a pas la clé de cette transaction et ne peut donc pas réclamer la part.';
 
   @override
   String get tradeVerbClaimPayout => 'Réclamer le paiement';
@@ -3432,7 +3429,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String bondBannerPendingBody(String sats) {
-    return 'Le dépôt de l\'autre partie a été confisqué en votre faveur. Ajoutez une facture Lightning de $sats sats pour le réclamer.';
+    return 'Le dépôt de la contrepartie a été confisqué en votre faveur. Ajoutez une facture Lightning de $sats sats pour le réclamer.';
   }
 
   @override
@@ -3459,7 +3456,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String bondBannerExpired(String date) {
-    return 'La réclamation sur le dépôt de l\'autre partie s\'est terminée le $date.';
+    return 'La réclamation sur le dépôt de la contrepartie s\'est terminée le $date.';
   }
 
   @override
@@ -3483,11 +3480,11 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get bondLockedNowEscrow =>
-      'Dépôt verrouillé. Verrouille maintenant le montant de l\'échange.';
+      'Dépôt bloqué. Bloquez maintenant le montant de la transaction.';
 
   @override
   String get bondLostRace =>
-      'Un autre utilisateur a pris cet ordre avant que ton dépôt ne soit payé';
+      'Un autre utilisateur a pris cet ordre avant que votre dépôt ne soit payé';
 
   @override
   String get bondMakerCanceled => 'Le créateur a annulé cet ordre';
@@ -3501,11 +3498,11 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get bondExpiredBody =>
-      'Elle n\'a pas été payée à temps : l\'ordre est retourné dans le carnet et aucun sat n\'a quitté ton portefeuille.';
+      'Elle n\'a pas été payée à temps : l\'ordre est retourné dans le carnet et aucun sat n\'a quitté votre portefeuille.';
 
   @override
   String get bondInvoiceMissing =>
-      'Cet appareil n\'a pas de copie de la facture du dépôt. Redemande-la au nœud pour continuer à prendre l\'ordre.';
+      'Cet appareil n\'a pas de copie de la facture du dépôt. Redemandez-la au nœud pour continuer à prendre l\'ordre.';
 
   @override
   String get bondRequestAgain => 'Redemander la facture';
@@ -3515,7 +3512,7 @@ class AppLocalizationsFr extends AppLocalizations {
       'Le nœud n\'a pas renvoyé la facture du dépôt';
 
   @override
-  String get invoiceYouReceiveLabel => 'Tu vas recevoir';
+  String get invoiceYouReceiveLabel => 'Vous allez recevoir';
 
   @override
   String get invoiceToPayLabel => 'À payer';
@@ -3537,16 +3534,13 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String invoiceTimeToSend(String time) {
-    return 'Tu as $time pour l\'envoyer';
+    return 'Vous avez $time pour l\'envoyer';
   }
 
   @override
   String invoiceExpiresIn(String time) {
     return 'La facture expire dans $time';
   }
-
-  @override
-  String get invoiceFieldLabel => 'Facture ou adresse Lightning';
 
   @override
   String get invoiceFieldHint => 'lnbc… ou utilisateur@domaine';
@@ -3612,30 +3606,30 @@ class AppLocalizationsFr extends AppLocalizations {
   String get invoiceBuyerLabel => 'Acheteur';
 
   @override
-  String get invoiceYouPayLabel => 'Tu paies';
+  String get invoiceYouPayLabel => 'Vous payez';
 
   @override
-  String get invoiceYouGetLabel => 'Tu reçois';
+  String get invoiceYouGetLabel => 'Vous recevez';
 
   @override
-  String get invoiceNoTrades => 'aucune opération';
+  String get invoiceNoTrades => 'aucune transaction';
 
   @override
   String get invoiceSendButton => 'Envoyer la facture';
 
   @override
-  String get invoiceCancelTrade => 'Annuler l\'opération';
+  String get invoiceCancelTrade => 'Annuler la transaction';
 
   @override
   String get invoiceOpenWallet => 'Ouvrir dans mon portefeuille';
 
   @override
   String get invoiceHoldNote =>
-      'Les sats sont retenus : ils ne quittent pas ton portefeuille tant que tu n\'as pas confirmé le paiement de l\'acheteur.';
+      'Les sats sont retenus : ils ne quittent pas votre portefeuille tant que vous n\'avez pas confirmé le paiement de l\'acheteur.';
 
   @override
   String invoiceQrSemantics(String invoice) {
-    return 'QR code de la facture Lightning : $invoice';
+    return 'Code QR de la facture Lightning : $invoice';
   }
 
   @override
@@ -3683,14 +3677,14 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get tradeCardWaitingPaymentMessage =>
-      'La transaction reprend dès que le vendeur paie la facture hold.';
+      'La transaction reprend dès que le vendeur bloque les sats.';
 
   @override
-  String get tradeCardWaitingTakerBondTitle => 'Paiement de caution en attente';
+  String get tradeCardWaitingTakerBondTitle => 'Paiement du dépôt en attente';
 
   @override
   String get tradeCardWaitingTakerBondMessage =>
-      'La caution anti-abus du preneur doit être payée avant le début de la transaction.';
+      'Le dépôt anti-abus du preneur doit être payé avant le début de la transaction.';
 
   @override
   String get tradeCardActiveTitle => 'Transaction active';
@@ -3782,11 +3776,11 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get tradeCardCanceledBondLostRaceMessage =>
-      'Un autre utilisateur a pris cet ordre avant le paiement de la caution.';
+      'Un autre utilisateur a pris cet ordre avant le paiement du dépôt.';
 
   @override
   String get tradeCardCanceledBondExpiredMessage =>
-      'La facture de caution a expiré sans être payée.';
+      'La facture du dépôt a expiré sans être payée.';
 
   @override
   String get chatCardTitle => 'Nouveaux messages';
@@ -3826,23 +3820,23 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get recoveringTradesMessage =>
-      'Compte importé. Récupération de vos échanges depuis Mostro…';
+      'Compte importé. Récupération de vos transactions depuis Mostro…';
 
   @override
   String recoveredTradesMessage(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Compte importé. $count échanges récupérés',
-      one: 'Compte importé. 1 échange récupéré',
-      zero: 'Compte importé. Vous n\'aviez aucun échange en cours',
+      other: 'Compte importé. $count transactions récupérées',
+      one: 'Compte importé. 1 transaction récupérée',
+      zero: 'Compte importé. Vous n\'aviez aucune transaction en cours',
     );
     return '$_temp0';
   }
 
   @override
   String get recoverTradesFailedMessage =>
-      'Compte importé, mais Mostro n\'a pas répondu : vos échanges en cours n\'ont pas été récupérés';
+      'Compte importé, mais Mostro n\'a pas répondu : vos transactions en cours n\'ont pas été récupérées';
 
   @override
   String get paymentMethodsChosenLabel => 'Sélectionnés';
@@ -3852,18 +3846,18 @@ class AppLocalizationsFr extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count méthodes sélectionnées',
-      one: '1 méthode sélectionnée',
-      zero: 'Sélectionne au moins une méthode',
+      other: '$count moyens sélectionnés',
+      one: '1 moyen sélectionné',
+      zero: 'Sélectionnez au moins un moyen',
     );
     return '$_temp0';
   }
 
   @override
-  String get paymentMethodsConfirm => 'Confirmer les méthodes';
+  String get paymentMethodsConfirm => 'Confirmer les moyens';
 
   @override
-  String get paymentMethodAddCustom => 'Ajouter une méthode personnalisée';
+  String get paymentMethodAddCustom => 'Ajouter un moyen personnalisé';
 
   @override
   String get paymentMethodsDiscardTitle => 'Abandonner les modifications ?';
@@ -3879,25 +3873,23 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get fundsAtRiskBody =>
-      'Si tu continues, les clés de cet utilisateur sont remplacées et rien de ce qui figure ici ne pourra être terminé ni récupéré depuis cet appareil. Ce n\'est pas recommandé : tu peux perdre ces sats.';
+      'Si vous continuez, les clés de cet utilisateur sont remplacées et rien de ce qui figure ici ne pourra être terminé ni récupéré depuis cet appareil. Ce n\'est pas recommandé : vous pouvez perdre ces sats.';
 
   @override
   String get fundsAtRiskSellerEscrow =>
       'Sats bloqués en séquestre pour une vente';
 
   @override
-  String get fundsAtRiskBondLocked => 'Caution bloquée';
+  String get fundsAtRiskBondLocked => 'Dépôt bloqué';
 
   @override
-  String get fundsAtRiskPayoutClaim =>
-      'Paiement de caution pas encore encaissé';
+  String get fundsAtRiskPayoutClaim => 'Paiement de dépôt pas encore encaissé';
 
   @override
-  String get fundsAtRiskTradeInProgress => 'Échange en cours';
+  String get fundsAtRiskTradeInProgress => 'Transaction en cours';
 
   @override
-  String get fundsAtRiskBondInvoicePending =>
-      'Facture de caution encore payable';
+  String get fundsAtRiskBondInvoicePending => 'Facture du dépôt encore payable';
 
   @override
   String get fundsAtRiskCashuBalance => 'Ecash dans le portefeuille Cashu';
@@ -3923,8 +3915,8 @@ class AppLocalizationsFr extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       done,
       locale: localeName,
-      other: '$done commandes récupérées sur $total',
-      one: '$done commande récupérée sur $total',
+      other: '$done ordres récupérés sur $total',
+      one: '$done ordre récupéré sur $total',
     );
     return '$_temp0';
   }
@@ -3936,15 +3928,15 @@ class AppLocalizationsFr extends AppLocalizations {
   String get restoreStageConnected => 'Connecté au nœud Mostro';
 
   @override
-  String get restoreStageRequesting => 'Demande de vos commandes';
+  String get restoreStageRequesting => 'Demande de vos ordres';
 
   @override
   String restoreStageFound(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count commandes trouvées',
-      one: '$count commande trouvée',
+      other: '$count ordres trouvés',
+      one: '$count ordre trouvé',
     );
     return '$_temp0';
   }
@@ -3960,15 +3952,14 @@ class AppLocalizationsFr extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       done,
       locale: localeName,
-      other: '$done commandes sur $total',
-      one: '$done commande sur $total',
+      other: '$done ordres sur $total',
+      one: '$done ordre sur $total',
     );
     return '$_temp0';
   }
 
   @override
-  String get restoreFailedTitle =>
-      'Nous n\'avons pas pu restaurer vos commandes';
+  String get restoreFailedTitle => 'Nous n\'avons pas pu restaurer vos ordres';
 
   @override
   String get restoreFailedSubtitle => 'Votre compte a bien été importé';
@@ -3990,10 +3981,10 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get restoreDoneEmptySubtitle =>
-      'Ce compte n\'avait aucune commande sur le nœud';
+      'Ce compte n\'avait aucun ordre sur le nœud';
 
   @override
-  String get restoreSummaryOrders => 'Commandes';
+  String get restoreSummaryOrders => 'Ordres';
 
   @override
   String get restoreSummaryInProgress => 'En cours';
@@ -4003,8 +3994,8 @@ class AppLocalizationsFr extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: 'Vous avez $count commandes actives qui attendent votre action',
-      one: 'Vous avez $count commande active qui attend votre action',
+      other: 'Vous avez $count ordres actifs qui attendent votre action',
+      one: 'Vous avez $count ordre actif qui attend votre action',
     );
     return '$_temp0';
   }
@@ -4014,8 +4005,8 @@ class AppLocalizationsFr extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       missing,
       locale: localeName,
-      other: '$missing commandes sur $total n\'ont pas pu être chargées',
-      one: '$missing commande sur $total n\'a pas pu être chargée',
+      other: '$missing ordres sur $total n\'ont pas pu être chargés',
+      one: '$missing ordre sur $total n\'a pas pu être chargé',
     );
     return '$_temp0';
   }
@@ -4129,10 +4120,6 @@ class AppLocalizationsFr extends AppLocalizations {
   String get cashuWalletTitle => 'Portefeuille Cashu';
 
   @override
-  String get cashuWalletSubtitle =>
-      'Conservez de l\'ecash pour les échanges sur ce nœud';
-
-  @override
   String get cashuBalanceLabel => 'Solde';
 
   @override
@@ -4212,10 +4199,10 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get cashuSyncButton => 'Synchroniser avec la mint';
+  String get cashuSyncButton => 'Synchroniser avec le mint';
 
   @override
-  String get cashuSynced => 'Synchronisé avec la mint';
+  String get cashuSynced => 'Synchronisé avec le mint';
 
   @override
   String get cashuTokenTitle => 'Votre token';
@@ -4232,11 +4219,11 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get cashuWalletExplanation =>
-      'Ce portefeuille contient de l\'ecash du mint que vous choisissez. Il sert à financer et à encaisser des échanges Cashu : ce n\'est pas un portefeuille polyvalent.';
+      'Ce portefeuille contient de l\'ecash du mint que vous choisissez. Il sert à financer et à encaisser des transactions Cashu : ce n\'est pas un portefeuille polyvalent.';
 
   @override
   String get cashuErrorNotEnabled =>
-      'Ce nœud Mostro ne règle pas les échanges avec Cashu.';
+      'Ce nœud Mostro ne règle pas les transactions avec Cashu.';
 
   @override
   String get cashuErrorNotConnected =>
@@ -4294,11 +4281,11 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get cashuErrorNoMnemonic =>
-      'Ce compte a été importé depuis un nsec, il n\'y a donc pas de phrase de récupération pour en dériver le portefeuille. Le portefeuille Cashu nécessite un compte créé à partir d\'une phrase de récupération.';
+      'Ce compte a été importé depuis une clé privée, il n\'y a donc pas de mots secrets pour en dériver le portefeuille. Le portefeuille Cashu nécessite un compte créé à partir de mots secrets.';
 
   @override
   String get cashuErrorTokenUnverified =>
-      'Ce token n\'a pas pu être vérifié : il ne contient aucune preuve de la signature de la mint, il n\'a donc pas été accepté.';
+      'Ce token n\'a pas pu être vérifié : il ne contient aucune preuve de la signature du mint, il n\'a donc pas été accepté.';
 
   @override
   String get cashuErrorUnsupportedUnit =>
@@ -4320,14 +4307,14 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get cashuErrorSendUnresolved =>
-      'L\'envoi a échoué et le portefeuille n\'a pas pu confirmer le retour des fonds. Synchronisez avec la mint avant de réessayer.';
+      'L\'envoi a échoué et le portefeuille n\'a pas pu confirmer le retour des fonds. Synchronisez avec le mint avant de réessayer.';
 
   @override
-  String get lockEscrowTitle => 'Verrouiller le séquestre';
+  String get lockEscrowTitle => 'Bloquer le séquestre';
 
   @override
   String get lockEscrowExplanation =>
-      'Verrouillez votre ecash dans un séquestre 2-sur-3 au mint de ce nœud. Ni vous ni l\'acheteur ne pouvez le déplacer seul — et si le nœud disparaît, vous pourrez le récupérer vous-même une fois le verrou expiré.';
+      'Bloquez votre ecash dans un séquestre 2-sur-3 au mint de ce nœud. Ni vous ni l\'acheteur ne pouvez le déplacer seul — et si le nœud disparaît, vous pourrez le récupérer vous-même une fois le délai de blocage écoulé.';
 
   @override
   String get lockEscrowAmount => 'Séquestre';
@@ -4342,13 +4329,13 @@ class AppLocalizationsFr extends AppLocalizations {
   String get lockEscrowBalance => 'Votre solde';
 
   @override
-  String get lockEscrowConfirm => 'Verrouiller le séquestre';
+  String get lockEscrowConfirm => 'Bloquer le séquestre';
 
   @override
   String get lockEscrowFundWallet => 'Approvisionner le portefeuille';
 
   @override
-  String get lockEscrowSubmitted => 'Séquestre verrouillé et envoyé';
+  String get lockEscrowSubmitted => 'Séquestre bloqué et envoyé';
 
   @override
   String get lockEscrowInsufficientFunds =>
@@ -4363,7 +4350,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get lockEscrowFailed =>
-      'Le mint n\'a pas pu verrouiller le séquestre. Vos fonds n\'ont pas bougé.';
+      'Le mint n\'a pas pu bloquer le séquestre. Vos fonds n\'ont pas bougé.';
 
   @override
   String lockEscrowMint(String mint) {
@@ -4377,15 +4364,15 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get lockEscrowRequestMissing =>
-      'Cet échange n\'a pas encore de demande de séquestre. Attendez que la prise de l\'acheteur arrive, puis réessayez.';
+      'Cette transaction n\'a pas encore de demande de séquestre. Attendez que la prise de l\'acheteur arrive, puis réessayez.';
 
   @override
   String get lockEscrowWrongTradeKey =>
-      'Cet appareil ne détient pas la clé avec laquelle cet ordre a été pris. Restaurez votre compte sur l\'appareil où vous avez commencé l\'échange.';
+      'Cet appareil ne détient pas la clé avec laquelle cet ordre a été pris. Restaurez votre compte sur l\'appareil où vous avez commencé la transaction.';
 
   @override
   String get lockEscrowLocktimeNotReached =>
-      'Le séquestre est encore verrouillé. Vous pourrez le récupérer vous-même une fois le verrou expiré.';
+      'Le séquestre est encore bloqué. Vous pourrez le récupérer vous-même une fois le délai de blocage écoulé.';
 
   @override
   String get lockEscrowClockInvalid =>
@@ -4396,51 +4383,51 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get lockEscrowPendingSubmission =>
-      'Votre séquestre est verrouillé mais le nœud ne l\'a pas confirmé. Réessayer est sans risque : il ne sera pas verrouillé une seconde fois.';
+      'Votre séquestre est bloqué mais le nœud ne l\'a pas confirmé. Réessayer est sans risque : il ne sera pas bloqué une seconde fois.';
 
   @override
   String get lockEscrowMintNotSupported =>
-      'Ce nœud laisse chaque ordre choisir son mint, et cette version de l\'app ne peut verrouiller l\'escrow que sur un nœud à mint unique.';
+      'Ce nœud laisse chaque ordre choisir son mint, et cette version de l\'app ne peut bloquer le séquestre que sur un nœud à mint unique.';
 
   @override
   String get lockEscrowNotRecorded =>
-      'L\'escrow est arrivé au nœud, mais cet appareil n\'a pas pu en garder une copie. Le trade peut continuer, mais cet appareil ne pourra pas récupérer l\'escrow.';
+      'Le séquestre est arrivé au nœud, mais cet appareil n\'a pas pu en garder une copie. La transaction peut continuer, mais cet appareil ne pourra pas récupérer le séquestre.';
 
   @override
   String get lockEscrowRejectedToken =>
-      'Le nœud n\'a pas accepté cet escrow. Il a été mis de côté — il vous revient à l\'expiration de son verrou — et la prochaine tentative en verrouille un nouveau.';
+      'Le nœud n\'a pas accepté ce séquestre. Il a été mis de côté — il vous revient à la fin de son délai de blocage — et la prochaine tentative en bloque un nouveau.';
 
   @override
   String get lockEscrowRejectedMint =>
-      'Le nœud utilise un autre mint. Cet escrow a été mis de côté — il vous revient à l\'expiration de son verrou. Vérifiez le mint du nœud avant de réessayer.';
+      'Le nœud utilise un autre mint. Ce séquestre a été mis de côté — il vous revient à la fin de son délai de blocage. Vérifiez le mint du nœud avant de réessayer.';
 
   @override
   String get lockEscrowMintUnavailableAtNode =>
-      'Le nœud n\'a pas pu joindre le mint pour vérifier votre escrow. Réessayez : le même escrow est renvoyé, rien n\'est verrouillé deux fois.';
+      'Le nœud n\'a pas pu joindre le mint pour vérifier votre séquestre. Réessayez : le même séquestre est renvoyé, rien n\'est bloqué deux fois.';
 
   @override
   String get lockEscrowRejectedGeneric =>
-      'Le nœud a refusé l\'escrow. Il reste enregistré sur cet appareil ; réessayez dans un instant.';
+      'Le nœud a refusé le séquestre. Il reste enregistré sur cet appareil ; réessayez dans un instant.';
 
   @override
   String get lockEscrowNoAnswer =>
-      'Le nœud n\'a pas encore répondu. Votre escrow est enregistré ; réessayer renvoie le même.';
+      'Le nœud n\'a pas encore répondu. Votre séquestre est enregistré ; réessayer renvoie le même.';
 
   @override
   String get lockEscrowOrderMovedOn =>
-      'Le nœud indique que cet ordre n\'attend plus l\'escrow. Votre escrow reste enregistré sur cet appareil ; le statut du trade se mettra à jour quand le nœud le signalera.';
+      'Le nœud indique que cet ordre n\'attend plus le séquestre. Votre séquestre reste enregistré sur cet appareil ; le statut de la transaction se mettra à jour quand le nœud le signalera.';
 
   @override
   String get tradeHeadlineWaitingPaymentSellerCashu =>
-      'Verrouillez l\'escrow pour démarrer le trade';
+      'Bloquez le séquestre pour démarrer la transaction';
 
   @override
   String get tradeWaitingPaymentSellerInstructionCashu =>
-      'Verrouillez votre ecash dans l\'escrow au mint du nœud. Cela démarre le trade, et il vous revient si le nœud disparaît.';
+      'Bloquez votre ecash dans le séquestre au mint du nœud. Cela démarre la transaction, et il vous revient si le nœud disparaît.';
 
   @override
   String get tradeBodyWaitingPaymentBuyerCashu =>
-      'Ils verrouillent les sats dans l\'escrow. Une fois verrouillé, c\'est à vous de payer le fiat.';
+      'Le vendeur bloque les sats dans le séquestre. Une fois le séquestre bloqué, c\'est à vous de payer le fiat.';
 
   @override
   String get shareChatKeyAction => 'Partager la clé du chat avec le médiateur';
@@ -4491,7 +4478,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get pwaInstallBody =>
-      'Ouvrez-la depuis votre écran d’accueil, en plein écran, comme n’importe quelle autre app.';
+      'Ouvrez-la depuis votre écran d\'accueil, en plein écran, comme n\'importe quelle autre app.';
 
   @override
   String get pwaInstallAction => 'Installer';
@@ -4500,17 +4487,17 @@ class AppLocalizationsFr extends AppLocalizations {
   String get pwaInstallNotNow => 'Plus tard';
 
   @override
-  String get pwaInstallSettingTitle => 'Installer l’app';
+  String get pwaInstallSettingTitle => 'Installer l\'app';
 
   @override
-  String get pwaInstallStepsTitle => 'Ajoutez Mostro à votre écran d’accueil';
+  String get pwaInstallStepsTitle => 'Ajoutez Mostro à votre écran d\'accueil';
 
   @override
   String get pwaInstallStepShare =>
       'Appuyez sur le bouton Partager dans la barre de votre navigateur.';
 
   @override
-  String get pwaInstallStepAdd => 'Choisissez « Sur l’écran d’accueil ».';
+  String get pwaInstallStepAdd => 'Choisissez « Sur l\'écran d\'accueil ».';
 
   @override
   String get pwaInstallStepsDone => 'Compris';
@@ -4536,7 +4523,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get myReputationNoReviews =>
-      'Aucune note pour l\'instant. Votre réputation commence avec votre premier échange noté.';
+      'Aucune note pour l\'instant. Votre réputation commence avec votre première transaction notée.';
 
   @override
   String get myReputationPrivacyMode =>
@@ -4595,7 +4582,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get orderLinkUnknownNodeWarning =>
-      'Ce nœud n\'est pas dans votre liste. N\'y passez que si vous faites confiance à la personne qui vous a envoyé le lien : le nœud sur lequel vous échangez règle vos échanges et tranche leurs litiges.';
+      'Ce nœud n\'est pas dans votre liste. N\'y passez que si vous faites confiance à la personne qui vous a envoyé le lien : le nœud sur lequel vous échangez règle vos transactions et tranche leurs litiges.';
 
   @override
   String get reputationNodeDoesNotExport =>
@@ -4611,7 +4598,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get reputationNotEligible =>
-      'Votre compte ne peut pas encore exporter sa réputation : il lui faut au moins 10 échanges terminés et 5 évaluations reçues.';
+      'Votre compte ne peut pas encore exporter sa réputation : il lui faut au moins 10 transactions terminées et 5 évaluations reçues.';
 
   @override
   String get reputationBoundToOtherIdentity =>
@@ -4677,13 +4664,13 @@ class AppLocalizationsFr extends AppLocalizations {
       reviews,
       locale: localeName,
       other: '$reviewsString évaluations reçues',
-      one: '1 évaluation reçue',
+      one: '$reviewsString évaluation reçue',
     );
     String _temp1 = intl.Intl.pluralLogic(
       days,
       locale: localeName,
-      other: 'échange depuis $daysString jours',
-      one: 'échange depuis 1 jour',
+      other: 'actif depuis $daysString jours',
+      one: 'actif depuis $daysString jour',
     );
     return '$_temp0, $rating en moyenne, $_temp1';
   }
@@ -4698,7 +4685,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get reputationIdentityHint =>
-      'Avant de confirmer dans lnp2pBot, vérifiez que cette même clé publique s’affiche :';
+      'Avant de confirmer dans lnp2pBot, vérifiez que cette même clé publique s\'affiche :';
 
   @override
   String get reputationUnavailable =>
@@ -4790,7 +4777,7 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get payoutNwcWallet => 'Ton portefeuille NWC';
+  String get payoutNwcWallet => 'Votre portefeuille NWC';
 
   @override
   String payoutNwcWalletNamed(String name) {
@@ -4803,13 +4790,13 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get payoutSourceDefaultAddress => 'Ton adresse par défaut';
+  String get payoutSourceDefaultAddress => 'Votre adresse par défaut';
 
   @override
-  String get payoutSourceNwcWallet => 'Ton portefeuille NWC';
+  String get payoutSourceNwcWallet => 'Votre portefeuille NWC';
 
   @override
-  String get payoutSourceEntered => 'Toi, pour cette transaction';
+  String get payoutSourceEntered => 'Vous, pour cette transaction';
 
   @override
   String get payoutOutcomeSubmitted => 'En attente';
@@ -4841,30 +4828,30 @@ class AppLocalizationsFr extends AppLocalizations {
   String get payoutHashCopied => 'Hash du paiement copié';
 
   @override
-  String get takeOrderPayoutLabel => 'Tes sats vont à';
+  String get takeOrderPayoutLabel => 'Vos sats vont à';
 
   @override
-  String get takeOrderPayoutInvoice => 'Une facture que tu ajoutes';
+  String get takeOrderPayoutInvoice => 'Une facture que vous ajoutez';
 
   @override
-  String get takeOrderPayoutChangeHint => 'Changer où vont tes sats';
+  String get takeOrderPayoutChangeHint => 'Changer où vont vos sats';
 
   @override
   String takeOrderPayoutNoteDefault(String address) {
-    return 'Tes sats seront envoyés à $address, ton adresse Lightning par défaut.';
+    return 'Vos sats seront envoyés à $address, votre adresse Lightning par défaut.';
   }
 
   @override
   String takeOrderPayoutNoteAddress(String address) {
-    return 'Tes sats seront envoyés à $address, pour cette transaction seulement.';
+    return 'Vos sats seront envoyés à $address, pour cette transaction seulement.';
   }
 
   @override
   String get takeOrderPayoutNoteInvoice =>
-      'Après avoir pris l\'ordre, tu ajouteras la facture qui recevra tes sats.';
+      'Après avoir pris l\'ordre, vous ajouterez la facture qui recevra vos sats.';
 
   @override
-  String get takeOrderPayoutSheetTitle => 'Où vont tes sats';
+  String get takeOrderPayoutSheetTitle => 'Où vont vos sats';
 
   @override
   String get takeOrderPayoutSheetDefault => 'Mon adresse Lightning par défaut';
@@ -4874,7 +4861,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get takeOrderPayoutSheetInvoice =>
-      'Une facture que j\'ajoute après avoir pris';
+      'Une facture que j\'ajoute après la prise';
 
   @override
   String get takeOrderPayoutSheetApply => 'Utiliser pour cette transaction';
@@ -4897,7 +4884,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get invoicePayoutFailedNwc =>
-      'Ton portefeuille NWC crée une nouvelle facture pour ces sats.';
+      'Votre portefeuille NWC crée une nouvelle facture pour ces sats.';
 
   @override
   String invoicePayoutFailedNwcNamed(String name) {
@@ -4906,15 +4893,15 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get invoicePayoutFailedManual =>
-      'Ajoute une nouvelle facture pour recevoir tes sats.';
+      'Ajoutez une nouvelle facture pour recevoir vos sats.';
 
   @override
   String get tradeCardPayoutFailedTitle =>
-      'Mostro n\'a pas pu t\'envoyer tes sats';
+      'Mostro n\'a pas pu vous envoyer vos sats';
 
   @override
   String get tradeCardPayoutFailedMessage =>
-      'Mostro n\'a pas pu envoyer tes sats à l\'adresse ou à la facture que tu as donnée. Ouvre la transaction pour voir laquelle a échoué, et ajoute une nouvelle facture si c\'est encore nécessaire.';
+      'Mostro n\'a pas pu envoyer vos sats à l\'adresse ou à la facture que vous avez donnée. Ouvrez la transaction pour voir laquelle a échoué, et ajoutez une nouvelle facture si c\'est encore nécessaire.';
 
   @override
   String get payoutInvoiceLabel => 'Facture';
@@ -4929,7 +4916,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get payoutMaybePaidToLabel => 'Peut-être payé à';
 
   @override
-  String get payoutOutcomeReplaced => 'Remplacé par un suivant';
+  String get payoutOutcomeReplaced => 'Remplacé par un plus récent';
 
   @override
   String get payoutOutcomeMaybePaid =>
@@ -4937,14 +4924,14 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String otherNodeCardLine(String nodeName) {
-    return 'Opération sur le nœud : $nodeName';
+    return 'Transaction sur le nœud : $nodeName';
   }
 
   @override
-  String get otherNodeCardDialogTitle => 'Opération sur un autre nœud';
+  String get otherNodeCardDialogTitle => 'Transaction sur un autre nœud';
 
   @override
   String otherNodeCardOpenHint(String nodeName) {
-    return 'Cette opération est sur le nœud $nodeName. Pour agir dessus, passez à ce nœud dans les Paramètres.';
+    return 'Cette transaction est sur le nœud $nodeName. Pour agir dessus, passez à ce nœud dans les Paramètres.';
   }
 }

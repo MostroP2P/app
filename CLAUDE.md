@@ -165,7 +165,7 @@ bridged by flutter_rust_bridge.
 - Wire status strings are **kebab-case** (`waiting-buyer-invoice`, `fiat-sent`).
 
 ## Translations
-- **All user-facing strings are Dart-level** (Flutter l10n): `lib/l10n/app_{en,es,fr,de,it,nl}.arb`,
+- **All user-facing strings are Dart-level** (Flutter l10n): `lib/l10n/app_{en,es,fr,de,it,nl,pt}.arb`,
   config `l10n.yaml`, generated `AppLocalizations` via `flutter gen-l10n`, used with
   `AppLocalizations.of(context)`.
 - **One exception, deliberate:** `lib/core/startup_failure.dart` hard-codes its

@@ -24,6 +24,7 @@ const Map<String, ({String name, String native})> languageNames = {
   'fr': (name: 'French', native: 'Français'),
   'de': (name: 'German', native: 'Deutsch'),
   'nl': (name: 'Dutch', native: 'Nederlands'),
+  'pt': (name: 'Portuguese (Brazil)', native: 'Português (Brasil)'),
 };
 
 /// The picker rows: every supported locale, in [languageNames] order, with

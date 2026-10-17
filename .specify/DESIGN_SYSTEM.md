@@ -309,7 +309,7 @@ DS-CMP-7), and text scaling in §3 (DS-TYP-7). In addition:
 
 | ID | Rule | Check |
 |---|---|---|
-| DS-L10N-1 | **MUST.** Every user-facing string comes from `AppLocalizations`, in all six ARB files (en, es, fr, de, it, nl). CI fails on an untranslated key. | test |
+| DS-L10N-1 | **MUST.** Every user-facing string comes from `AppLocalizations`, in all seven ARB files (en, es, fr, de, it, nl, pt). CI fails on an untranslated key. | test |
 | DS-L10N-2 | **MUST.** A layout is sized for the longest translation, usually German, never for English. A button label fits or scales down, and never truncates a verb. | review |
 | DS-L10N-3 | **MUST.** Numbers, amounts and dates are formatted for the locale, never by hand. | review |
 | DS-L10N-4 | **MUST.** One word per concept, in every locale: a string names a trade concept with the word the glossary below gives it, and a new concept joins the glossary in the same change that first uses it. Protocol jargon ("hold", "bolt11", "NIP") is not shown to the user as a term to know; the string says what it does in plain words. | review |

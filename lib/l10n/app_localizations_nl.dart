@@ -15,9 +15,6 @@ class AppLocalizationsNl extends AppLocalizations {
   String get loading => 'Laden…';
 
   @override
-  String get error => 'Fout';
-
-  @override
   String get actionFailedAnnouncement => 'Actie mislukt';
 
   @override
@@ -52,7 +49,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get disputeSolverAssigned =>
-      'Een solver heeft je dispuut opgepakt. Hij neemt hier binnenkort contact met je op.';
+      'Een solver heeft je dispuut opgepakt en neemt hier binnenkort contact met je op.';
 
   @override
   String get disputeChatClosed =>
@@ -67,7 +64,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get disputeSolverNotAssigned =>
-      'Nog geen solver heeft dit dispuut opgepakt. Je kunt schrijven zodra iemand dat doet.';
+      'Er heeft nog geen solver dit dispuut opgepakt. Je kunt schrijven zodra iemand dat doet.';
 
   @override
   String get disputeNotFound => 'Dispuut niet gevonden.';
@@ -80,7 +77,7 @@ class AppLocalizationsNl extends AppLocalizations {
   String get disputeResolved => 'Opgelost';
 
   @override
-  String get disputeSuccessfullyCompleted => 'Afgerond';
+  String get disputeSuccessfullyCompleted => 'Met succes afgerond';
 
   @override
   String get disputeCoopCancelMessage =>
@@ -141,7 +138,7 @@ class AppLocalizationsNl extends AppLocalizations {
   }
 
   @override
-  String get disputeWaitingForAdmin => 'Wacht op toewijzing van een beheerder';
+  String get disputeWaitingForAdmin => 'Wachten tot een solver is toegewezen';
 
   @override
   String get disputeLostFundsToBuyer =>
@@ -211,7 +208,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get walkthroughChatBody2 =>
-      'Bij een dispuut kan een solver de chat lezen als je de sleutel met hem deelt, en zo helpen de zaak op te lossen.';
+      'Bij een dispuut kan een solver de chat lezen als je de sleutel met de solver deelt, en zo helpen de zaak op te lossen.';
 
   @override
   String get walkthroughTakeTitle => 'Een order accepteren';
@@ -286,7 +283,13 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String daysAgo(int d) {
-    return '$d d geleden';
+    String _temp0 = intl.Intl.pluralLogic(
+      d,
+      locale: localeName,
+      other: '$d dagen geleden',
+      one: '1 dag geleden',
+    );
+    return '$_temp0';
   }
 
   @override
@@ -304,11 +307,11 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get nodeProtocolUnsupported =>
-      'Deze Mostro-node spreekt een protocolversie die de app niet ondersteunt. Kies een andere node in de instellingen, of kijk of er een app-update is';
+      'Deze Mostro-node spreekt een protocolversie die de app niet ondersteunt. Kies een andere node in Instellingen, of kijk of er een app-update is';
 
   @override
   String get nodeCapabilitiesUnknown =>
-      'Nog aan het nagaan wat de gekozen Mostro-node ondersteunt. Probeer het zo weer';
+      'Nog aan het nagaan wat de geselecteerde Mostro-node ondersteunt. Probeer het zo weer';
 
   @override
   String get tradeOnOtherNode =>
@@ -316,7 +319,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get mostroMaintenanceMode =>
-      'De Mostro-node waarmee je verbonden bent is in onderhoud. Probeer het later opnieuw, of verbind met een andere Mostro-node in de instellingen';
+      'De Mostro-node waarmee je verbonden bent is in onderhoud. Probeer het later opnieuw, of verbind met een andere Mostro-node in Instellingen';
 
   @override
   String get storageUnavailable =>
@@ -324,7 +327,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get rangeOrderWithSats =>
-      'Een order met een bereik kan geen vast aantal sats hebben: hij wordt bij het aannemen tegen de marktprijs geprijsd.';
+      'Een bandbreedte-order kan geen vast aantal sats hebben: de prijs wordt bij het accepteren op de marktprijs vastgesteld.';
 
   @override
   String get orderIdCopied => 'Order-ID gekopieerd';
@@ -845,7 +848,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get tradeCardCancelRequestedByPeerMessage =>
-      'Hij heeft gevraagd deze trade te annuleren. Ga je akkoord, dan eindigt hij zonder dat er geld verschuift; anders gaat de handel door.';
+      'De tegenpartij heeft gevraagd deze trade te annuleren. Ga je akkoord, dan eindigt hij zonder dat er geld verschuift; anders gaat de trade door.';
 
   @override
   String get tradeCancelRequestedByMeNotice =>
@@ -853,7 +856,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get tradeCancelRequestedByPeerNotice =>
-      'De tegenpartij heeft gevraagd deze trade te annuleren. Ga je akkoord, dan eindigt hij zonder dat er geld verschuift; anders gaat de handel door.';
+      'De tegenpartij heeft gevraagd deze trade te annuleren. Ga je akkoord, dan eindigt hij zonder dat er geld verschuift; anders gaat de trade door.';
 
   @override
   String get acceptCancelButton => 'Annulering accepteren';
@@ -884,7 +887,7 @@ class AppLocalizationsNl extends AppLocalizations {
   String get cancelTradeButton => 'Trade annuleren';
 
   @override
-  String get payHoldInvoiceButton => 'Hold invoice betalen';
+  String get payHoldInvoiceButton => 'Invoice betalen';
 
   @override
   String get openDisputeButton => 'Dispuut openen';
@@ -1000,10 +1003,10 @@ class AppLocalizationsNl extends AppLocalizations {
   String get aboutMostroCommitLabel => 'Mostro-commit';
 
   @override
-  String get aboutHoldInvoiceExpLabel => 'Verlooptijd hold invoice';
+  String get aboutHoldInvoiceExpLabel => 'Tijd om sats vast te zetten';
 
   @override
-  String get aboutHoldInvoiceCltvLabel => 'CLTV hold invoice';
+  String get aboutHoldInvoiceCltvLabel => 'CLTV bij vastzetten';
 
   @override
   String get aboutInvoiceExpWindowLabel => 'Geldigheidsduur invoice';
@@ -1072,7 +1075,7 @@ class AppLocalizationsNl extends AppLocalizations {
   String get aboutBondSlashOnTimeoutLabel => 'Inhouden bij te lang wachten';
 
   @override
-  String get aboutBondClaimWindowLabel => 'Termijn om op te halen';
+  String get aboutBondClaimWindowLabel => 'Ophaaltermijn';
 
   @override
   String aboutBondClaimWindowValue(int count) {
@@ -1113,13 +1116,13 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get tradeWaitingPaymentSellerInstruction =>
-      'Betaal de hold invoice om het geld vast te zetten en de trade te starten.';
+      'Betaal de invoice om de sats in je wallet vast te zetten en de trade te starten.';
 
   @override
   String get tradeLoadError => 'Er ging iets mis bij het laden van de trade.';
 
   @override
-  String get tradeWaitingForHoldInvoice => 'Wachten op de hold invoice…';
+  String get tradeWaitingForHoldInvoice => 'Wachten op de invoice…';
 
   @override
   String get shareButtonLabel => 'Delen';
@@ -1441,15 +1444,15 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get tradeInstructionActiveSeller =>
-      'Geef de koper via de chat hierboven door hoe hij moet betalen.';
+      'Laat de koper via de chat hierboven weten hoe er betaald moet worden.';
 
   @override
   String get tradeInstructionFiatSentSeller =>
-      'De koper heeft bevestigd dat hij de fiat heeft overgemaakt. Controleer of het binnen is en geef daarna de sats vrij.';
+      'De koper heeft bevestigd dat de fiat is overgemaakt. Controleer of het binnen is en geef daarna de sats vrij.';
 
   @override
   String get tradeInstructionDisputed =>
-      'Er is een solver toegewezen. Hij neemt via de app contact met je op.';
+      'Er is een solver toegewezen, die via de app contact met je opneemt.';
 
   @override
   String get tradeInstructionPending =>
@@ -1457,7 +1460,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get tradeInstructionCancelled =>
-      'Deze trade is geannuleerd. Er is geen geld geruild.';
+      'Deze trade is geannuleerd. Er is geen geld overgemaakt.';
 
   @override
   String get tradeInstructionInProgress => 'Trade loopt.';
@@ -1485,7 +1488,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get tradeHeadlineWaitingPaymentSeller =>
-      'Betaal de hold invoice om de sats vast te zetten';
+      'Betaal de invoice om de sats vast te zetten';
 
   @override
   String tradeHeadlineActiveBuyer(String amount) {
@@ -1601,7 +1604,7 @@ class AppLocalizationsNl extends AppLocalizations {
   }
 
   @override
-  String get exchangeInfoTooltip => 'Gegevens van de ruil';
+  String get exchangeInfoTooltip => 'Tradegegevens';
 
   @override
   String get userInfoTooltip => 'Gebruikersgegevens';
@@ -1696,10 +1699,10 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get waitingForTradeAmount =>
-      'Wachten op het handelsbedrag. Probeer het zo weer.';
+      'Wachten op het tradebedrag. Probeer het zo weer.';
 
   @override
-  String get fetchingTradeAmount => 'Handelsbedrag ophalen…';
+  String get fetchingTradeAmount => 'Tradebedrag ophalen…';
 
   @override
   String get enterInvoiceManually => 'Invoice handmatig invullen';
@@ -1758,7 +1761,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get priceTypesDialogContent =>
-      'Marktprijs: je orderprijs volgt de marktkoers, met een premie of korting erbij.\n\nVaste prijs: je legt een exact bedrag in satoshi vast.';
+      'Marktprijs: je order volgt de marktkoers, met de premie of korting die je instelt.\n\nVaste prijs: je legt het exacte aantal sats vast; dat volgt de markt niet.';
 
   @override
   String get newOrderTitle => 'Nieuwe order';
@@ -2216,12 +2219,12 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String bondSlashedMessageTimeout(String amount, String orderId) {
-    return 'Je borg tegen misbruik van $amount sats voor order $orderId is vervallen nadat een wachtstap te lang duurde. De status van je order verandert niet.';
+    return 'Je borg tegen misbruik van $amount sats voor order $orderId is verbeurd nadat een wachtstap te lang duurde. De status van je order verandert niet.';
   }
 
   @override
   String bondSlashedMessageDispute(String amount, String orderId) {
-    return 'Je borg tegen misbruik van $amount sats voor order $orderId is vervallen na de uitkomst van een dispuut. De status van je order verandert niet.';
+    return 'Je borg tegen misbruik van $amount sats voor order $orderId is verbeurd na de uitkomst van een dispuut. De status van je order verandert niet.';
   }
 
   @override
@@ -2376,7 +2379,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get tradeBodyWaitingPaymentBuyer =>
-      'Hij betaalt de hold invoice. Zodra de sats vaststaan, is het aan jou om de fiat over te maken.';
+      'De verkoper zet de sats vast. Zodra ze vaststaan, is het aan jou om de fiat over te maken.';
 
   @override
   String tradeBodyActiveSeller(String method) {
@@ -2385,7 +2388,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String tradeBodyActiveBuyer(String method) {
-    return 'Via $method, met de gegevens die hij in de chat heeft gedeeld. Heb je het overgemaakt, meld dat dan hieronder.';
+    return 'Via $method, met de gegevens die de verkoper in de chat heeft gedeeld. Heb je het overgemaakt, meld dat dan hieronder.';
   }
 
   @override
@@ -2401,7 +2404,7 @@ class AppLocalizationsNl extends AppLocalizations {
   String get tradeTimerYouHave => 'Jij hebt nog';
 
   @override
-  String get tradeTimerTheyHave => 'Hij heeft nog';
+  String get tradeTimerTheyHave => 'De tegenpartij heeft nog';
 
   @override
   String get tradeTimerOrderHas => 'Resterende tijd';
@@ -2605,7 +2608,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get takeOrderFailed =>
-      'De order kon niet worden aangenomen. Probeer het opnieuw.';
+      'De order kon niet worden geaccepteerd. Probeer het opnieuw.';
 
   @override
   String get takeOrderClosed => 'Gesloten';
@@ -2881,7 +2884,7 @@ class AppLocalizationsNl extends AppLocalizations {
   String get aboutCurrenciesCell => 'Valuta';
 
   @override
-  String get aboutOrderExpiryCell => 'Verloop';
+  String get aboutOrderExpiryCell => 'Verlooptijd';
 
   @override
   String get aboutNodeTechnicalDataRow => 'Technische gegevens van de node';
@@ -2954,7 +2957,7 @@ class AppLocalizationsNl extends AppLocalizations {
   String get tradesDirectionSell => 'Je verkoopt';
 
   @override
-  String get tradesDirectionBondClaim => 'Borg ophalen';
+  String get tradesDirectionBondClaim => 'Borguitbetaling';
 
   @override
   String get tradesDirectionBuy => 'Je koopt';
@@ -3250,7 +3253,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get bondAbandoned =>
-      'Order laten vallen. Er is niets gepubliceerd en niets in rekening gebracht.';
+      'Order ingetrokken. Er is niets gepubliceerd en niets in rekening gebracht.';
 
   @override
   String bondPublishesIn(String time) {
@@ -3282,7 +3285,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get bondCancelRefusedBody =>
-      'Deze Mostro-node ondersteunt het annuleren van een onbetaalde borg misschien nog niet, of je borg is net betaald. Heb je hem niet betaald, dan kun je de order van dit apparaat verwijderen. Wordt de factuur later betaald, dan wordt de order toch gepubliceerd.';
+      'Deze Mostro-node ondersteunt het annuleren van een onbetaalde borg misschien nog niet, of je borg is net betaald. Heb je hem niet betaald, dan kun je de order van dit apparaat verwijderen. Wordt de invoice later betaald, dan wordt de order toch gepubliceerd.';
 
   @override
   String get bondRemoveFromDevice => 'Verwijderen van dit apparaat';
@@ -3292,14 +3295,14 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get bondLeaveMakerBody =>
-      'De order wordt niet gepubliceerd en de borgfactuur wordt geannuleerd.';
+      'De order wordt niet gepubliceerd en de borg-invoice wordt geannuleerd.';
 
   @override
   String get bondLeaveTakerTitle => 'Deze order niet accepteren?';
 
   @override
   String get bondLeaveTakerBody =>
-      'De order blijft voor anderen in het orderboek en de borgfactuur wordt geannuleerd.';
+      'De order blijft voor anderen in het orderboek en de borg-invoice wordt geannuleerd.';
 
   @override
   String get bondKeepWaiting => 'Blijven wachten';
@@ -3475,7 +3478,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get bondLockedNowEscrow =>
-      'Borg vastgezet. Zet nu het handelsbedrag vast.';
+      'Borg vastgezet. Zet nu het tradebedrag vast.';
 
   @override
   String get bondLostRace =>
@@ -3536,9 +3539,6 @@ class AppLocalizationsNl extends AppLocalizations {
   String invoiceExpiresIn(String time) {
     return 'De invoice verloopt over $time';
   }
-
-  @override
-  String get invoiceFieldLabel => 'Lightning-invoice of -adres';
 
   @override
   String get invoiceFieldHint => 'lnbc… of gebruiker@domein';
@@ -3674,7 +3674,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get tradeCardWaitingPaymentMessage =>
-      'De trade gaat verder zodra de verkoper de hold invoice betaalt.';
+      'De trade gaat verder zodra de verkoper de sats vastzet.';
 
   @override
   String get tradeCardWaitingTakerBondTitle => 'Borgbetaling staat open';
@@ -3879,16 +3879,16 @@ class AppLocalizationsNl extends AppLocalizations {
   String get fundsAtRiskBondLocked => 'Borg vastgezet';
 
   @override
-  String get fundsAtRiskPayoutClaim => 'Borguitbetaling nog niet geïnd';
+  String get fundsAtRiskPayoutClaim => 'Borguitbetaling nog niet opgehaald';
 
   @override
   String get fundsAtRiskTradeInProgress => 'Trade bezig';
 
   @override
-  String get fundsAtRiskBondInvoicePending => 'Borgfactuur nog te betalen';
+  String get fundsAtRiskBondInvoicePending => 'Borg-invoice nog te betalen';
 
   @override
-  String get fundsAtRiskCashuBalance => 'Ecash in de Cashu-portemonnee';
+  String get fundsAtRiskCashuBalance => 'Ecash in de Cashu-wallet';
 
   @override
   String get fundsAtRiskCashuHint =>
@@ -4032,7 +4032,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get attachmentPeerUnknown =>
-      'Je kunt bestanden versturen zodra iemand de order heeft aangenomen.';
+      'Je kunt bestanden versturen zodra iemand de order heeft geaccepteerd.';
 
   @override
   String get attachmentUploadFailed =>
@@ -4096,10 +4096,7 @@ class AppLocalizationsNl extends AppLocalizations {
       'Dit type bestand kan alleen worden opgeslagen.';
 
   @override
-  String get cashuWalletTitle => 'Cashu-portemonnee';
-
-  @override
-  String get cashuWalletSubtitle => 'Bewaar ecash voor trades op deze node';
+  String get cashuWalletTitle => 'Cashu-wallet';
 
   @override
   String get cashuBalanceLabel => 'Saldo';
@@ -4140,8 +4137,7 @@ class AppLocalizationsNl extends AppLocalizations {
   }
 
   @override
-  String get cashuErrorNoMint =>
-      'Stel eerst een mint in de Cashu-portemonnee in.';
+  String get cashuErrorNoMint => 'Stel eerst een mint in de Cashu-wallet in.';
 
   @override
   String get cashuErrorInvalidMintUrl =>
@@ -4149,7 +4145,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get cashuErrorWalletOnOtherMint =>
-      'Je Cashu-portemonnee gebruikt een andere mint. Schakel in Instellingen → Cashu-portemonnee over naar de mint van deze node en probeer het opnieuw.';
+      'Je Cashu-wallet gebruikt een andere mint. Schakel in Instellingen → Cashu-wallet over naar de mint van deze node en probeer het opnieuw.';
 
   @override
   String get cashuReceiveButton => 'Ontvangen';
@@ -4201,7 +4197,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get cashuWalletExplanation =>
-      'Deze portemonnee bewaart ecash van de mint die je kiest. Hij dient om Cashu-trades te financieren en te ontvangen — het is geen portemonnee voor algemeen gebruik.';
+      'Deze wallet bewaart ecash van de mint die je kiest. Hij dient om Cashu-trades te financieren en te ontvangen; het is geen wallet voor algemeen gebruik.';
 
   @override
   String get cashuErrorNotEnabled =>
@@ -4209,7 +4205,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get cashuErrorNotConnected =>
-      'De portemonnee is nog niet verbonden met een mint.';
+      'De wallet is nog niet verbonden met een mint.';
 
   @override
   String get cashuErrorMintUnreachable =>
@@ -4217,11 +4213,11 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get cashuErrorMintUnusable =>
-      'Deze mint mist functies die de portemonnee nodig heeft. Kies een andere mint.';
+      'Deze mint mist functies die de wallet nodig heeft. Kies een andere mint.';
 
   @override
   String get cashuErrorUnsupportedOnWeb =>
-      'De Cashu-portemonnee is nog niet beschikbaar in de webversie.';
+      'De Cashu-wallet is nog niet beschikbaar in de webversie.';
 
   @override
   String get cashuErrorAmountZero => 'Voer een bedrag groter dan nul in.';
@@ -4241,15 +4237,15 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get cashuErrorNoIdentity =>
-      'Maak een account aan of importeer er een voordat je de portemonnee gebruikt.';
+      'Maak een account aan of importeer er een voordat je de wallet gebruikt.';
 
   @override
   String get cashuErrorGeneric =>
-      'Er ging iets mis met de portemonnee. Probeer het opnieuw.';
+      'Er ging iets mis met de wallet. Probeer het opnieuw.';
 
   @override
   String get cashuLastTokenPending =>
-      'Je hebt een token geëxporteerd. Het is geld totdat iemand hem inwisselt — bewaar hem tot je zeker weet dat hij is aangekomen.';
+      'Je hebt een token geëxporteerd. Het is geld totdat iemand hem inwisselt: bewaar hem tot je zeker weet dat hij is aangekomen.';
 
   @override
   String get cashuShowLastToken => 'Opnieuw tonen';
@@ -4263,7 +4259,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get cashuErrorNoMnemonic =>
-      'Dit account is geïmporteerd vanuit een nsec, dus er is geen herstelzin om de portemonnee van af te leiden. De Cashu-portemonnee heeft een account nodig dat met een herstelzin is aangemaakt.';
+      'Dit account is geïmporteerd met een privésleutel, dus er zijn geen geheime woorden om de wallet van af te leiden. De Cashu-wallet heeft een account nodig dat met geheime woorden is aangemaakt.';
 
   @override
   String get cashuErrorTokenUnverified =>
@@ -4271,11 +4267,11 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get cashuErrorUnsupportedUnit =>
-      'Deze portemonnee bevat alleen sats en deze token is in een andere eenheid (bijvoorbeeld millisats of dollars). Hij is niet aangeraakt: je kunt hem inwisselen in een portemonnee die die eenheid ondersteunt.';
+      'Deze wallet bevat alleen sats en deze token is in een andere eenheid (bijvoorbeeld millisats of dollars). Hij is niet aangeraakt: je kunt hem inwisselen in een wallet die die eenheid ondersteunt.';
 
   @override
   String cashuErrorUnsupportedUnitNamed(String unit) {
-    return 'Deze portemonnee bevat alleen sats en deze token is in $unit. Hij is niet aangeraakt: je kunt hem inwisselen in een portemonnee die deze eenheid ondersteunt.';
+    return 'Deze wallet bevat alleen sats en deze token is in $unit. Hij is niet aangeraakt: je kunt hem inwisselen in een wallet die deze eenheid ondersteunt.';
   }
 
   @override
@@ -4289,20 +4285,20 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get cashuErrorSendUnresolved =>
-      'Het versturen is mislukt en de portemonnee kon niet bevestigen dat het geld terug is. Synchroniseer met de mint voordat je het opnieuw probeert.';
+      'Het versturen is mislukt en de wallet kon niet bevestigen dat het geld terug is. Synchroniseer met de mint voordat je het opnieuw probeert.';
 
   @override
   String get lockEscrowTitle => 'De escrow vergrendelen';
 
   @override
   String get lockEscrowExplanation =>
-      'Vergrendel je ecash in een 2-van-3-escrow bij de mint van deze node. Noch jij noch de koper kan het alleen verplaatsen — en als de node verdwijnt, kun je het zelf terugvorderen zodra de locktime verstreken is.';
+      'Vergrendel je ecash in een 2-van-3-escrow bij de mint van deze node. Noch jij noch de koper kan het alleen verplaatsen. En als de node verdwijnt, kun je het zelf terugvorderen zodra de locktime verstreken is.';
 
   @override
   String get lockEscrowAmount => 'Escrow';
 
   @override
-  String get lockEscrowFee => 'Mostro-vergoeding';
+  String get lockEscrowFee => 'Mostro-kosten';
 
   @override
   String get lockEscrowTotal => 'Totaal';
@@ -4314,14 +4310,14 @@ class AppLocalizationsNl extends AppLocalizations {
   String get lockEscrowConfirm => 'Escrow vergrendelen';
 
   @override
-  String get lockEscrowFundWallet => 'Portemonnee opwaarderen';
+  String get lockEscrowFundWallet => 'Wallet opwaarderen';
 
   @override
   String get lockEscrowSubmitted => 'Escrow vergrendeld en verstuurd';
 
   @override
   String get lockEscrowInsufficientFunds =>
-      'Je portemonnee bevat niet genoeg voor de escrow en de vergoeding.';
+      'Je wallet bevat niet genoeg voor de escrow en de kosten.';
 
   @override
   String get lockEscrowNotTheSeller =>
@@ -4347,11 +4343,11 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get lockEscrowRequestMissing =>
-      'Deze trade heeft nog geen escrow-verzoek. Wacht tot de take van de koper binnenkomt en probeer het dan opnieuw.';
+      'Deze trade heeft nog geen escrow-verzoek. Wacht tot de acceptatie van de koper binnenkomt en probeer het dan opnieuw.';
 
   @override
   String get lockEscrowWrongTradeKey =>
-      'Dit apparaat heeft niet de sleutel waarmee deze order is genomen. Herstel je account op het apparaat waarop je de trade bent begonnen.';
+      'Dit apparaat heeft niet de sleutel waarmee deze order is geaccepteerd. Herstel je account op het apparaat waarop je de trade bent begonnen.';
 
   @override
   String get lockEscrowLocktimeNotReached =>
@@ -4366,7 +4362,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get lockEscrowPendingSubmission =>
-      'Je escrow is vergrendeld, maar de node heeft het nog niet bevestigd. Opnieuw proberen is veilig — hij wordt niet een tweede keer vergrendeld.';
+      'Je escrow is vergrendeld, maar de node heeft hem nog niet bevestigd. Opnieuw proberen is veilig: hij wordt niet een tweede keer vergrendeld.';
 
   @override
   String get lockEscrowMintNotSupported =>
@@ -4378,11 +4374,11 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get lockEscrowRejectedToken =>
-      'De node heeft deze escrow niet geaccepteerd. Hij is opzijgezet — hij komt naar je terug als zijn vergrendeling afloopt — en de volgende poging vergrendelt een nieuwe.';
+      'De node heeft deze escrow niet geaccepteerd. Hij is opzijgezet en komt naar je terug als zijn vergrendeling afloopt; de volgende poging vergrendelt een nieuwe.';
 
   @override
   String get lockEscrowRejectedMint =>
-      'De node gebruikt een andere mint. Deze escrow is opzijgezet — hij komt naar je terug als zijn vergrendeling afloopt. Controleer de mint van de node voordat je het opnieuw probeert.';
+      'De node gebruikt een andere mint. Deze escrow is opzijgezet en komt naar je terug als zijn vergrendeling afloopt. Controleer de mint van de node voordat je het opnieuw probeert.';
 
   @override
   String get lockEscrowMintUnavailableAtNode =>
@@ -4410,7 +4406,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get tradeBodyWaitingPaymentBuyerCashu =>
-      'Ze vergrendelen de sats in de escrow. Zodra die vergrendeld is, ben jij aan de beurt om de fiat te betalen.';
+      'De verkoper vergrendelt de sats in de escrow. Zodra die vergrendeld is, ben jij aan de beurt om de fiat te betalen.';
 
   @override
   String get shareChatKeyAction => 'Chatsleutel delen met de solver';
@@ -4506,14 +4502,14 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get myReputationNoReviews =>
-      'Nog geen beoordelingen. Je reputatie begint bij je eerste beoordeelde ruil.';
+      'Nog geen beoordelingen. Je reputatie begint bij je eerste beoordeelde trade.';
 
   @override
   String get myReputationPrivacyMode =>
-      'De volledige privacymodus houdt geen reputatie bij. Kies hieronder de reputatiemodus om er een op te bouwen.';
+      'In de modus Volledig privé wordt geen reputatie bijgehouden. Kies hieronder Reputatiemodus om er een op te bouwen.';
 
   @override
-  String get myReputationLoading => 'Je node wordt gevraagd…';
+  String get myReputationLoading => 'Je node raadplegen…';
 
   @override
   String get myReputationUnavailable => 'Je node heeft nog niet geantwoord.';
@@ -4577,11 +4573,11 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get reputationIdentityRequired =>
-      'Reputatie kan alleen worden verplaatst vanaf een account dat zijn reputatie bewaart. Zet de volledige privacymodus uit en probeer het opnieuw.';
+      'Reputatie kan alleen worden verplaatst vanaf een account dat zijn reputatie bewaart. Zet de modus Volledig privé uit en probeer het opnieuw.';
 
   @override
   String get reputationNotEligible =>
-      'Je account kan zijn reputatie nog niet exporteren: er zijn minstens 10 voltooide transacties en 5 ontvangen beoordelingen nodig.';
+      'Je account kan zijn reputatie nog niet exporteren: er zijn minstens 10 voltooide trades en 5 ontvangen beoordelingen nodig.';
 
   @override
   String get reputationBoundToOtherIdentity =>
@@ -4668,7 +4664,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get reputationIdentityHint =>
-      'Controleer voordat je in lnp2pBot bevestigt of dezelfde openbare sleutel wordt getoond:';
+      'Controleer voordat je in lnp2pBot bevestigt of dezelfde publieke sleutel wordt getoond:';
 
   @override
   String get reputationUnavailable =>
@@ -4676,7 +4672,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get reputationIdentityChanged =>
-      'Je identiteit is gewijzigd. Controleer de openbare sleutel die hier wordt getoond voordat je het opnieuw probeert.';
+      'Je identiteit is gewijzigd. Controleer de publieke sleutel die hier wordt getoond voordat je het opnieuw probeert.';
 
   @override
   String get reputationSettingTitle => 'Reputatie';

@@ -85,13 +85,17 @@ void main() {
     test(
       'an unset or unshipped language follows the device, like Settings',
       () {
-        const device = [Locale('pt', 'BR'), Locale('fr')];
+        const device = [Locale('ja', 'JP'), Locale('fr')];
 
         expect(chatWakeLanguage(null, deviceLocales: device), 'fr');
-        expect(chatWakeLanguage('pt', deviceLocales: device), 'fr');
+        expect(chatWakeLanguage('ja', deviceLocales: device), 'fr');
         expect(chatWakeLanguage('de-AT', deviceLocales: device), 'de');
         expect(
-          chatWakeLanguage(null, deviceLocales: const [Locale('pt')]),
+          chatWakeLanguage(null, deviceLocales: const [Locale('pt', 'BR')]),
+          'pt',
+        );
+        expect(
+          chatWakeLanguage(null, deviceLocales: const [Locale('ja')]),
           'en',
           reason: 'English when the device offers nothing the app ships',
         );

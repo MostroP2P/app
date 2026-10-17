@@ -443,6 +443,7 @@ mod tests {
             "locales": {
                 "en": locale("en"), "es": locale("es"), "fr": locale("fr"),
                 "de": locale("de"), "it": locale("it"), "nl": locale("nl"),
+                "pt": locale("pt"),
             },
         })
     }

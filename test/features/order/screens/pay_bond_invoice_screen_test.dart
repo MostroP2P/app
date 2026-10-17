@@ -116,7 +116,7 @@ void main() {
     // the prose on both sides of it must survive.
     expect(
       find.text(
-        'The sats stay held in your wallet, they are not spent',
+        'The sats stay held in your wallet; they are not spent',
         findRichText: true,
       ),
       findsOneWidget,
@@ -189,7 +189,7 @@ void main() {
     expect(find.byType(QrImageView), findsOneWidget);
     expect(
       find.text(
-        'The sats stay held in your wallet, they are not spent',
+        'The sats stay held in your wallet; they are not spent',
         findRichText: true,
       ),
       findsOneWidget,

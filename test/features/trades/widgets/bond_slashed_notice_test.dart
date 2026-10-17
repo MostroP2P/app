@@ -86,7 +86,7 @@ void main() {
       ),
     );
     expect(
-      find.text('The node slashed your 1,648-sat bond in this dispute.'),
+      find.text('Your 1,648-sat deposit was forfeited in this dispute.'),
       findsOneWidget,
     );
     expect(
@@ -150,7 +150,7 @@ void main() {
         ),
       ],
     );
-    expect(find.textContaining('your 412-sat bond'), findsOneWidget);
+    expect(find.textContaining('Your 412-sat deposit'), findsOneWidget);
     expect(find.textContaining('1,648'), findsNothing);
   });
 }

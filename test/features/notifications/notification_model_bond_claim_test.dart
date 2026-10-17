@@ -30,7 +30,7 @@ void main() {
         expect(n.orderId, 'order-1');
         expect(n.title, isEmpty);
         expect(n.detail?['bondAmountSats'], '1500');
-        expect(n.resolvedTitle(l10n), 'Bond payout to claim');
+        expect(n.resolvedTitle(l10n), 'Deposit payout to claim');
         expect(n.resolvedMessage(l10n), contains('claim 1500 sats'));
         // A re-prompt is a new record; the cadence retry is not.
         final again = NotificationModel.bondClaim(
@@ -74,8 +74,8 @@ void main() {
         updatedAt: 999,
       );
       expect({n.id, later.id, other.id}, hasLength(3));
-      expect(n.resolvedTitle(l10n), 'Bond payout received');
-      expect(n.resolvedMessage(l10n), 'Bond payout of 1500 sats received.');
+      expect(n.resolvedTitle(l10n), 'Deposit payout received');
+      expect(n.resolvedMessage(l10n), 'Deposit payout of 1500 sats received.');
     });
 
     test('survives the JSON round trip', () {

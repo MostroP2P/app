@@ -71,7 +71,7 @@ Status of the client's features across the Rust core and the Flutter UI.
 - [x] Cooperative cancellation (request / accept, with a notice for each side)
 - [x] In-app notifications (trade, dispute and chat events)
 - [x] Anti-abuse bond
-- [x] Multi-language (en, de, es, fr, it, nl)
+- [x] Multi-language (en, de, es, fr, it, nl, pt)
 - [x] Log report (Rust core logs, shared as a sanitized text report)
 - [x] Order links — a `mostro:` link opens its order, asking before a node switch (Android, iOS, macOS, Linux, Windows; see `docs/DEEP_LINKS.md`)
 - [~] Disputes — open, solver chat and evidence work; the disputes list only fills after a resume or once the dispute is opened, not at cold start nor live when the peer opens one
@@ -504,7 +504,7 @@ app/
 │   │   ├── about/              #     Mostro node info
 │   │   └── settings/           #     Relays, wallet, preferences
 │   ├── shared/                 #   Cross-feature providers, widgets, utils
-│   ├── l10n/                   #   Localization strings (EN, ES, IT, FR, DE, NL)
+│   ├── l10n/                   #   Localization strings (EN, ES, IT, FR, DE, NL, PT)
 │   └── src/rust/               #   Auto-generated Rust bridge (DO NOT EDIT)
 │
 ├── rust/                       # Rust core
@@ -605,6 +605,7 @@ The app is localized in:
 | French | `fr` | `lib/l10n/app_fr.arb` |
 | German | `de` | `lib/l10n/app_de.arb` |
 | Dutch | `nl` | `lib/l10n/app_nl.arb` |
+| Portuguese (Brazil) | `pt` | `lib/l10n/app_pt.arb` |
 
 To add a new language:
 
@@ -614,9 +615,11 @@ To add a new language:
 4. Register the language in the places that keep their own list:
    - `lib/features/settings/widgets/language_selector.dart`: the English and native name in `languageNames` (the picker already lists every `.arb` file; without a name it shows the bare code)
    - `rust/src/api/settings.rs`: the code in `SUPPORTED_LOCALES`, then `./scripts/frb-generate.sh`
+   - `rust/src/nostr/announcements.rs`: the code in its own `SUPPORTED_LOCALES`, the locales every announcement carries (and the test fixtures that list them)
    - `web/push_worker_logic.js`: the locale's `pushNewMessageBody` in `CHAT_WAKE_BODIES` (a service worker cannot read `.arb` files)
    - `specs/006-announcement-channel/spec.md`: the locales every announcement must carry, in the rule and in the JSON example
-5. Run `flutter test` and `cargo test`: `test/l10n/locale_lists_test.dart` checks the picker names, the Rust list, the push worker and spec 006 against the `.arb` files, so a place missed in step 4 fails there
+   - `linux/packaging/foundation.mostro.app.desktop`: the menu's `GenericName[<code>]` and `Comment[<code>]`
+5. Run `flutter test` and `cargo test`: `test/l10n/locale_lists_test.dart` checks the picker names, the Rust list, the push worker and spec 006 against the `.arb` files, and `test/ci/desktop_icons_test.dart` the Linux menu entry, so a place missed in step 4 fails there
 6. Open a PR — translation contributions are always welcome
 
 ---

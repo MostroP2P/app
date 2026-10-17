@@ -140,7 +140,7 @@ Add new strings to `lib/l10n/app_en.arb` first, then run:
 flutter gen-l10n
 ```
 
-Every locale in `lib/l10n/` (currently EN, ES, IT, FR, DE, NL) must be updated before merging.
+Every locale in `lib/l10n/` (currently EN, ES, IT, FR, DE, NL, PT) must be updated before merging.
 
 ---
 

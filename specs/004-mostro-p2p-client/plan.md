@@ -34,7 +34,7 @@ Build Mostro Mobile v2, a P2P Bitcoin Lightning exchange application that replic
 
 **Constraints**: Offline-first (queue outbound messages when offline); zero crypto in Dart; no analytics/telemetry; responsive layouts for mobile, tablet, and desktop; all relay I/O originates in Rust
 
-**Scale/Scope**: ~23 distinct screens (per V1_FLOW_GUIDE.md); 15 Mostro order states; ~50 functional requirements; 6 languages (EN, ES, IT, FR, DE, NL)
+**Scale/Scope**: ~23 distinct screens (per V1_FLOW_GUIDE.md); 15 Mostro order states; ~50 functional requirements; 7 languages (EN, ES, IT, FR, DE, NL, PT)
 
 ## Constitution Check
 
@@ -101,7 +101,7 @@ lib/                          # Flutter/Dart UI shell
 │   ├── providers/            # Cross-feature Riverpod providers
 │   ├── widgets/              # Reusable UI components
 │   └── utils/
-├── l10n/                     # ARB localization files (EN, ES, IT, FR, DE, NL) + generated AppLocalizations
+├── l10n/                     # ARB localization files (EN, ES, IT, FR, DE, NL, PT) + generated AppLocalizations
 └── generated/                # flutter_rust_bridge generated bindings (DO NOT EDIT)
 
 rust/                         # Rust core

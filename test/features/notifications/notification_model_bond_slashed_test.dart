@@ -79,13 +79,13 @@ void main() {
         disputeCause: false,
       );
 
-      expect(n.resolvedTitle(l10n), 'Bond slashed');
-      expect(n.resolvedMessage(l10n), contains('waiting-state timeout'));
+      expect(n.resolvedTitle(l10n), 'Deposit forfeited');
+      expect(n.resolvedMessage(l10n), contains('after a step timed out'));
       expect(n.resolvedMessage(l10n), contains('order status is unchanged'));
 
       final detail = n.resolvedDetail(l10n);
-      expect(detail['Cause'], 'Waiting-state timeout');
-      expect(detail['Bond amount'], '1000 sats');
+      expect(detail['Cause'], 'A step timed out');
+      expect(detail['Deposit amount'], '1000 sats');
       expect(detail['Order'], 'order-1');
     });
 
@@ -97,7 +97,7 @@ void main() {
         disputeCause: true,
       );
 
-      expect(n.resolvedMessage(l10n), contains('dispute resolution'));
+      expect(n.resolvedMessage(l10n), contains('dispute was resolved'));
       expect(n.resolvedDetail(l10n)['Cause'], 'Dispute resolution');
     });
 
@@ -170,7 +170,7 @@ void main() {
       expect(stateOf(n2).length, 1);
       final restored = stateOf(n2).single;
       expect(restored.detail?['cause'], 'dispute');
-      expect(restored.resolvedMessage(l10n), contains('dispute resolution'));
+      expect(restored.resolvedMessage(l10n), contains('dispute was resolved'));
 
       await n2.addIfNew(slashFor('evt-1')); // replay after restart
       expect(stateOf(n2).length, 1);

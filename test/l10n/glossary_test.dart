@@ -7,7 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 /// Reads the ARB sources, so a new string that drifts fails here before a
 /// screen shows it.
 void main() {
-  const locales = ['en', 'es', 'fr', 'de', 'it', 'nl'];
+  const locales = ['en', 'es', 'fr', 'de', 'it', 'nl', 'pt'];
 
   Map<String, String> arb(String locale) {
     final raw =
@@ -24,7 +24,7 @@ void main() {
   // gender and number. "ausgewählt" (the glossary's German) is not
   // "gewählt": no word boundary inside it.
   final chosen = RegExp(
-    r'\b(chosen|elegid[oa]s?|choisie?s?|scelt[oaie]|gekozen'
+    r'\b(chosen|elegid[oa]s?|escolhid[oa]s?|choisie?s?|scelt[oaie]|gekozen'
     r'|gewählt(?:e[nmrs]?)?)\b',
     caseSensitive: false,
   );
@@ -33,6 +33,7 @@ void main() {
     const retired = [
       'chosen',
       'elegido', 'elegida', 'elegidos', 'elegidas',
+      'escolhido', 'escolhida', 'escolhidos', 'escolhidas',
       'choisi', 'choisie', 'choisis', 'choisies',
       'scelto', 'scelta', 'scelti', 'scelte',
       'gekozen',
@@ -44,7 +45,7 @@ void main() {
     // The glossary's own words never trip it.
     for (final word in [
       'selected', 'seleccionadas', 'sélectionnées', 'selezionate',
-      'geselecteerd', 'ausgewählt', 'ausgewählte',
+      'geselecteerd', 'ausgewählt', 'ausgewählte', 'selecionadas',
     ]) {
       expect(chosen.hasMatch('2 $word'), isFalse, reason: word);
     }

@@ -32,7 +32,7 @@ const ALLOWLIST: &[&str] = &[];
 
 /// The locales every announcement carries, all of them and no others (§3.2).
 /// They are the app's locales — `lib/l10n/app_*.arb` — and change with them.
-pub const SUPPORTED_LOCALES: [&str; 6] = ["en", "es", "fr", "de", "it", "nl"];
+pub const SUPPORTED_LOCALES: [&str; 7] = ["en", "es", "fr", "de", "it", "nl", "pt"];
 
 /// The only content schema this build reads (`v`).
 pub const CONTENT_VERSION: u64 = 1;
@@ -185,9 +185,9 @@ pub enum AnnouncementError {
     MissingField(&'static str),
     #[error("content `locales` must be an object keyed by locale")]
     LocalesNotObject,
-    #[error("locale `{0}` is missing: every announcement carries all of en, es, fr, de, it, nl")]
+    #[error("locale `{0}` is missing: every announcement carries all of {}", SUPPORTED_LOCALES.join(", "))]
     MissingLocale(String),
-    #[error("locale `{0}` is not one the app has: send exactly en, es, fr, de, it, nl")]
+    #[error("locale `{0}` is not one the app has: send exactly {}", SUPPORTED_LOCALES.join(", "))]
     UnknownLocale(String),
     #[error("`locales.{locale}.{field}` is missing or not a string")]
     MissingText { locale: String, field: &'static str },
@@ -464,6 +464,7 @@ mod tests {
             "locales": {
                 "en": locale("en"), "es": locale("es"), "fr": locale("fr"),
                 "de": locale("de"), "it": locale("it"), "nl": locale("nl"),
+                "pt": locale("pt"),
             },
             "url": "https://mostro.network/blog/2-1",
         })
@@ -867,13 +868,29 @@ mod tests {
     }
 
     #[test]
+    fn the_locale_errors_name_every_locale_an_announcement_carries() {
+        // A publisher fixes the event from these messages; a list that
+        // stops short of SUPPORTED_LOCALES sends them round again.
+        for error in [
+            AnnouncementError::MissingLocale("pt".into()),
+            AnnouncementError::UnknownLocale("ja".into()),
+        ] {
+            let message = error.to_string();
+            let (_, list) = message.split_once(": ").expect("a list after the colon");
+            for locale in SUPPORTED_LOCALES {
+                assert!(list.contains(locale), "{message:?} lacks {locale}");
+            }
+        }
+    }
+
+    #[test]
     fn an_unknown_extra_locale_is_refused() {
         let mut content = valid_content();
-        content["locales"]["pt"] = json!({ "title": "Olá", "body": "Corpo" });
+        content["locales"]["ja"] = json!({ "title": "お知らせ", "body": "本文" });
 
         assert_eq!(
             parse_content(&content),
-            Err(AnnouncementError::UnknownLocale("pt".into()))
+            Err(AnnouncementError::UnknownLocale("ja".into()))
         );
     }
 

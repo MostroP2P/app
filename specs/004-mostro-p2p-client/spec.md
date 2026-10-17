@@ -434,7 +434,7 @@ Users manage their cryptographic identity from the Account screen: view their 12
 
 **Settings & Preferences**
 
-- **FR-058**: Users MUST be able to configure: app language (6 languages: EN, ES, IT, FR, DE, NL), default fiat currency, default Lightning address, relay list (add/toggle), push notification preferences, and Mostro node.
+- **FR-058**: Users MUST be able to configure: app language (7 languages: EN, ES, IT, FR, DE, NL, PT), default fiat currency, default Lightning address, relay list (add/toggle), push notification preferences, and Mostro node.
 - **FR-058a**: Lightning, NWC and the Cashu wallet MUST always be active in the app. Settings MUST always show the default Lightning address, the NWC wallet and the Cashu wallet, whatever the active node's `escrow_mode` (`lightning`, `cashu` or not advertised). Lightning flows MUST keep working as they always have. The active node's escrow mode selects only the settlement flow of a trade on that node (hold invoice or Cashu escrow); it MUST NOT hide or disable any payment method.
 
 ### Key Entities
@@ -460,7 +460,7 @@ Users manage their cryptographic identity from the Account screen: view their 12
 - **SC-005**: Account recovery via 12 secret words succeeds 100% of the time on a new device — users never permanently lose access to their identity.
 - **SC-006**: Chat messages are delivered to the counterparty within 5 seconds under normal network conditions.
 - **SC-007**: The order book loads and displays available orders within 3 seconds of opening the app on a standard mobile connection.
-- **SC-008**: The app is fully localized in all 6 supported languages (EN, ES, IT, FR, DE, NL) with no untranslated strings visible to users.
+- **SC-008**: The app is fully localized in all 7 supported languages (EN, ES, IT, FR, DE, NL, PT) with no untranslated strings visible to users.
 - **SC-009**: Dispute resolution is reachable within 2 taps from the Trade Detail screen for any active trade.
 - **SC-010**: When NWC is connected and responsive, the manual invoice steps are eliminated for 100% of trades.
 
@@ -471,7 +471,7 @@ Users manage their cryptographic identity from the Account screen: view their 12
 - The app supports dark mode (default on first launch) and light mode. Both themes must be fully implemented and switchable from Settings.
 - The Mostro protocol over Nostr is the sole backend transport; no centralized server or REST API is used.
 - Hold invoices are a protocol-level constraint for securing seller funds during a trade; the app cannot change this mechanism.
-- The original 5 languages (EN, ES, IT, FR, DE) are covered by the existing v1 localization files; new strings follow the same format. Dutch (NL) was added later.
+- The original 5 languages (EN, ES, IT, FR, DE) are covered by the existing v1 localization files; new strings follow the same format. Dutch (NL) and Brazilian Portuguese (PT) were added later.
 - "Days active" in reputation refers to days since the user's first recorded rating, not account creation date.
 - The app targets mobile (iOS and Android), web (PWA), and desktop (macOS, Windows, Linux) as per Constitution Principle V. Web is not optional — it must be a fully functional target from day one. Mobile is the primary design reference.
 - Push notifications use a background delivery mechanism; in-app notifications handle foreground delivery.

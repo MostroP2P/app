@@ -11,6 +11,7 @@ import 'app_localizations_es.dart';
 import 'app_localizations_fr.dart';
 import 'app_localizations_it.dart';
 import 'app_localizations_nl.dart';
+import 'app_localizations_pt.dart';
 
 // ignore_for_file: type=lint
 
@@ -104,6 +105,7 @@ abstract class AppLocalizations {
     Locale('fr'),
     Locale('it'),
     Locale('nl'),
+    Locale('pt'),
   ];
 
   /// Application name
@@ -117,12 +119,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Loading…'**
   String get loading;
-
-  /// Generic error label
-  ///
-  /// In en, this message translates to:
-  /// **'Error'**
-  String get error;
 
   /// Screen-reader-only announcement when a button action fails and the button enters its cooldown state
   ///
@@ -289,7 +285,7 @@ abstract class AppLocalizations {
   /// Dispute info card chip: a solver has the dispute
   ///
   /// In en, this message translates to:
-  /// **'In-progress'**
+  /// **'In progress'**
   String get disputeStatusInProgress;
 
   /// Dispute info card chip: a solver's verdict ended the dispute
@@ -301,13 +297,13 @@ abstract class AppLocalizations {
   /// Dispute info card: status sentence while a solver reviews the dispute (or one has taken it)
   ///
   /// In en, this message translates to:
-  /// **'This dispute is currently in progress. A solver is reviewing your case.'**
+  /// **'This dispute is currently in progress. A resolver is reviewing your case.'**
   String get disputeInProgress;
 
   /// Dispute info card: first instruction bullet
   ///
   /// In en, this message translates to:
-  /// **'Wait for a solver to take your dispute. Once they arrive, share any relevant evidence to help clarify the situation.'**
+  /// **'Wait for a resolver to take your dispute. Once they arrive, share any relevant evidence to help clarify the situation.'**
   String get disputeInstruction1;
 
   /// Dispute info card: second instruction bullet
@@ -325,19 +321,19 @@ abstract class AppLocalizations {
   /// Dispute info card: status sentence when the user (buyer) opened the dispute and no solver took it yet
   ///
   /// In en, this message translates to:
-  /// **'You opened this dispute against the seller {counterparty}, please read carefully below:'**
+  /// **'You opened this dispute against the seller {counterparty}. Please read the following carefully:'**
   String disputeOpenedByYouAgainstSeller(String counterparty);
 
   /// Dispute info card: status sentence when the user (seller) opened the dispute and no solver took it yet
   ///
   /// In en, this message translates to:
-  /// **'You opened this dispute against the buyer {counterparty}, please read carefully below:'**
+  /// **'You opened this dispute against the buyer {counterparty}. Please read the following carefully:'**
   String disputeOpenedByYouAgainstBuyer(String counterparty);
 
   /// Dispute info card: status sentence when the peer opened the dispute and no solver took it yet
   ///
   /// In en, this message translates to:
-  /// **'Waiting for admin assignment'**
+  /// **'Waiting for a resolver to take the dispute'**
   String get disputeWaitingForAdmin;
 
   /// Resolution text shown to the seller when admin released funds to the buyer
@@ -349,7 +345,7 @@ abstract class AppLocalizations {
   /// Resolution text shown to the buyer when admin returned funds to the seller
   ///
   /// In en, this message translates to:
-  /// **'The dispute resolver canceled the order and returned the sats to the seller. You did not receive the sats.'**
+  /// **'The dispute resolver cancelled the order and returned the sats to the seller. You did not receive the sats.'**
   String get disputeLostFundsToSeller;
 
   /// Walkthrough slide 1: title
@@ -751,7 +747,7 @@ abstract class AppLocalizations {
   /// Dialog body for refreshing user data
   ///
   /// In en, this message translates to:
-  /// **'This will re-fetch your trades and orders from the Mostro instance. Use this if you think your data is out of sync or orders are missing.'**
+  /// **'This will re-fetch your trades and orders from the Mostro node. Use this if you think your data is out of sync or orders are missing.'**
   String get refreshUserDialogContent;
 
   /// Button label to hide sensitive information
@@ -1147,13 +1143,13 @@ abstract class AppLocalizations {
   /// Trust row of a node card: the anti-abuse bond the node requires
   ///
   /// In en, this message translates to:
-  /// **'Bond {pct}%'**
+  /// **'Deposit {pct}%'**
   String nodeBondPct(String pct);
 
   /// Trust row of a node card: the node requires no bond
   ///
   /// In en, this message translates to:
-  /// **'No bond'**
+  /// **'No deposit'**
   String get nodeBondNone;
 
   /// Availability line of a node card
@@ -1483,19 +1479,19 @@ abstract class AppLocalizations {
   /// Body text for the cancel-trade confirmation dialog once the trade is active: the cancel is a cooperative request
   ///
   /// In en, this message translates to:
-  /// **'Requesting a cooperative cancel. The other party must also agree for the trade to be fully cancelled.'**
+  /// **'Requesting a cooperative cancel. Your counterpart must also agree for the trade to be fully cancelled.'**
   String get cancelTradeDialogContent;
 
   /// Body text for the cancel-trade confirmation dialog before the trade is active (pending, waiting for the invoice or the hold-invoice payment): the daemon cancels at once
   ///
   /// In en, this message translates to:
-  /// **'The trade has not started yet, so it is cancelled right away. The other party does not need to agree.'**
+  /// **'The trade has not started yet, so it is cancelled right away. Your counterpart does not need to agree.'**
   String get cancelTradeDialogContentNotStarted;
 
   /// Body text for the cancel-trade confirmation dialog while the order is only known to be taken (in progress): the trade may or may not be active yet
   ///
   /// In en, this message translates to:
-  /// **'If the trade has not started yet, it is cancelled right away. If it has, the other party must also agree.'**
+  /// **'If the trade has not started yet, it is cancelled right away. If it has, your counterpart must also agree.'**
   String get cancelTradeDialogContentMaybeStarted;
 
   /// Negative button label in a confirmation dialog
@@ -1537,13 +1533,13 @@ abstract class AppLocalizations {
   /// Notifications card body on the daemon confirming this user's cooperative-cancel request
   ///
   /// In en, this message translates to:
-  /// **'You asked to cancel this trade. It stays open until the other party also cancels. If they do not respond, you can open a dispute.'**
+  /// **'You asked to cancel this trade. It stays open until your counterpart also cancels. If they do not respond, you can open a dispute.'**
   String get tradeCardCancelRequestedByMeMessage;
 
   /// Notifications card title when the counterparty asked to cancel an active trade (protocol cancel.md); this user decides whether to accept
   ///
   /// In en, this message translates to:
-  /// **'The other party wants to cancel'**
+  /// **'Your counterpart wants to cancel'**
   String get tradeCardCancelRequestedByPeerTitle;
 
   /// Notifications card body when the counterparty asked to cancel an active trade
@@ -1555,13 +1551,13 @@ abstract class AppLocalizations {
   /// Notice on the trade screen while this user's cooperative-cancel request waits for the other party
   ///
   /// In en, this message translates to:
-  /// **'You asked to cancel this trade. It stays open until the other party also cancels. If they do not respond, you can open a dispute.'**
+  /// **'You asked to cancel this trade. It stays open until your counterpart also cancels. If they do not respond, you can open a dispute.'**
   String get tradeCancelRequestedByMeNotice;
 
   /// Notice on the trade screen while the counterparty's cooperative-cancel request waits for this user
   ///
   /// In en, this message translates to:
-  /// **'The other party asked to cancel this trade. Accept to end it with no funds moved, or keep trading.'**
+  /// **'Your counterpart asked to cancel this trade. Accept to end it with no funds moved, or keep trading.'**
   String get tradeCancelRequestedByPeerNotice;
 
   /// Label of the cancel button once the counterparty asked to cancel: this user's cancel accepts theirs and ends the trade
@@ -1573,7 +1569,7 @@ abstract class AppLocalizations {
   /// Body text for the cancel-trade confirmation dialog when the counterparty already asked to cancel: this cancel accepts theirs
   ///
   /// In en, this message translates to:
-  /// **'The other party asked to cancel. Cancelling now ends the trade for both of you and no funds are moved.'**
+  /// **'Your counterpart asked to cancel. Cancelling now ends the trade for both of you and no funds are moved.'**
   String get cancelTradeDialogContentAccept;
 
   /// Snackbar shown when the fiat-sent action fails
@@ -1615,7 +1611,7 @@ abstract class AppLocalizations {
   /// Primary CTA for the seller to open the pay hold invoice screen
   ///
   /// In en, this message translates to:
-  /// **'Pay hold invoice'**
+  /// **'Pay invoice'**
   String get payHoldInvoiceButton;
 
   /// Button label to open a dispute on an in-progress trade
@@ -1888,7 +1884,7 @@ abstract class AppLocalizations {
   /// **'Supported Networks'**
   String get aboutSupportedNetworksLabel;
 
-  /// Suffix appended to sats amounts on the About screen
+  /// Unit written after a sats amount: the minimum deposit row of the node technical data screen, the Cashu wallet balance and the amount rows of the lock-escrow screen
   ///
   /// In en, this message translates to:
   /// **'Satoshis'**
@@ -1909,7 +1905,7 @@ abstract class AppLocalizations {
   /// About screen — anti-abuse bond section header
   ///
   /// In en, this message translates to:
-  /// **'Anti-abuse Bond'**
+  /// **'Anti-abuse Deposit'**
   String get aboutAntiAbuseBondSection;
 
   /// About screen — value shown when a bond setting is on
@@ -1933,7 +1929,7 @@ abstract class AppLocalizations {
   /// About screen — bond status row label
   ///
   /// In en, this message translates to:
-  /// **'Bond status'**
+  /// **'Deposit status'**
   String get aboutBondStatusLabel;
 
   /// About screen — bond applies-to row label
@@ -1963,25 +1959,25 @@ abstract class AppLocalizations {
   /// About screen — bond amount percentage row label
   ///
   /// In en, this message translates to:
-  /// **'Bond amount'**
+  /// **'Deposit amount'**
   String get aboutBondAmountLabel;
 
   /// About screen — minimum bond row label
   ///
   /// In en, this message translates to:
-  /// **'Minimum bond'**
+  /// **'Minimum deposit'**
   String get aboutBondBaseAmountLabel;
 
   /// About screen — node share of a slashed bond row label
   ///
   /// In en, this message translates to:
-  /// **'Node share on slash'**
+  /// **'Node\'s share of a forfeited deposit'**
   String get aboutBondNodeShareLabel;
 
   /// About screen — slash on waiting timeout row label
   ///
   /// In en, this message translates to:
-  /// **'Slash on waiting timeout'**
+  /// **'Forfeited when a step times out'**
   String get aboutBondSlashOnTimeoutLabel;
 
   /// About screen — bond payout claim window row label
@@ -2041,7 +2037,7 @@ abstract class AppLocalizations {
   /// Instruction shown to the seller prompting them to pay the hold invoice
   ///
   /// In en, this message translates to:
-  /// **'Pay the hold invoice to lock the funds and start the trade.'**
+  /// **'Pay the invoice to lock the sats and start the trade.'**
   String get tradeWaitingPaymentSellerInstruction;
 
   /// Error message shown when a trade fails to load
@@ -2053,7 +2049,7 @@ abstract class AppLocalizations {
   /// Loading message shown while the Mostro daemon has not yet sent the hold invoice
   ///
   /// In en, this message translates to:
-  /// **'Waiting for hold invoice...'**
+  /// **'Waiting for the invoice…'**
   String get tradeWaitingForHoldInvoice;
 
   /// Share action button label on the pay invoice screen
@@ -2071,7 +2067,7 @@ abstract class AppLocalizations {
   /// Text shown while waiting for the Lightning payment to be confirmed after paying the hold invoice
   ///
   /// In en, this message translates to:
-  /// **'Waiting for payment confirmation...'**
+  /// **'Waiting for payment confirmation…'**
   String get waitingForPaymentConfirmation;
 
   /// Neutral notice shown when the order reaches a terminal state (canceled, cooperatively canceled, canceled by admin, or expired) while the user is on the add-invoice or pay-invoice screen
@@ -2089,7 +2085,7 @@ abstract class AppLocalizations {
   /// Snackbar shown when the Mostro node does not respond to a new order within the timeout — the order was not created
   ///
   /// In en, this message translates to:
-  /// **'No response received, check your connection and try again later'**
+  /// **'No response received. Check your connection and try again later.'**
   String get sessionTimeoutMessage;
 
   /// Snackbar shown when no relay accepted an outgoing message: every relay refused it, timed out or was unreachable, so it may not have reached the Mostro node (a relay that timed out may still have forwarded it) — unlike sessionTimeoutMessage, where a relay took the message and no reply came back
@@ -2443,7 +2439,7 @@ abstract class AppLocalizations {
   /// Subtitle of the new messages notification toggle
   ///
   /// In en, this message translates to:
-  /// **'Messages from your trade counterparty'**
+  /// **'Messages from your trade counterpart'**
   String get notifNewMessagesSubtitle;
 
   /// Title of the payment alerts notification toggle
@@ -2557,7 +2553,7 @@ abstract class AppLocalizations {
   /// My Trades status filter: canceled
   ///
   /// In en, this message translates to:
-  /// **'Canceled'**
+  /// **'Cancelled'**
   String get tradeFilterCanceled;
 
   /// My Trades status filter: dispute
@@ -2689,7 +2685,7 @@ abstract class AppLocalizations {
   /// Headline for seller while waiting for payment
   ///
   /// In en, this message translates to:
-  /// **'Pay the hold invoice to lock the sats'**
+  /// **'Pay the invoice to lock the sats'**
   String get tradeHeadlineWaitingPaymentSeller;
 
   /// Headline for buyer to send fiat
@@ -2782,7 +2778,7 @@ abstract class AppLocalizations {
   /// **'Order taken'**
   String get tradeStepOrderTaken;
 
-  /// Timeline step for buyer: share invoice
+  /// Trade screen timeline, step 2 for the buyer: the seller locks the sats (the seller's version is tradeStepInvoiceSeller)
   ///
   /// In en, this message translates to:
   /// **'The seller locks the sats'**
@@ -2881,7 +2877,7 @@ abstract class AppLocalizations {
   /// Tooltip for the trade info toggle in the chat room
   ///
   /// In en, this message translates to:
-  /// **'Exchange Info'**
+  /// **'Trade Info'**
   String get exchangeInfoTooltip;
 
   /// Tooltip for the user info toggle in the chat room
@@ -3151,7 +3147,7 @@ abstract class AppLocalizations {
   /// Body of the price types info dialog
   ///
   /// In en, this message translates to:
-  /// **'Market Price: Your order price follows the market rate with a premium/discount percentage applied.\n\nFixed Price: You set an exact price in satoshis.'**
+  /// **'Market Price: Your order follows the market rate, with the premium or discount you set.\n\nFixed Price: You set the exact sats amount; it does not follow the market.'**
   String get priceTypesDialogContent;
 
   /// Create-order screen title (sentence case, not caps)
@@ -3349,7 +3345,7 @@ abstract class AppLocalizations {
   /// Hint for the custom payment method input
   ///
   /// In en, this message translates to:
-  /// **'Custom payment method...'**
+  /// **'Custom payment method…'**
   String get customPaymentMethodHint;
 
   /// Validation error when the amount is out of range
@@ -3685,7 +3681,7 @@ abstract class AppLocalizations {
   /// NWC pay button label while paying
   ///
   /// In en, this message translates to:
-  /// **'Paying...'**
+  /// **'Paying…'**
   String get payingStatus;
 
   /// NWC pay button label
@@ -3697,7 +3693,7 @@ abstract class AppLocalizations {
   /// Status while auto-generating a Lightning invoice via NWC
   ///
   /// In en, this message translates to:
-  /// **'Generating invoice via NWC...'**
+  /// **'Generating invoice via NWC…'**
   String get generatingInvoiceNwc;
 
   /// Error when NWC invoice auto-generation fails
@@ -3715,7 +3711,7 @@ abstract class AppLocalizations {
   /// Dispute list-item summary: resolved in the buyer's favour
   ///
   /// In en, this message translates to:
-  /// **'Dispute resolved in buyer\'s favour'**
+  /// **'Dispute resolved in the buyer\'s favour'**
   String get disputeDescResolvedBuyerFavour;
 
   /// Dispute list-item summary: resolved in the viewing user's favour
@@ -3727,7 +3723,7 @@ abstract class AppLocalizations {
   /// Dispute list-item summary: resolved in the seller's favour
   ///
   /// In en, this message translates to:
-  /// **'Dispute resolved in seller\'s favour'**
+  /// **'Dispute resolved in the seller\'s favour'**
   String get disputeDescResolvedSellerFavour;
 
   /// Dispute list-item summary: order cancelled cooperatively
@@ -3751,7 +3747,7 @@ abstract class AppLocalizations {
   /// Dispute list-item summary: the counterpart opened the dispute
   ///
   /// In en, this message translates to:
-  /// **'Counterpart opened this dispute'**
+  /// **'Your counterpart opened this dispute'**
   String get disputeDescCounterpartOpened;
 
   /// Notification bell accessibility label when there are no unread notifications
@@ -3793,37 +3789,37 @@ abstract class AppLocalizations {
   /// Trade detail durable notice after a dispute-cause slash; sats formatted
   ///
   /// In en, this message translates to:
-  /// **'The node slashed your {sats}-sat bond in this dispute.'**
+  /// **'Your {sats}-sat deposit was forfeited in this dispute.'**
   String bondSlashedTradeNoticeDispute(String sats);
 
   /// Trade detail durable notice after a timeout slash; sats formatted
   ///
   /// In en, this message translates to:
-  /// **'The node slashed your {sats}-sat bond after a step timed out.'**
+  /// **'Your {sats}-sat deposit was forfeited after a step timed out.'**
   String bondSlashedTradeNoticeTimeout(String sats);
 
   /// Title of the notification shown when the user's anti-abuse bond is slashed
   ///
   /// In en, this message translates to:
-  /// **'Bond slashed'**
+  /// **'Deposit forfeited'**
   String get bondSlashedTitle;
 
   /// Bond-slashed notification body when the slash was caused by a waiting-state timeout
   ///
   /// In en, this message translates to:
-  /// **'Your {amount}-sat anti-abuse bond for order {orderId} was forfeited after a waiting-state timeout. Your order status is unchanged.'**
+  /// **'Your {amount}-sat deposit for order {orderId} was forfeited after a step timed out. Your order status is unchanged.'**
   String bondSlashedMessageTimeout(String amount, String orderId);
 
   /// Bond-slashed notification body when the slash was caused by a dispute resolution
   ///
   /// In en, this message translates to:
-  /// **'Your {amount}-sat anti-abuse bond for order {orderId} was forfeited after a dispute resolution. Your order status is unchanged.'**
+  /// **'Your {amount}-sat deposit for order {orderId} was forfeited when the dispute was resolved. Your order status is unchanged.'**
   String bondSlashedMessageDispute(String amount, String orderId);
 
   /// Bond-slashed detail value: the slash cause was a waiting-state timeout
   ///
   /// In en, this message translates to:
-  /// **'Waiting-state timeout'**
+  /// **'A step timed out'**
   String get bondSlashedCauseTimeout;
 
   /// Bond-slashed detail value: the slash cause was a dispute resolution
@@ -3841,7 +3837,7 @@ abstract class AppLocalizations {
   /// Bond-slashed detail label for the slashed bond amount
   ///
   /// In en, this message translates to:
-  /// **'Bond amount'**
+  /// **'Deposit amount'**
   String get bondSlashedDetailAmount;
 
   /// Bond-slashed detail label for the slash cause
@@ -3964,19 +3960,19 @@ abstract class AppLocalizations {
   /// **'Cashu cannot run without a mint — set one below.'**
   String get settingsEscrowCashuUnavailable;
 
-  /// No description provided for @tradeStatusPayoutPending.
+  /// Status label while the seller has released the sats and the Lightning payment to the buyer is still on its way: on the user's own order and as an option of the My Trades status filter
   ///
   /// In en, this message translates to:
   /// **'Payout pending'**
   String get tradeStatusPayoutPending;
 
-  /// No description provided for @tradeHeadlinePayoutPending.
+  /// Trade screen headline while the seller has released the sats and the Lightning payment to the buyer is still on its way
   ///
   /// In en, this message translates to:
   /// **'Waiting for the buyer payout'**
   String get tradeHeadlinePayoutPending;
 
-  /// No description provided for @tradeInstructionPayoutPending.
+  /// Trade screen text under the headline in the same state: the seller released the sats and the node is still paying the buyer
   ///
   /// In en, this message translates to:
   /// **'The seller released the escrow. Waiting for the Lightning payment to the buyer to succeed.'**
@@ -4069,7 +4065,7 @@ abstract class AppLocalizations {
   /// Step body for the buyer while the seller pays the hold invoice
   ///
   /// In en, this message translates to:
-  /// **'They\'re paying the hold invoice. Once the sats are locked, it\'s your turn to pay the fiat.'**
+  /// **'The seller is locking the sats. Once they are locked, it\'s your turn to pay the fiat.'**
   String get tradeBodyWaitingPaymentBuyer;
 
   /// Step body for the seller of an active trade; {method} is the payment method
@@ -4762,61 +4758,61 @@ abstract class AppLocalizations {
   /// **'No entries for this filter'**
   String get noLogsForFilter;
 
-  /// About screen redesign (12a/12b)
+  /// Group header for the app's own rows: on the About screen (license, source code) and as the first group of the node technical data screen and of its copied text (version, commit)
   ///
   /// In en, this message translates to:
   /// **'Application'**
   String get aboutAppSection;
 
-  /// About screen redesign (12a/12b)
+  /// About screen, Application group: row label of the link to the app's source code on GitHub; the row value is the repository name
   ///
   /// In en, this message translates to:
   /// **'Source code'**
   String get aboutSourceCodeLabel;
 
-  /// About screen redesign (12a/12b)
+  /// About screen, Documentation group: row label of a link to the user guide; shown twice, with the guide's language as the row value (aboutLanguageSpanish, aboutLanguageEnglish)
   ///
   /// In en, this message translates to:
   /// **'User guide'**
   String get aboutUserGuideLabel;
 
-  /// About screen redesign (12a/12b)
+  /// About screen, Documentation group: row label of the link to the technical documentation; the row value is its language (aboutLanguageEnglish)
   ///
   /// In en, this message translates to:
   /// **'Technical documentation'**
   String get aboutTechnicalDocsLabel;
 
-  /// About screen redesign (12a/12b)
+  /// About screen, Documentation group: row value naming the language of the linked user guide (Spanish)
   ///
   /// In en, this message translates to:
   /// **'Spanish'**
   String get aboutLanguageSpanish;
 
-  /// About screen redesign (12a/12b)
+  /// About screen, Documentation group: row value naming the language of the linked user guide or technical documentation (English)
   ///
   /// In en, this message translates to:
   /// **'English'**
   String get aboutLanguageEnglish;
 
-  /// About screen redesign (12a/12b)
+  /// About screen: group header above the card of the Mostro node the app is connected to; also the heading of the node's limits in the copied technical data
   ///
   /// In en, this message translates to:
   /// **'Connected node'**
   String get aboutConnectedNodeTitle;
 
-  /// About screen redesign (12a/12b)
+  /// About screen, connected-node card: label of the node's minimum order amount, in sats; also a line label in the copied technical data
   ///
   /// In en, this message translates to:
   /// **'Min order'**
   String get aboutMinOrderCell;
 
-  /// About screen redesign (12a/12b)
+  /// About screen, connected-node card: label of the node's maximum order amount, in sats; also a line label in the copied technical data
   ///
   /// In en, this message translates to:
   /// **'Max order'**
   String get aboutMaxOrderCell;
 
-  /// About screen redesign (12a/12b)
+  /// About screen, connected-node card: label of the node's trading fee, a percentage; also a line label in the copied technical data
   ///
   /// In en, this message translates to:
   /// **'Fee'**
@@ -4858,7 +4854,7 @@ abstract class AppLocalizations {
   /// **'Expiration'**
   String get aboutOrderExpiryCell;
 
-  /// About screen redesign (12a/12b)
+  /// About screen, last row of the connected-node card: opens the node technical data screen; the row value is the number of fields (aboutFieldCount)
   ///
   /// In en, this message translates to:
   /// **'Node technical data'**
@@ -4870,25 +4866,25 @@ abstract class AppLocalizations {
   /// **'{count, plural, =1{{count} field} other{{count} fields}}'**
   String aboutFieldCount(int count);
 
-  /// About screen redesign (12a/12b)
+  /// App bar title of the node technical data screen, opened from the About screen
   ///
   /// In en, this message translates to:
   /// **'Technical data'**
   String get aboutTechnicalDataTitle;
 
-  /// About screen redesign (12a/12b)
+  /// Node technical data screen (opened from About), Mostro group: row label of the Mostro node's public key (its Nostr identity)
   ///
   /// In en, this message translates to:
   /// **'Public key'**
   String get aboutPublicKeyLabel;
 
-  /// About screen redesign (12a/12b)
+  /// Node technical data screen (opened from About), Mostro group: row label of how long, in hours, a pending order stays in the book before it expires
   ///
   /// In en, this message translates to:
   /// **'Order expiration'**
   String get aboutOrderExpiryLabel;
 
-  /// About screen redesign (12a/12b)
+  /// Node technical data screen (opened from About), Mostro group: row label of how long, in seconds, the node waits for the next step of a taken order (the buyer's invoice or the seller's payment)
   ///
   /// In en, this message translates to:
   /// **'Waiting timeout'**
@@ -4906,43 +4902,43 @@ abstract class AppLocalizations {
   /// **'{count} s'**
   String aboutSecondsShort(int count);
 
-  /// About screen redesign (12a/12b)
+  /// Node technical data screen (opened from About), Lightning Network group: row label of the alias (display name) of the node's Lightning node
   ///
   /// In en, this message translates to:
   /// **'Alias'**
   String get aboutAliasLabel;
 
-  /// About screen redesign (12a/12b)
+  /// Node technical data screen (opened from About), Lightning Network group: row label of the public key of the node's Lightning node (not the Mostro Nostr key)
   ///
   /// In en, this message translates to:
   /// **'Node public key'**
   String get aboutNodePublicKeyLabel;
 
-  /// About screen redesign (12a/12b)
+  /// Node technical data screen (opened from About), Lightning Network group: row label of the connection URI of the node's Lightning node
   ///
   /// In en, this message translates to:
   /// **'Node URI'**
   String get aboutNodeUriLabel;
 
-  /// About screen redesign (12a/12b)
+  /// Node technical data screen (opened from About), Lightning Network group: row label of the commit hash of the LND build the node runs
   ///
   /// In en, this message translates to:
   /// **'Commit'**
   String get aboutCommitLabel;
 
-  /// About screen redesign (12a/12b)
+  /// Node technical data screen (opened from About), Lightning Network group: row label used when the node names one chain and one network; the value reads like 'bitcoin · mainnet'
   ///
   /// In en, this message translates to:
   /// **'Chain and network'**
   String get aboutChainNetworkLabel;
 
-  /// About screen redesign (12a/12b)
+  /// Footnote at the bottom of the node technical data screen
   ///
   /// In en, this message translates to:
   /// **'These details identify the node you trade with. Useful for support, or to verify it before sending funds.'**
   String get aboutTechnicalFootnote;
 
-  /// About screen redesign (12a/12b)
+  /// Node technical data screen: label of the bottom button and tooltip of the app bar icon that copy every field to the clipboard as text
   ///
   /// In en, this message translates to:
   /// **'Copy all data'**
@@ -4975,7 +4971,7 @@ abstract class AppLocalizations {
   /// My Trades row heading for a payout claim whose trade row is gone: the side of the trade is unknown, so no buy/sell direction is shown
   ///
   /// In en, this message translates to:
-  /// **'Bond claim'**
+  /// **'Deposit claim'**
   String get tradesDirectionBondClaim;
 
   /// First words of a trade card: the user buys bitcoin
@@ -5341,7 +5337,7 @@ abstract class AppLocalizations {
   /// 14a consequence row 1; bold is bondRowHeldBold
   ///
   /// In en, this message translates to:
-  /// **'The sats stay {bold}, they are not spent'**
+  /// **'The sats stay {bold}; they are not spent'**
   String bondRowHeld(String bold);
 
   /// 14a bold part of row 1
@@ -5443,7 +5439,7 @@ abstract class AppLocalizations {
   /// 14b context card: the node's bond percentage of the order amount
   ///
   /// In en, this message translates to:
-  /// **'{pct} % of the amount'**
+  /// **'{pct}% of the amount'**
   String bondContextPercent(String pct);
 
   /// Pay-bond screen, maker variant: cancel the unpublished order and its deposit invoice
@@ -5587,7 +5583,7 @@ abstract class AppLocalizations {
   /// Claim screen explainer while pending
   ///
   /// In en, this message translates to:
-  /// **'The other party\'s deposit was forfeited in your favour. Add an invoice for exactly this amount and the node pays it to you.'**
+  /// **'Your counterpart\'s deposit was forfeited in your favour. Add an invoice for exactly this amount and the node pays it to you.'**
   String get bondClaimExplainer;
 
   /// Claim invoice field label
@@ -5737,7 +5733,7 @@ abstract class AppLocalizations {
   /// Trade detail banner body while a claim is pending; sats is formatted
   ///
   /// In en, this message translates to:
-  /// **'The other party\'s deposit was forfeited in your favour. Add any Lightning invoice for {sats} sats to claim it.'**
+  /// **'Your counterpart\'s deposit was forfeited in your favour. Add any Lightning invoice for {sats} sats to claim it.'**
   String bondBannerPendingBody(String sats);
 
   /// Trade detail banner button while pending
@@ -5779,31 +5775,31 @@ abstract class AppLocalizations {
   /// Trade detail muted line once the claim window closed; date formatted
   ///
   /// In en, this message translates to:
-  /// **'The claim on the other party\'s deposit closed on {date}.'**
+  /// **'The claim on your counterpart\'s deposit closed on {date}.'**
   String bondBannerExpired(String date);
 
   /// Notification title for a new or re-prompted payout claim
   ///
   /// In en, this message translates to:
-  /// **'Bond payout to claim'**
+  /// **'Deposit payout to claim'**
   String get bondClaimNewTitle;
 
   /// Notification message for a new payout claim; sats is a plain number
   ///
   /// In en, this message translates to:
-  /// **'You can claim {sats} sats from a slashed bond. Add a Lightning invoice to receive them.'**
+  /// **'You can claim {sats} sats from a forfeited deposit. Add a Lightning invoice to receive them.'**
   String bondClaimNewMessage(String sats);
 
   /// Notification title once a payout was paid
   ///
   /// In en, this message translates to:
-  /// **'Bond payout received'**
+  /// **'Deposit payout received'**
   String get bondClaimPaidTitle;
 
   /// Notification message once a payout was paid; sats is a plain number
   ///
   /// In en, this message translates to:
-  /// **'Bond payout of {sats} sats received.'**
+  /// **'Deposit payout of {sats} sats received.'**
   String bondClaimPaidMessage(String sats);
 
   /// 14 footer link: cancels the take; nothing is committed yet, so it is not styled as destructive
@@ -5908,12 +5904,6 @@ abstract class AppLocalizations {
   /// **'The invoice expires in {time}'**
   String invoiceExpiresIn(String time);
 
-  /// 13a invoice field header (rendered uppercase)
-  ///
-  /// In en, this message translates to:
-  /// **'Lightning invoice or address'**
-  String get invoiceFieldLabel;
-
   /// 13a invoice field placeholder: says it accepts both an invoice and an address
   ///
   /// In en, this message translates to:
@@ -5977,7 +5967,7 @@ abstract class AppLocalizations {
   /// 13a validation error: the invoice amount differs from the trade's
   ///
   /// In en, this message translates to:
-  /// **'The invoice is for {actual} sats, it must be {expected}'**
+  /// **'The invoice is for {actual} sats; it must be for {expected} sats.'**
   String invoiceErrorWrongAmount(String actual, String expected);
 
   /// 13a validation error: the invoice expiry has passed
@@ -5989,7 +5979,7 @@ abstract class AppLocalizations {
   /// 13a validation error: the invoice is unexpired but has less lifetime left than the node's invoice_expiration_window
   ///
   /// In en, this message translates to:
-  /// **'The invoice expires in less than {minutes} minutes, the node needs more time to pay it'**
+  /// **'The invoice expires in less than {minutes} minutes; the node needs more time to pay it.'**
   String invoiceErrorExpiresTooSoon(String minutes);
 
   /// 13a validation error: starts like an invoice but does not decode
@@ -6091,7 +6081,7 @@ abstract class AppLocalizations {
   /// 13a validation error: the invoice is for another chain than the node's; both are LND network names like mainnet or testnet
   ///
   /// In en, this message translates to:
-  /// **'The invoice is for {invoice}, the node uses {node}'**
+  /// **'The invoice is for {invoice}; the node uses {node}.'**
   String invoiceErrorWrongNetwork(String invoice, String node);
 
   /// Every countdown above one hour (DS-CMP-21: invoice band, trade step, take order, my order, chat); hours is a whole number, minutes is always two digits (e.g. 1 h 05). Keep it short: it sits inside a sentence or a row
@@ -6133,19 +6123,19 @@ abstract class AppLocalizations {
   /// Notifications card body for a trade status change (issue #474); role-neutral, both sides see it
   ///
   /// In en, this message translates to:
-  /// **'The trade continues once the seller pays the hold invoice.'**
+  /// **'The trade continues once the seller locks the sats.'**
   String get tradeCardWaitingPaymentMessage;
 
   /// Notifications card title for a trade status change (issue #474); role-neutral, both sides see it
   ///
   /// In en, this message translates to:
-  /// **'Bond payment pending'**
+  /// **'Deposit payment pending'**
   String get tradeCardWaitingTakerBondTitle;
 
   /// Notifications card body for a trade status change (issue #474); role-neutral, both sides see it
   ///
   /// In en, this message translates to:
-  /// **'The taker\'s anti-abuse bond must be paid before the trade starts.'**
+  /// **'The taker\'s deposit must be paid before the trade starts.'**
   String get tradeCardWaitingTakerBondMessage;
 
   /// Notifications card title for a trade status change (issue #474); role-neutral, both sides see it
@@ -6199,13 +6189,13 @@ abstract class AppLocalizations {
   /// Notifications card title for a trade status change (issue #474); role-neutral, both sides see it
   ///
   /// In en, this message translates to:
-  /// **'Trade canceled'**
+  /// **'Trade cancelled'**
   String get tradeCardCanceledTitle;
 
   /// Notifications card body for a trade status change (issue #474); role-neutral, both sides see it
   ///
   /// In en, this message translates to:
-  /// **'The trade was canceled.'**
+  /// **'The trade was cancelled.'**
   String get tradeCardCanceledMessage;
 
   /// Notifications card title for a trade status change (issue #474); role-neutral, both sides see it
@@ -6223,7 +6213,7 @@ abstract class AppLocalizations {
   /// Notifications card title for a trade status change (issue #474); role-neutral, both sides see it
   ///
   /// In en, this message translates to:
-  /// **'Trade canceled by agreement'**
+  /// **'Trade cancelled by agreement'**
   String get tradeCardCooperativelyCanceledTitle;
 
   /// Notifications card body for a trade status change (issue #474); role-neutral, both sides see it
@@ -6247,13 +6237,13 @@ abstract class AppLocalizations {
   /// Notifications card title for a trade status change (issue #474); role-neutral, both sides see it
   ///
   /// In en, this message translates to:
-  /// **'Canceled by the resolver'**
+  /// **'Cancelled by the resolver'**
   String get tradeCardCanceledByAdminTitle;
 
   /// Notifications card body for a trade status change (issue #474); role-neutral, both sides see it
   ///
   /// In en, this message translates to:
-  /// **'The dispute resolver canceled the trade.'**
+  /// **'The dispute resolver cancelled the trade.'**
   String get tradeCardCanceledByAdminMessage;
 
   /// Notifications card title for a trade status change (issue #474); role-neutral, both sides see it
@@ -6295,19 +6285,19 @@ abstract class AppLocalizations {
   /// Notifications card copy for trades and chat (issue #474)
   ///
   /// In en, this message translates to:
-  /// **'The maker canceled the order.'**
+  /// **'The maker cancelled the order.'**
   String get tradeCardCanceledByMakerMessage;
 
   /// Notifications card copy for trades and chat (issue #474)
   ///
   /// In en, this message translates to:
-  /// **'Another user took this order before the bond was paid.'**
+  /// **'Another user took this order before the deposit was paid.'**
   String get tradeCardCanceledBondLostRaceMessage;
 
   /// Notifications card copy for trades and chat (issue #474)
   ///
   /// In en, this message translates to:
-  /// **'The bond invoice expired unpaid.'**
+  /// **'The deposit invoice expired unpaid.'**
   String get tradeCardCanceledBondExpiredMessage;
 
   /// Notifications card copy for trades and chat (issue #474)
@@ -6325,7 +6315,7 @@ abstract class AppLocalizations {
   /// Notifications chat card body; count is the number of unread messages
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, =1{1 new message from your trade partner} other{{count} new messages from your trade partner}}'**
+  /// **'{count, plural, =1{1 new message from your counterpart} other{{count} new messages from your counterpart}}'**
   String chatCardMessage(int count);
 
   /// Notifications chat card body; count is the number of unread messages
@@ -6427,13 +6417,13 @@ abstract class AppLocalizations {
   /// Funds-at-risk list entry: an anti-abuse bond is locked until its trade ends
   ///
   /// In en, this message translates to:
-  /// **'Bond locked'**
+  /// **'Deposit locked'**
   String get fundsAtRiskBondLocked;
 
   /// Funds-at-risk list entry: the user won a share of a slashed bond and has not been paid yet
   ///
   /// In en, this message translates to:
-  /// **'Bond payout not collected yet'**
+  /// **'Deposit payout not collected yet'**
   String get fundsAtRiskPayoutClaim;
 
   /// Funds-at-risk list entry: a live trade with none of the user's sats locked
@@ -6445,7 +6435,7 @@ abstract class AppLocalizations {
   /// Funds-at-risk list entry: a bond invoice that has not been paid and has not expired
   ///
   /// In en, this message translates to:
-  /// **'Bond invoice still payable'**
+  /// **'Deposit invoice still payable'**
   String get fundsAtRiskBondInvoicePending;
 
   /// Funds-at-risk list entry: ecash in the current user's Cashu wallet, stranded if the user is replaced
@@ -6790,12 +6780,6 @@ abstract class AppLocalizations {
   /// **'Cashu wallet'**
   String get cashuWalletTitle;
 
-  /// Settings — subtitle of the Cashu wallet entry
-  ///
-  /// In en, this message translates to:
-  /// **'Hold ecash for trades on this node'**
-  String get cashuWalletSubtitle;
-
   /// Cashu wallet — balance label
   ///
   /// In en, this message translates to:
@@ -7069,7 +7053,7 @@ abstract class AppLocalizations {
   /// Cashu wallet — permanent: an nsec-imported identity has no seed
   ///
   /// In en, this message translates to:
-  /// **'This account was imported from an nsec, so there is no recovery phrase to derive the wallet from. The Cashu wallet needs an account created from a recovery phrase.'**
+  /// **'This account was imported from a private key, so there are no secret words to derive the wallet from. The Cashu wallet needs an account created from secret words.'**
   String get cashuErrorNoMnemonic;
 
   /// Cashu wallet — a received token has no usable DLEQ proof
@@ -7321,7 +7305,7 @@ abstract class AppLocalizations {
   /// Body of the dialog confirming that the peer chat key goes to the dispute solver: what the solver can read, and only that
   ///
   /// In en, this message translates to:
-  /// **'If you confirm, the resolver of this dispute will be able to read the whole chat between you and your counterparty in this order, and only that chat: not the chats of your earlier or later trades. This cannot be undone. Sharing is optional, but it helps the resolver settle the dispute faster.'**
+  /// **'If you confirm, the resolver of this dispute will be able to read the whole chat between you and your counterpart in this trade, and only that chat: not the chats of your earlier or later trades. This cannot be undone. Sharing is optional, but it helps the resolver settle the dispute faster.'**
   String get shareChatKeyBody;
 
   /// Confirm button of the dialog that shares the peer chat key with the solver
@@ -7531,7 +7515,7 @@ abstract class AppLocalizations {
   /// Order link screen: explanation when the linked order was taken, canceled or expired
   ///
   /// In en, this message translates to:
-  /// **'Someone already took it, or it was canceled or expired.'**
+  /// **'Someone already took it, or it was cancelled or expired.'**
   String get orderLinkUnavailableBody;
 
   /// Order link screen: title when changing node or reading the trades failed (the body says which)
@@ -7636,7 +7620,7 @@ abstract class AppLocalizations {
   /// **'Bring the reputation you earned on lnp2pBot or on another Mostro to this one. Importing links the two accounts: the source and this Mostro learn they belong to the same person.'**
   String get reputationImportIntro;
 
-  /// No description provided for @reputationOpenLnp2pbot.
+  /// Import reputation screen: button that opens lnp2pBot in Telegram to get the reputation earned there
   ///
   /// In en, this message translates to:
   /// **'Get it from lnp2pBot'**
@@ -7675,7 +7659,7 @@ abstract class AppLocalizations {
   /// Under the figures: imported reputation is merged with the one on this node
   ///
   /// In en, this message translates to:
-  /// **'Imported reputation is added to the one you have here; your counterparties see them merged.'**
+  /// **'Imported reputation is added to the one you have here; your counterparts see them merged.'**
   String get reputationFiguresNote;
 
   /// Shown when the Telegram link could not be opened: the user can still do it by hand
@@ -7702,73 +7686,73 @@ abstract class AppLocalizations {
   /// **'Your identity changed. Check the public key shown here before trying again.'**
   String get reputationIdentityChanged;
 
-  /// No description provided for @reputationSettingTitle.
+  /// Settings row that opens the Reputation screen, and that screen's app bar title
   ///
   /// In en, this message translates to:
   /// **'Reputation'**
   String get reputationSettingTitle;
 
-  /// No description provided for @reputationImportCardBody.
+  /// Reputation screen, import card: explanation above the button that opens the import screen
   ///
   /// In en, this message translates to:
   /// **'Bring the reputation you earned on lnp2pBot or on another Mostro to this one.'**
   String get reputationImportCardBody;
 
-  /// No description provided for @reputationExportTitle.
+  /// Reputation screen: title of the export card and label of its export button
   ///
   /// In en, this message translates to:
   /// **'Export my reputation'**
   String get reputationExportTitle;
 
-  /// No description provided for @reputationExportCardBody.
+  /// Reputation screen, export card: explanation above the authorization field and the export button
   ///
   /// In en, this message translates to:
   /// **'Get a signed copy of the reputation you earned on this Mostro, to import it on another one.'**
   String get reputationExportCardBody;
 
-  /// No description provided for @reputationExportConfirmTitle.
+  /// Title of the dialog that confirms which identity an export is made for
   ///
   /// In en, this message translates to:
   /// **'Export to this identity?'**
   String get reputationExportConfirmTitle;
 
-  /// No description provided for @reputationExportConfirmBody.
+  /// Body of the export confirmation dialog; npub is the identity (public key) the exported reputation will be bound to
   ///
   /// In en, this message translates to:
   /// **'Your reputation on this Mostro will be exported for this identity:\n\n{npub}\n\nOnce exported, it is bound to it: exporting it for another identity later needs an authorization signed with this one.'**
   String reputationExportConfirmBody(String npub);
 
-  /// No description provided for @reputationExportConfirmButton.
+  /// Primary button of the export confirmation dialog
   ///
   /// In en, this message translates to:
   /// **'Export'**
   String get reputationExportConfirmButton;
 
-  /// No description provided for @reputationExported.
+  /// Reputation screen, export card: shown above the exported reputation, which the user copies to import it on another Mostro node
   ///
   /// In en, this message translates to:
   /// **'Your reputation is ready. Switch to the Mostro where you want it and import it; it is valid for 7 days.'**
   String get reputationExported;
 
-  /// No description provided for @reputationRebindBody.
+  /// Reputation screen, export card: how to move the reputation to a new identity; above the new-identity field and the Sign authorization button
   ///
   /// In en, this message translates to:
   /// **'Moving to a new identity? Sign an authorization for it here, with the identity your reputation is bound to now. Then, from the new identity, paste it in the authorization field above and export.'**
   String get reputationRebindBody;
 
-  /// No description provided for @reputationNewIdentityHint.
+  /// Reputation screen, export card: hint of the field for the public key (npub or hex) of the new identity to authorize
   ///
   /// In en, this message translates to:
   /// **'New identity (npub or hex)'**
   String get reputationNewIdentityHint;
 
-  /// No description provided for @reputationRebindSign.
+  /// Reputation screen: button that signs an authorization for the new identity; also the confirm button of the dialog shown before signing
   ///
   /// In en, this message translates to:
   /// **'Sign authorization'**
   String get reputationRebindSign;
 
-  /// No description provided for @reputationInvalidIdentity.
+  /// Reputation screen error: the new-identity field does not hold a valid npub or hex public key; also the fallback when signing the authorization fails
   ///
   /// In en, this message translates to:
   /// **'That is not a valid npub or hex key.'**
@@ -8098,6 +8082,7 @@ class _AppLocalizationsDelegate
     'fr',
     'it',
     'nl',
+    'pt',
   ].contains(locale.languageCode);
 
   @override
@@ -8119,6 +8104,8 @@ AppLocalizations lookupAppLocalizations(Locale locale) {
       return AppLocalizationsIt();
     case 'nl':
       return AppLocalizationsNl();
+    case 'pt':
+      return AppLocalizationsPt();
   }
 
   throw FlutterError(

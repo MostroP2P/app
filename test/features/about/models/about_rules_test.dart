@@ -142,7 +142,7 @@ void main() {
 
       expect(sections.map((s) => s.title), [
         'Mostro',
-        'Anti-abuse Bond',
+        'Anti-abuse Deposit',
         'Price',
         'Lightning Network',
       ]);
@@ -365,7 +365,7 @@ void main() {
 
       expect(sections.map((s) => s.title), [
         'Mostro',
-        'Anti-abuse Bond',
+        'Anti-abuse Deposit',
         'Lightning Network',
       ]);
       expect(sections.last.rows.map((r) => r.label), [
@@ -441,7 +441,7 @@ void main() {
       expect(_labels(sections), [
         'Public key',
         'Fiat Currencies',
-        'Bond status',
+        'Deposit status',
       ]);
       expect(nodeFieldCount(sections), 3);
     });

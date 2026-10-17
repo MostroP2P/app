@@ -87,9 +87,9 @@ void main() {
   testWidgets('explains the slash and offers the policy', (tester) async {
     final visited = await _pump(tester, trade: fakeTrade(id: 'order-1'));
 
-    expect(find.text('Bond slashed'), findsOneWidget);
+    expect(find.text('Deposit forfeited'), findsOneWidget);
     expect(
-      find.textContaining('forfeited after a dispute resolution'),
+      find.textContaining('forfeited when the dispute was resolved'),
       findsOneWidget,
     );
     expect(find.text('Dispute resolution'), findsOneWidget);
@@ -99,7 +99,7 @@ void main() {
     await tester.tap(_byId(AutomationIds.bondSlashedViewPolicy));
     await tester.pumpAndSettle();
     expect(visited, ['about']);
-    expect(find.text('Bond slashed'), findsNothing);
+    expect(find.text('Deposit forfeited'), findsNothing);
   });
 
   testWidgets('View trade opens the trade while its row exists', (
@@ -115,7 +115,7 @@ void main() {
     tester,
   ) async {
     await _pump(tester, trade: null);
-    expect(find.text('Bond slashed'), findsOneWidget);
+    expect(find.text('Deposit forfeited'), findsOneWidget);
     expect(_byId(AutomationIds.bondSlashedViewTrade), findsNothing);
     expect(_byId(AutomationIds.bondSlashedViewPolicy), findsOneWidget);
   });

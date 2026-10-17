@@ -547,8 +547,8 @@ void main() {
             ),
           },
         );
-        expect(find.text('Bond 2%'), findsOneWidget);
-        expect(find.text('Bond: not supported'), findsNothing);
+        expect(find.text('Deposit 2%'), findsOneWidget);
+        expect(find.text('Deposit: not supported'), findsNothing);
         await tester.tap(find.text('Kmbalache 🇨🇺'));
         await _settleSelection(tester);
         expect(notifier.selected, [_cubaPubkey]);

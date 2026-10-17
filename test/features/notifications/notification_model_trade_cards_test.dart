@@ -177,11 +177,11 @@ void main() {
       expect(card(1).resolvedTitle(en), en.chatCardTitle);
       expect(
         card(1).resolvedMessage(en),
-        '1 new message from your trade partner',
+        '1 new message from your counterpart',
       );
       expect(
         card(3).resolvedMessage(en),
-        '3 new messages from your trade partner',
+        '3 new messages from your counterpart',
       );
       expect(card(3).chatUnreadCount, 3);
       expect(card(3).resolvedDetail(en), isEmpty);

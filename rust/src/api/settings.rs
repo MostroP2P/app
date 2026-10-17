@@ -72,7 +72,7 @@ fn store() -> &'static SettingsStore {
 /// **Keep in sync** with the Flutter side: `AppLocalizations.supportedLocales`
 /// in `lib/l10n/` (or the `flutter_localizations` delegate configuration).
 /// Both lists must be updated together when adding a new language.
-const SUPPORTED_LOCALES: &[&str] = &["en", "es", "it", "fr", "de", "nl"];
+const SUPPORTED_LOCALES: &[&str] = &["en", "es", "it", "fr", "de", "nl", "pt"];
 
 fn validate_locale(locale: &str) -> Result<()> {
     if SUPPORTED_LOCALES.contains(&locale) {

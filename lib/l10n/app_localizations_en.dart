@@ -15,9 +15,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get loading => 'Loading…';
 
   @override
-  String get error => 'Error';
-
-  @override
   String get actionFailedAnnouncement => 'Action failed';
 
   @override
@@ -107,18 +104,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get disputeStatusInitiated => 'Initiated';
 
   @override
-  String get disputeStatusInProgress => 'In-progress';
+  String get disputeStatusInProgress => 'In progress';
 
   @override
   String get disputeStatusResolved => 'Resolved';
 
   @override
   String get disputeInProgress =>
-      'This dispute is currently in progress. A solver is reviewing your case.';
+      'This dispute is currently in progress. A resolver is reviewing your case.';
 
   @override
   String get disputeInstruction1 =>
-      'Wait for a solver to take your dispute. Once they arrive, share any relevant evidence to help clarify the situation.';
+      'Wait for a resolver to take your dispute. Once they arrive, share any relevant evidence to help clarify the situation.';
 
   @override
   String get disputeInstruction2 =>
@@ -130,16 +127,17 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String disputeOpenedByYouAgainstSeller(String counterparty) {
-    return 'You opened this dispute against the seller $counterparty, please read carefully below:';
+    return 'You opened this dispute against the seller $counterparty. Please read the following carefully:';
   }
 
   @override
   String disputeOpenedByYouAgainstBuyer(String counterparty) {
-    return 'You opened this dispute against the buyer $counterparty, please read carefully below:';
+    return 'You opened this dispute against the buyer $counterparty. Please read the following carefully:';
   }
 
   @override
-  String get disputeWaitingForAdmin => 'Waiting for admin assignment';
+  String get disputeWaitingForAdmin =>
+      'Waiting for a resolver to take the dispute';
 
   @override
   String get disputeLostFundsToBuyer =>
@@ -147,7 +145,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get disputeLostFundsToSeller =>
-      'The dispute resolver canceled the order and returned the sats to the seller. You did not receive the sats.';
+      'The dispute resolver cancelled the order and returned the sats to the seller. You did not receive the sats.';
 
   @override
   String get walkthroughWelcomeTitle => 'P2P Bitcoin, no KYC';
@@ -392,7 +390,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get refreshUserDialogContent =>
-      'This will re-fetch your trades and orders from the Mostro instance. Use this if you think your data is out of sync or orders are missing.';
+      'This will re-fetch your trades and orders from the Mostro node. Use this if you think your data is out of sync or orders are missing.';
 
   @override
   String get hideButtonLabel => 'Hide';
@@ -606,11 +604,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String nodeBondPct(String pct) {
-    return 'Bond $pct%';
+    return 'Deposit $pct%';
   }
 
   @override
-  String get nodeBondNone => 'No bond';
+  String get nodeBondNone => 'No deposit';
 
   @override
   String nodeStatusOnline(int count) {
@@ -800,15 +798,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cancelTradeDialogContent =>
-      'Requesting a cooperative cancel. The other party must also agree for the trade to be fully cancelled.';
+      'Requesting a cooperative cancel. Your counterpart must also agree for the trade to be fully cancelled.';
 
   @override
   String get cancelTradeDialogContentNotStarted =>
-      'The trade has not started yet, so it is cancelled right away. The other party does not need to agree.';
+      'The trade has not started yet, so it is cancelled right away. Your counterpart does not need to agree.';
 
   @override
   String get cancelTradeDialogContentMaybeStarted =>
-      'If the trade has not started yet, it is cancelled right away. If it has, the other party must also agree.';
+      'If the trade has not started yet, it is cancelled right away. If it has, your counterpart must also agree.';
 
   @override
   String get noButtonLabel => 'No';
@@ -830,11 +828,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tradeCardCancelRequestedByMeMessage =>
-      'You asked to cancel this trade. It stays open until the other party also cancels. If they do not respond, you can open a dispute.';
+      'You asked to cancel this trade. It stays open until your counterpart also cancels. If they do not respond, you can open a dispute.';
 
   @override
   String get tradeCardCancelRequestedByPeerTitle =>
-      'The other party wants to cancel';
+      'Your counterpart wants to cancel';
 
   @override
   String get tradeCardCancelRequestedByPeerMessage =>
@@ -842,18 +840,18 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tradeCancelRequestedByMeNotice =>
-      'You asked to cancel this trade. It stays open until the other party also cancels. If they do not respond, you can open a dispute.';
+      'You asked to cancel this trade. It stays open until your counterpart also cancels. If they do not respond, you can open a dispute.';
 
   @override
   String get tradeCancelRequestedByPeerNotice =>
-      'The other party asked to cancel this trade. Accept to end it with no funds moved, or keep trading.';
+      'Your counterpart asked to cancel this trade. Accept to end it with no funds moved, or keep trading.';
 
   @override
   String get acceptCancelButton => 'Accept cancel';
 
   @override
   String get cancelTradeDialogContentAccept =>
-      'The other party asked to cancel. Cancelling now ends the trade for both of you and no funds are moved.';
+      'Your counterpart asked to cancel. Cancelling now ends the trade for both of you and no funds are moved.';
 
   @override
   String get fiatSentFailed => 'Failed to mark fiat as sent. Please try again.';
@@ -876,7 +874,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cancelTradeButton => 'Cancel trade';
 
   @override
-  String get payHoldInvoiceButton => 'Pay hold invoice';
+  String get payHoldInvoiceButton => 'Pay invoice';
 
   @override
   String get openDisputeButton => 'Open dispute';
@@ -1024,7 +1022,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutFiatCurrenciesAll => 'All';
 
   @override
-  String get aboutAntiAbuseBondSection => 'Anti-abuse Bond';
+  String get aboutAntiAbuseBondSection => 'Anti-abuse Deposit';
 
   @override
   String get aboutBondEnabledValue => 'Enabled';
@@ -1036,7 +1034,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutBondUnsupportedValue => 'Not supported';
 
   @override
-  String get aboutBondStatusLabel => 'Bond status';
+  String get aboutBondStatusLabel => 'Deposit status';
 
   @override
   String get aboutBondAppliesToLabel => 'Applies to';
@@ -1051,16 +1049,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get aboutBondAppliesToBoth => 'Makers and takers';
 
   @override
-  String get aboutBondAmountLabel => 'Bond amount';
+  String get aboutBondAmountLabel => 'Deposit amount';
 
   @override
-  String get aboutBondBaseAmountLabel => 'Minimum bond';
+  String get aboutBondBaseAmountLabel => 'Minimum deposit';
 
   @override
-  String get aboutBondNodeShareLabel => 'Node share on slash';
+  String get aboutBondNodeShareLabel => 'Node\'s share of a forfeited deposit';
 
   @override
-  String get aboutBondSlashOnTimeoutLabel => 'Slash on waiting timeout';
+  String get aboutBondSlashOnTimeoutLabel => 'Forfeited when a step times out';
 
   @override
   String get aboutBondClaimWindowLabel => 'Payout claim window';
@@ -1103,13 +1101,13 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tradeWaitingPaymentSellerInstruction =>
-      'Pay the hold invoice to lock the funds and start the trade.';
+      'Pay the invoice to lock the sats and start the trade.';
 
   @override
   String get tradeLoadError => 'An error occurred while loading the trade.';
 
   @override
-  String get tradeWaitingForHoldInvoice => 'Waiting for hold invoice...';
+  String get tradeWaitingForHoldInvoice => 'Waiting for the invoice…';
 
   @override
   String get shareButtonLabel => 'Share';
@@ -1119,7 +1117,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get waitingForPaymentConfirmation =>
-      'Waiting for payment confirmation...';
+      'Waiting for payment confirmation…';
 
   @override
   String get orderNoLongerActive => 'This order is no longer active';
@@ -1129,7 +1127,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sessionTimeoutMessage =>
-      'No response received, check your connection and try again later';
+      'No response received. Check your connection and try again later.';
 
   @override
   String get noRelayAcceptedMessage =>
@@ -1335,8 +1333,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notifNewMessagesTitle => 'New messages';
 
   @override
-  String get notifNewMessagesSubtitle =>
-      'Messages from your trade counterparty';
+  String get notifNewMessagesSubtitle => 'Messages from your trade counterpart';
 
   @override
   String get notifPaymentAlertsTitle => 'Payment alerts';
@@ -1395,7 +1392,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tradeFilterSuccess => 'Success';
 
   @override
-  String get tradeFilterCanceled => 'Canceled';
+  String get tradeFilterCanceled => 'Cancelled';
 
   @override
   String get tradeFilterDispute => 'Dispute';
@@ -1473,7 +1470,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tradeHeadlineWaitingPaymentSeller =>
-      'Pay the hold invoice to lock the sats';
+      'Pay the invoice to lock the sats';
 
   @override
   String tradeHeadlineActiveBuyer(String amount) {
@@ -1588,7 +1585,7 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get exchangeInfoTooltip => 'Exchange Info';
+  String get exchangeInfoTooltip => 'Trade Info';
 
   @override
   String get userInfoTooltip => 'User Info';
@@ -1745,7 +1742,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get priceTypesDialogContent =>
-      'Market Price: Your order price follows the market rate with a premium/discount percentage applied.\n\nFixed Price: You set an exact price in satoshis.';
+      'Market Price: Your order follows the market rate, with the premium or discount you set.\n\nFixed Price: You set the exact sats amount; it does not follow the market.';
 
   @override
   String get newOrderTitle => 'New order';
@@ -1883,7 +1880,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get paymentMethodsLabel => 'Payment methods';
 
   @override
-  String get customPaymentMethodHint => 'Custom payment method...';
+  String get customPaymentMethodHint => 'Custom payment method…';
 
   @override
   String amountRangeError(String min, String max) {
@@ -2112,13 +2109,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notificationDeletedUndo => 'Undo';
 
   @override
-  String get payingStatus => 'Paying...';
+  String get payingStatus => 'Paying…';
 
   @override
   String get payWithWalletButton => 'Pay with Wallet';
 
   @override
-  String get generatingInvoiceNwc => 'Generating invoice via NWC...';
+  String get generatingInvoiceNwc => 'Generating invoice via NWC…';
 
   @override
   String get unableToGenerateInvoice =>
@@ -2129,14 +2126,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get disputeDescResolvedBuyerFavour =>
-      'Dispute resolved in buyer\'s favour';
+      'Dispute resolved in the buyer\'s favour';
 
   @override
   String get disputeDescResolvedYourFavour => 'Dispute resolved in your favour';
 
   @override
   String get disputeDescResolvedSellerFavour =>
-      'Dispute resolved in seller\'s favour';
+      'Dispute resolved in the seller\'s favour';
 
   @override
   String get disputeDescCooperativeCancel => 'Order cancelled cooperatively';
@@ -2148,7 +2145,8 @@ class AppLocalizationsEn extends AppLocalizations {
   String get disputeDescYouOpened => 'You opened this dispute';
 
   @override
-  String get disputeDescCounterpartOpened => 'Counterpart opened this dispute';
+  String get disputeDescCounterpartOpened =>
+      'Your counterpart opened this dispute';
 
   @override
   String get notificationsBellNoUnread =>
@@ -2188,29 +2186,29 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String bondSlashedTradeNoticeDispute(String sats) {
-    return 'The node slashed your $sats-sat bond in this dispute.';
+    return 'Your $sats-sat deposit was forfeited in this dispute.';
   }
 
   @override
   String bondSlashedTradeNoticeTimeout(String sats) {
-    return 'The node slashed your $sats-sat bond after a step timed out.';
+    return 'Your $sats-sat deposit was forfeited after a step timed out.';
   }
 
   @override
-  String get bondSlashedTitle => 'Bond slashed';
+  String get bondSlashedTitle => 'Deposit forfeited';
 
   @override
   String bondSlashedMessageTimeout(String amount, String orderId) {
-    return 'Your $amount-sat anti-abuse bond for order $orderId was forfeited after a waiting-state timeout. Your order status is unchanged.';
+    return 'Your $amount-sat deposit for order $orderId was forfeited after a step timed out. Your order status is unchanged.';
   }
 
   @override
   String bondSlashedMessageDispute(String amount, String orderId) {
-    return 'Your $amount-sat anti-abuse bond for order $orderId was forfeited after a dispute resolution. Your order status is unchanged.';
+    return 'Your $amount-sat deposit for order $orderId was forfeited when the dispute was resolved. Your order status is unchanged.';
   }
 
   @override
-  String get bondSlashedCauseTimeout => 'Waiting-state timeout';
+  String get bondSlashedCauseTimeout => 'A step timed out';
 
   @override
   String get bondSlashedCauseDispute => 'Dispute resolution';
@@ -2219,7 +2217,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get bondSlashedDetailOrder => 'Order';
 
   @override
-  String get bondSlashedDetailAmount => 'Bond amount';
+  String get bondSlashedDetailAmount => 'Deposit amount';
 
   @override
   String get bondSlashedDetailCause => 'Cause';
@@ -2360,7 +2358,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tradeBodyWaitingPaymentBuyer =>
-      'They\'re paying the hold invoice. Once the sats are locked, it\'s your turn to pay the fiat.';
+      'The seller is locking the sats. Once they are locked, it\'s your turn to pay the fiat.';
 
   @override
   String tradeBodyActiveSeller(String method) {
@@ -2930,7 +2928,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tradesDirectionSell => 'You sell';
 
   @override
-  String get tradesDirectionBondClaim => 'Bond claim';
+  String get tradesDirectionBondClaim => 'Deposit claim';
 
   @override
   String get tradesDirectionBuy => 'You buy';
@@ -3150,7 +3148,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String bondRowHeld(String bold) {
-    return 'The sats stay $bold, they are not spent';
+    return 'The sats stay $bold; they are not spent';
   }
 
   @override
@@ -3217,7 +3215,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String bondContextPercent(String pct) {
-    return '$pct % of the amount';
+    return '$pct% of the amount';
   }
 
   @override
@@ -3311,7 +3309,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get bondClaimExplainer =>
-      'The other party\'s deposit was forfeited in your favour. Add an invoice for exactly this amount and the node pays it to you.';
+      'Your counterpart\'s deposit was forfeited in your favour. Add an invoice for exactly this amount and the node pays it to you.';
 
   @override
   String get bondClaimFieldLabel => 'Lightning invoice';
@@ -3399,7 +3397,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String bondBannerPendingBody(String sats) {
-    return 'The other party\'s deposit was forfeited in your favour. Add any Lightning invoice for $sats sats to claim it.';
+    return 'Your counterpart\'s deposit was forfeited in your favour. Add any Lightning invoice for $sats sats to claim it.';
   }
 
   @override
@@ -3426,23 +3424,23 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String bondBannerExpired(String date) {
-    return 'The claim on the other party\'s deposit closed on $date.';
+    return 'The claim on your counterpart\'s deposit closed on $date.';
   }
 
   @override
-  String get bondClaimNewTitle => 'Bond payout to claim';
+  String get bondClaimNewTitle => 'Deposit payout to claim';
 
   @override
   String bondClaimNewMessage(String sats) {
-    return 'You can claim $sats sats from a slashed bond. Add a Lightning invoice to receive them.';
+    return 'You can claim $sats sats from a forfeited deposit. Add a Lightning invoice to receive them.';
   }
 
   @override
-  String get bondClaimPaidTitle => 'Bond payout received';
+  String get bondClaimPaidTitle => 'Deposit payout received';
 
   @override
   String bondClaimPaidMessage(String sats) {
-    return 'Bond payout of $sats sats received.';
+    return 'Deposit payout of $sats sats received.';
   }
 
   @override
@@ -3512,9 +3510,6 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get invoiceFieldLabel => 'Lightning invoice or address';
-
-  @override
   String get invoiceFieldHint => 'lnbc… or user@domain';
 
   @override
@@ -3551,7 +3546,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String invoiceErrorWrongAmount(String actual, String expected) {
-    return 'The invoice is for $actual sats, it must be $expected';
+    return 'The invoice is for $actual sats; it must be for $expected sats.';
   }
 
   @override
@@ -3559,7 +3554,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String invoiceErrorExpiresTooSoon(String minutes) {
-    return 'The invoice expires in less than $minutes minutes, the node needs more time to pay it';
+    return 'The invoice expires in less than $minutes minutes; the node needs more time to pay it.';
   }
 
   @override
@@ -3619,7 +3614,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String invoiceErrorWrongNetwork(String invoice, String node) {
-    return 'The invoice is for $invoice, the node uses $node';
+    return 'The invoice is for $invoice; the node uses $node.';
   }
 
   @override
@@ -3647,14 +3642,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tradeCardWaitingPaymentMessage =>
-      'The trade continues once the seller pays the hold invoice.';
+      'The trade continues once the seller locks the sats.';
 
   @override
-  String get tradeCardWaitingTakerBondTitle => 'Bond payment pending';
+  String get tradeCardWaitingTakerBondTitle => 'Deposit payment pending';
 
   @override
   String get tradeCardWaitingTakerBondMessage =>
-      'The taker\'s anti-abuse bond must be paid before the trade starts.';
+      'The taker\'s deposit must be paid before the trade starts.';
 
   @override
   String get tradeCardActiveTitle => 'Trade active';
@@ -3684,10 +3679,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tradeCardSuccessMessage => 'The trade finished successfully.';
 
   @override
-  String get tradeCardCanceledTitle => 'Trade canceled';
+  String get tradeCardCanceledTitle => 'Trade cancelled';
 
   @override
-  String get tradeCardCanceledMessage => 'The trade was canceled.';
+  String get tradeCardCanceledMessage => 'The trade was cancelled.';
 
   @override
   String get tradeCardExpiredTitle => 'Order expired';
@@ -3698,7 +3693,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tradeCardCooperativelyCanceledTitle =>
-      'Trade canceled by agreement';
+      'Trade cancelled by agreement';
 
   @override
   String get tradeCardCooperativelyCanceledMessage =>
@@ -3711,11 +3706,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tradeCardDisputeMessage => 'A dispute was opened on this trade.';
 
   @override
-  String get tradeCardCanceledByAdminTitle => 'Canceled by the resolver';
+  String get tradeCardCanceledByAdminTitle => 'Cancelled by the resolver';
 
   @override
   String get tradeCardCanceledByAdminMessage =>
-      'The dispute resolver canceled the trade.';
+      'The dispute resolver cancelled the trade.';
 
   @override
   String get tradeCardSettledByAdminTitle => 'Settled by the resolver';
@@ -3738,15 +3733,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get tradeCardUpdatedMessage => 'The status of this trade changed.';
 
   @override
-  String get tradeCardCanceledByMakerMessage => 'The maker canceled the order.';
+  String get tradeCardCanceledByMakerMessage =>
+      'The maker cancelled the order.';
 
   @override
   String get tradeCardCanceledBondLostRaceMessage =>
-      'Another user took this order before the bond was paid.';
+      'Another user took this order before the deposit was paid.';
 
   @override
   String get tradeCardCanceledBondExpiredMessage =>
-      'The bond invoice expired unpaid.';
+      'The deposit invoice expired unpaid.';
 
   @override
   String get chatCardTitle => 'New messages';
@@ -3759,8 +3755,8 @@ class AppLocalizationsEn extends AppLocalizations {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count new messages from your trade partner',
-      one: '1 new message from your trade partner',
+      other: '$count new messages from your counterpart',
+      one: '1 new message from your counterpart',
     );
     return '$_temp0';
   }
@@ -3845,16 +3841,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get fundsAtRiskSellerEscrow => 'Sats locked in escrow for a sale';
 
   @override
-  String get fundsAtRiskBondLocked => 'Bond locked';
+  String get fundsAtRiskBondLocked => 'Deposit locked';
 
   @override
-  String get fundsAtRiskPayoutClaim => 'Bond payout not collected yet';
+  String get fundsAtRiskPayoutClaim => 'Deposit payout not collected yet';
 
   @override
   String get fundsAtRiskTradeInProgress => 'Trade in progress';
 
   @override
-  String get fundsAtRiskBondInvoicePending => 'Bond invoice still payable';
+  String get fundsAtRiskBondInvoicePending => 'Deposit invoice still payable';
 
   @override
   String get fundsAtRiskCashuBalance => 'Ecash in the Cashu wallet';
@@ -4063,9 +4059,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get cashuWalletTitle => 'Cashu wallet';
 
   @override
-  String get cashuWalletSubtitle => 'Hold ecash for trades on this node';
-
-  @override
   String get cashuBalanceLabel => 'Balance';
 
   @override
@@ -4226,7 +4219,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get cashuErrorNoMnemonic =>
-      'This account was imported from an nsec, so there is no recovery phrase to derive the wallet from. The Cashu wallet needs an account created from a recovery phrase.';
+      'This account was imported from a private key, so there are no secret words to derive the wallet from. The Cashu wallet needs an account created from secret words.';
 
   @override
   String get cashuErrorTokenUnverified =>
@@ -4382,7 +4375,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get shareChatKeyBody =>
-      'If you confirm, the resolver of this dispute will be able to read the whole chat between you and your counterparty in this order, and only that chat: not the chats of your earlier or later trades. This cannot be undone. Sharing is optional, but it helps the resolver settle the dispute faster.';
+      'If you confirm, the resolver of this dispute will be able to read the whole chat between you and your counterpart in this trade, and only that chat: not the chats of your earlier or later trades. This cannot be undone. Sharing is optional, but it helps the resolver settle the dispute faster.';
 
   @override
   String get shareChatKeyConfirm => 'Share';
@@ -4512,7 +4505,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get orderLinkUnavailableBody =>
-      'Someone already took it, or it was canceled or expired.';
+      'Someone already took it, or it was cancelled or expired.';
 
   @override
   String get orderLinkFailedTitle => 'Couldn\'t open the order';
@@ -4622,7 +4615,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get reputationFiguresNote =>
-      'Imported reputation is added to the one you have here; your counterparties see them merged.';
+      'Imported reputation is added to the one you have here; your counterparts see them merged.';
 
   @override
   String get reputationOpenLnp2pbotFailed =>

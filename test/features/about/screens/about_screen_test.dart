@@ -35,15 +35,17 @@ const _enabledBondTags = {
   'bond_payout_claim_window_days': '15',
 };
 
+final _en = AppLocalizationsEn();
+
 /// Every bond parameter label, used to assert they stay hidden unless the
-/// policy is enabled.
-const _parameterLabels = [
-  'Applies to',
-  'Bond amount',
-  'Minimum bond',
-  'Node share on slash',
-  'Slash on waiting timeout',
-  'Payout claim window',
+/// policy is enabled. Read from the copy, so an absence check never goes stale.
+final _parameterLabels = [
+  _en.aboutBondAppliesToLabel,
+  _en.aboutBondAmountLabel,
+  _en.aboutBondBaseAmountLabel,
+  _en.aboutBondNodeShareLabel,
+  _en.aboutBondSlashOnTimeoutLabel,
+  _en.aboutBondClaimWindowLabel,
 ];
 
 Widget _app(ProviderContainer container, Widget home) =>
@@ -272,8 +274,8 @@ void main() {
         MostroInstance.fromTags(_tags(_enabledBondTags)),
       );
 
-      expect(find.text('ANTI-ABUSE BOND'), findsOneWidget);
-      expect(find.text('Bond status'), findsOneWidget);
+      expect(find.text('ANTI-ABUSE DEPOSIT'), findsOneWidget);
+      expect(find.text('Deposit status'), findsOneWidget);
       // Status row plus the slash-on-timeout row.
       expect(find.text('Enabled'), findsNWidgets(2));
       expect(find.text('Makers and takers'), findsOneWidget);
@@ -307,7 +309,7 @@ void main() {
         ),
       );
 
-      expect(find.text('ANTI-ABUSE BOND'), findsOneWidget);
+      expect(find.text('ANTI-ABUSE DEPOSIT'), findsOneWidget);
       expect(find.text('Disabled'), findsOneWidget);
       for (final label in _parameterLabels) {
         expect(find.text(label), findsNothing, reason: '$label must be hidden');
@@ -348,7 +350,7 @@ void main() {
         ],
       );
 
-      expect(find.text('Bond amount'), findsOneWidget);
+      expect(find.text('Deposit amount'), findsOneWidget);
 
       // Switching the active node re-resolves the policy.
       container.read(mostroPubkeyProvider.notifier).state = 'node-without-bond';
@@ -356,7 +358,7 @@ void main() {
       await tester.pump();
 
       expect(find.text('Disabled'), findsOneWidget);
-      expect(find.text('Bond amount'), findsNothing);
+      expect(find.text('Deposit amount'), findsNothing);
     });
   });
 
