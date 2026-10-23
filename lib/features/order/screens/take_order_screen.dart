@@ -102,7 +102,9 @@ class _TakeOrderScreenState extends ConsumerState<TakeOrderScreen> {
     _redirectIfParticipant();
     _rateTimer = Timer.periodic(_rateRefresh, (_) {
       final code = _lastOrder?.fiatCode;
-      if (code != null && mounted) ref.invalidate(exchangeRateProvider(code));
+      if (code != null && mounted) {
+        ref.invalidate(exchangeRateLookupProvider(code));
+      }
     });
   }
 

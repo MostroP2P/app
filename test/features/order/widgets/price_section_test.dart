@@ -5,9 +5,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/create_order_palette.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
+import 'package:mostro/features/order/providers/exchange_rate_provider.dart';
+import 'package:mostro/features/order/widgets/currency_section.dart';
 import 'package:mostro/features/order/providers/order_side_provider.dart';
 import 'package:mostro/features/order/widgets/price_section.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import '../../../support/catalogue_fixtures.dart';
 import '../../../support/provider_harness.dart';
 
 /// Pump [PriceSection] in Market mode with the premium provider seeded to
@@ -16,6 +19,7 @@ Future<ProviderContainer> _pump(
   WidgetTester tester, {
   required double premium,
   OrderType side = OrderType.sell,
+  List<Override> overrides = const [],
 }) async {
   tester.view.physicalSize = const Size(1200, 3000);
   tester.view.devicePixelRatio = 1.0;
@@ -24,6 +28,7 @@ Future<ProviderContainer> _pump(
     overrides: [
       premiumValueProvider.overrideWith((ref) => premium),
       orderSideProvider.overrideWith((ref) => side),
+      ...overrides,
     ],
   );
   await tester.pumpWidget(
@@ -256,6 +261,70 @@ void main() {
       await tester.tap(find.text('Fixed'));
       await tester.pumpAndSettle();
       expect(container.read(isMarketPriceProvider), isTrue);
+    });
+  });
+  group('PriceSection Market lock for a stablecoin (#884)', () {
+    const lockText =
+        "This node doesn't quote USDT at market price. Set a fixed amount in sats.";
+
+    Future<ProviderContainer> pumpWith(
+      WidgetTester tester, {
+      required String code,
+      required ExchangeRateLookup lookup,
+    }) => _pump(
+      tester,
+      premium: 0.0,
+      overrides: [
+        catalogueOverride(),
+        selectedFiatCodeProvider.overrideWith((ref) => code),
+        exchangeRateLookupProvider.overrideWith((ref, _) async => lookup),
+      ],
+    );
+
+    testWidgets(
+      'a rates event without the coin locks Market and moves to Fixed',
+      (tester) async {
+        final container = await pumpWith(
+          tester,
+          code: 'USDT',
+          lookup: const ExchangeRateLookup.notQuoted(),
+        );
+
+        expect(container.read(isMarketPriceProvider), isFalse);
+        expect(find.text(lockText), findsOneWidget);
+        final handle = tester.ensureSemantics();
+        expect(
+          tester.getSemantics(find.text('Market')),
+          isSemantics(isEnabled: false),
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets('a node that publishes no rates event leaves Market as today', (
+      tester,
+    ) async {
+      final container = await pumpWith(
+        tester,
+        code: 'USDT',
+        lookup: const ExchangeRateLookup.noRates(),
+      );
+
+      expect(container.read(isMarketPriceProvider), isTrue);
+      expect(find.text(lockText), findsNothing);
+    });
+
+    testWidgets('a fiat the node does not quote is never locked', (
+      tester,
+    ) async {
+      final container = await pumpWith(
+        tester,
+        code: 'USD',
+        lookup: const ExchangeRateLookup.notQuoted(),
+      );
+
+      expect(container.read(isMarketPriceProvider), isTrue);
+      expect(find.textContaining('at market price'), findsNothing);
     });
   });
 }
