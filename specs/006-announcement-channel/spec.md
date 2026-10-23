@@ -2,7 +2,8 @@
 
 **Feature Branch**: `006-announcement-channel`
 **Created**: 2026-08-26
-**Status**: In progress — steps 1 to 4 of §10 are built: parsing and the allowlist in
+**Status**: In progress — steps 1 to 5 of §10 are built (the publisher tool is
+`rust/src/bin/announce.rs`, the procedure `docs/ANNOUNCEMENTS.md`): parsing and the allowlist in
 `rust/src/nostr/announcements.rs`, the reader and its cache in
 `rust/src/nostr/announcement_reader.rs`, the bridge and the Announcements toggle in
 `rust/src/api/announcements.rs` and `lib/features/settings/providers/announcements_provider.dart`,
@@ -725,7 +726,15 @@ missing, how many characters over the limit a title is, why build metadata is re
 that a `max_version` at or below `min_version` reaches nobody because the bound is
 exclusive.
 
-The procedure belongs in `docs/` once the tool exists, not only in this spec.
+The procedure is **`docs/ANNOUNCEMENTS.md`**. What the tool settled (step 5 of §10):
+
+- The human edits a **draft**, not an event: `id`, `expires_in_days` (or `expiration` in
+  unix seconds, not both), `min_version` / `max_version`, `severity`, `url` and `locales`.
+  An unknown field is refused, so a typo in a key cannot silently drop a bound.
+- The tool adds `["z", "announcement"]` and `["y", "mostro", "Mostro v2"]` itself.
+- Every problem is reported at once, not only the first, and `critical` prints a reminder
+  of what it is for. The `rlib` crate type was added to `rust/Cargo.toml` so the binary
+  links the library; on `wasm32` the binary is an empty `main`.
 
 ---
 
@@ -765,7 +774,7 @@ PR per step, per the workflow in CLAUDE.md.
 | 2 | Fetch, verify, freshness, expiry, the `announcements` table and the schema bump (§4.2, §5) | Testable without a screen |
 | 3 | ~~The bridge surface + the Announcements toggle (§6.1, §7), then `./scripts/frb-generate.sh`~~ — **done** | The off switch before the surface |
 | 4 | ~~Rendering into the existing notification surface, seven locales of chrome (§6.2)~~ — **done** | Last, when there is something to show |
-| 5 | `rust/src/bin/announce.rs` + the publishing doc (§8) | With or just after step 1, sharing its validator |
+| 5 | ~~`rust/src/bin/announce.rs` + the publishing doc (§8)~~ — **done** | With or just after step 1, sharing its validator |
 | 6 | **Add the real npubs** — one line, its own PR, npubs checked against a source outside this repo | The only commit that makes the channel live |
 | 7 | **Land MostroP2P/protocol#56** — the `38387` registration (§3) | A number reserved only in this repo is not reserved; it should land before the reader ships, and it depends on nothing here |
 

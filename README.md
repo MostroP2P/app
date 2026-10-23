@@ -113,6 +113,7 @@ Status of the client's features across the Rust core and the Flutter UI.
 - [x] Range orders (create / take a slice / remainder republished)
 - [x] Cooperative cancellation (request / accept, with a notice for each side)
 - [x] In-app notifications (trade, dispute and chat events)
+- [x] Announcements — signed notices from the project (kind `38387`) in Notifications, with an off switch; see `docs/ANNOUNCEMENTS.md`
 - [x] Anti-abuse bond
 - [x] Multi-language (en, de, es, fr, it, nl, pt)
 - [x] Log report (Rust core logs, shared as a sanitized text report)
