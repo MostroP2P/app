@@ -4795,14 +4795,31 @@ class AppLocalizationsNl extends AppLocalizations {
       'Je reputatie is klaar. Schakel over naar de Mostro waar je ze wilt en importeer ze; ze is 7 dagen geldig.';
 
   @override
+  String get reputationRebindTitle => 'Overstappen op een nieuwe identiteit';
+
+  @override
   String get reputationRebindBody =>
-      'Stap je over op een nieuwe identiteit? Onderteken hier een toestemming voor de nieuwe, met de identiteit waaraan je reputatie nu gekoppeld is. Plak die daarna vanaf de nieuwe identiteit in het toestemmingsveld hierboven en exporteer.';
+      'Onderteken een toestemming voor de nieuwe identiteit met de identiteit waaraan je reputatie nu gekoppeld is: voor deze Mostro, of voor lnp2pBot als je haar daar hebt opgehaald.';
 
   @override
   String get reputationNewIdentityHint => 'Nieuwe identiteit (npub of hex)';
 
   @override
+  String get reputationRebindSignNode => 'Ondertekenen voor deze Mostro';
+
+  @override
+  String get reputationRebindSignBot => 'Ondertekenen voor lnp2pBot';
+
+  @override
   String get reputationRebindSign => 'Toestemming ondertekenen';
+
+  @override
+  String get reputationRebindSignedForNode =>
+      'Plak die vanaf de nieuwe identiteit in het toestemmingsveld van de exportkaart en exporteer.';
+
+  @override
+  String get reputationRebindSignedForBot =>
+      'lnp2pBot neemt dit pas aan nadat de nieuwe identiteit je reputatie daar heeft opgevraagd: open, als je dat nog niet deed, lnp2pBot vanaf de nieuwe identiteit met „Ophalen bij lnp2pBot” op het importscherm, en open daarna geen andere link naar de bot. Plak dit dan in die chat en bevestig. Het is een uur geldig.';
 
   @override
   String get reputationInvalidIdentity =>
@@ -4819,6 +4836,11 @@ class AppLocalizationsNl extends AppLocalizations {
   @override
   String reputationRebindConfirmBody(String npub) {
     return 'Wie deze identiteit bezit, kan je reputatie van deze Mostro exporteren, en je huidige identiteit kan dat niet meer:\n\n$npub\n\nOnderteken alleen voor een identiteit die van jou is.';
+  }
+
+  @override
+  String reputationRebindConfirmBodyBot(String npub) {
+    return 'Wie deze identiteit bezit, kan je reputatie van lnp2pBot exporteren, en je huidige identiteit kan dat niet meer:\n\n$npub\n\nOnderteken alleen voor een identiteit die van jou is.';
   }
 
   @override

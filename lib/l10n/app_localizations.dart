@@ -7842,23 +7842,53 @@ abstract class AppLocalizations {
   /// **'Your reputation is ready. Switch to the Mostro where you want it and import it; it is valid for 7 days.'**
   String get reputationExported;
 
-  /// Reputation screen, export card: how to move the reputation to a new identity; above the new-identity field and the Sign authorization button
+  /// Reputation screen: title of the card that signs an authorization to move an exported reputation to a new identity
   ///
   /// In en, this message translates to:
-  /// **'Moving to a new identity? Sign an authorization for it here, with the identity your reputation is bound to now. Then, from the new identity, paste it in the authorization field above and export.'**
+  /// **'Move to a new identity'**
+  String get reputationRebindTitle;
+
+  /// Reputation screen, move card: how to move the reputation to a new identity; above the new-identity field and the two sign buttons
+  ///
+  /// In en, this message translates to:
+  /// **'Sign an authorization for the new identity with the identity your reputation is bound to now: for this Mostro, or for lnp2pBot if you got it from there.'**
   String get reputationRebindBody;
 
-  /// Reputation screen, export card: hint of the field for the public key (npub or hex) of the new identity to authorize
+  /// Reputation screen, move card: hint of the field for the public key (npub or hex) of the new identity to authorize
   ///
   /// In en, this message translates to:
   /// **'New identity (npub or hex)'**
   String get reputationNewIdentityHint;
 
-  /// Reputation screen: button that signs an authorization for the new identity; also the confirm button of the dialog shown before signing
+  /// Reputation screen, move card: button that signs the authorization for the active node's issuer key; shown only while the node exports
+  ///
+  /// In en, this message translates to:
+  /// **'Sign for this Mostro'**
+  String get reputationRebindSignNode;
+
+  /// Reputation screen, move card: button that signs the authorization for lnp2pBot's issuer key
+  ///
+  /// In en, this message translates to:
+  /// **'Sign for lnp2pBot'**
+  String get reputationRebindSignBot;
+
+  /// Confirm button of the dialog shown before signing a rebind authorization
   ///
   /// In en, this message translates to:
   /// **'Sign authorization'**
   String get reputationRebindSign;
+
+  /// Reputation screen, move card: shown above an authorization signed for the active node, which the new identity pastes into the export card
+  ///
+  /// In en, this message translates to:
+  /// **'From the new identity, paste it in the authorization field of the export card and export.'**
+  String get reputationRebindSignedForNode;
+
+  /// Reputation screen, move card: shown above an authorization signed for lnp2pBot. The bot takes it only after the new identity opened the link from the import screen (lnp2pBot/bot#934). The quoted label is reputationOpenLnp2pbot
+  ///
+  /// In en, this message translates to:
+  /// **'lnp2pBot takes this only after the new identity asked it for your reputation: if you have not yet, open lnp2pBot from the new identity with \"Get it from lnp2pBot\" on the import screen, and open no other link to it afterwards. Then paste this in that chat and confirm. It is valid for one hour.'**
+  String get reputationRebindSignedForBot;
 
   /// Reputation screen error: the new-identity field does not hold a valid npub or hex public key; also the fallback when signing the authorization fails
   ///
@@ -7878,11 +7908,17 @@ abstract class AppLocalizations {
   /// **'Authorize this identity?'**
   String get reputationRebindConfirmTitle;
 
-  /// Dialog body before signing a rebind authorization: the key that will take the reputation over
+  /// Dialog body before signing a rebind authorization for the active node: the key that will take the reputation over
   ///
   /// In en, this message translates to:
   /// **'Whoever holds this identity will be able to export your reputation from this Mostro, and your current identity no longer will:\n\n{npub}\n\nSign only for an identity that is yours.'**
   String reputationRebindConfirmBody(String npub);
+
+  /// Dialog body before signing a rebind authorization for lnp2pBot: the key that will take the reputation over
+  ///
+  /// In en, this message translates to:
+  /// **'Whoever holds this identity will be able to export your reputation from lnp2pBot, and your current identity no longer will:\n\n{npub}\n\nSign only for an identity that is yours.'**
+  String reputationRebindConfirmBodyBot(String npub);
 
   /// Trade detail payout card (#823): row label before the destination the buyer's sats were paid to
   ///

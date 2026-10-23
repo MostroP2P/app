@@ -4799,14 +4799,31 @@ class AppLocalizationsIt extends AppLocalizations {
       'La tua reputazione è pronta. Passa al Mostro dove la vuoi e importala; è valida per 7 giorni.';
 
   @override
+  String get reputationRebindTitle => 'Passare a una nuova identità';
+
+  @override
   String get reputationRebindBody =>
-      'Passi a una nuova identità? Firma qui un\'autorizzazione per la nuova, con l\'identità a cui è legata ora la tua reputazione. Poi, dalla nuova identità, incollala nel campo di autorizzazione qui sopra ed esporta.';
+      'Firma un\'autorizzazione per la nuova identità con l\'identità a cui è legata ora la tua reputazione: per questo Mostro, o per lnp2pBot se l\'hai ottenuta lì.';
 
   @override
   String get reputationNewIdentityHint => 'Nuova identità (npub o hex)';
 
   @override
+  String get reputationRebindSignNode => 'Firma per questo Mostro';
+
+  @override
+  String get reputationRebindSignBot => 'Firma per lnp2pBot';
+
+  @override
   String get reputationRebindSign => 'Firma autorizzazione';
+
+  @override
+  String get reputationRebindSignedForNode =>
+      'Dalla nuova identità, incollala nel campo di autorizzazione della scheda di esportazione ed esporta.';
+
+  @override
+  String get reputationRebindSignedForBot =>
+      'lnp2pBot accetta questo solo dopo che la nuova identità gli ha chiesto la tua reputazione: se non l\'hai ancora fatto, apri lnp2pBot dalla nuova identità con «Ottienila da lnp2pBot» nella schermata di importazione, e non aprire poi nessun altro link al bot. Quindi incolla questo in quella chat e conferma. Vale un\'ora.';
 
   @override
   String get reputationInvalidIdentity =>
@@ -4822,6 +4839,11 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String reputationRebindConfirmBody(String npub) {
     return 'Chi possiede questa identità potrà esportare la tua reputazione da questo Mostro, e la tua identità attuale non potrà più farlo:\n\n$npub\n\nFirma solo per un\'identità che è tua.';
+  }
+
+  @override
+  String reputationRebindConfirmBodyBot(String npub) {
+    return 'Chi possiede questa identità potrà esportare la tua reputazione da lnp2pBot, e la tua identità attuale non potrà più farlo:\n\n$npub\n\nFirma solo per un\'identità che è tua.';
   }
 
   @override

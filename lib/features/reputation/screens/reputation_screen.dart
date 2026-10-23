@@ -11,6 +11,7 @@ import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/order_book_palette.dart';
 import 'package:mostro/core/settings_palette.dart';
 import 'package:mostro/features/account/providers/privacy_mode_provider.dart';
+import 'package:mostro/features/reputation/lnp2pbot.dart';
 import 'package:mostro/features/reputation/reputation_api.dart';
 import 'package:mostro/features/reputation/reputation_errors.dart';
 import 'package:mostro/features/reputation/widgets/reputation_controls.dart';
@@ -20,7 +21,7 @@ import 'package:mostro/shared/widgets/redesign_app_bar.dart';
 
 /// Reputation (#674): export what the user earned on the active node, import
 /// what they earned elsewhere, and authorise moving an exported reputation to
-/// a new identity.
+/// a new identity, at the active node or at lnp2pBot (#880).
 class ReputationScreen extends ConsumerStatefulWidget {
   const ReputationScreen({super.key});
 
@@ -40,6 +41,10 @@ class _ReputationScreenState extends ConsumerState<ReputationScreen> {
   String? _issuer;
   String? _exported;
   String? _rebind;
+
+  /// Whether [_rebind] names lnp2pBot as its issuer: its next step is in
+  /// Telegram, not on this screen.
+  bool _rebindForBot = false;
   String? _error;
   bool _busy = false;
 
@@ -117,7 +122,11 @@ class _ReputationScreenState extends ConsumerState<ReputationScreen> {
     }
   }
 
-  Future<void> _signRebind(String issuer) async {
+  /// Sign, with the identity the reputation at [issuer] is bound to now, the
+  /// authorisation to move it to the identity typed in. [forBot] when
+  /// [issuer] is lnp2pBot's key, which changes what the user confirms and
+  /// what they do with the result.
+  Future<void> _signRebind(String issuer, {required bool forBot}) async {
     final l10n = AppLocalizations.of(context);
     final api = ref.read(reputationApiProvider);
     setState(() {
@@ -137,7 +146,11 @@ class _ReputationScreenState extends ConsumerState<ReputationScreen> {
       builder:
           (context) => MostroDialog(
             title: l10n.reputationRebindConfirmTitle,
-            content: SelectableText(l10n.reputationRebindConfirmBody(npub)),
+            content: SelectableText(
+              forBot
+                  ? l10n.reputationRebindConfirmBodyBot(npub)
+                  : l10n.reputationRebindConfirmBody(npub),
+            ),
             secondary: ModalAction(
               label: l10n.cancel,
               onPressed: () => Navigator.of(context).pop(false),
@@ -152,7 +165,12 @@ class _ReputationScreenState extends ConsumerState<ReputationScreen> {
     if (confirmed != true || !mounted) return;
     try {
       final rebind = await api.signRebind(issuer: issuer, newIdentity: npub);
-      if (mounted) setState(() => _rebind = rebind);
+      if (mounted) {
+        setState(() {
+          _rebind = rebind;
+          _rebindForBot = forBot;
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(
@@ -232,24 +250,47 @@ class _ReputationScreenState extends ConsumerState<ReputationScreen> {
                           text: _exported!,
                         ).withAutomationId(AutomationIds.reputationExported),
                       ],
-                      const SizedBox(height: 16),
-                      Text(l10n.reputationRebindBody, style: body),
-                      _Field(
-                        controller: _newIdentity,
-                        hint: l10n.reputationNewIdentityHint,
-                      ).withAutomationId(
-                        AutomationIds.reputationRebindIdentity,
-                      ),
-                      const SizedBox(height: 8),
-                      ReputationSecondaryButton(
-                        label: l10n.reputationRebindSign,
-                        onPressed: privacy ? null : () => _signRebind(issuer),
-                      ).withAutomationId(AutomationIds.reputationRebindSign),
-                      if (_rebind != null)
-                        _Copyable(text: _rebind!).withAutomationId(
-                          AutomationIds.reputationRebindResult,
-                        ),
                     ],
+          ),
+          // Signing for the node needs its issuer key; signing for lnp2pBot
+          // needs nothing from the node, so the card is always there.
+          _Card(
+            title: l10n.reputationRebindTitle,
+            children: [
+              Text(l10n.reputationRebindBody, style: body),
+              _Field(
+                controller: _newIdentity,
+                hint: l10n.reputationNewIdentityHint,
+              ).withAutomationId(AutomationIds.reputationRebindIdentity),
+              const SizedBox(height: 8),
+              if (issuer != null) ...[
+                ReputationSecondaryButton(
+                  label: l10n.reputationRebindSignNode,
+                  onPressed:
+                      privacy ? null : () => _signRebind(issuer, forBot: false),
+                ).withAutomationId(AutomationIds.reputationRebindSign),
+                const SizedBox(height: 8),
+              ],
+              ReputationSecondaryButton(
+                label: l10n.reputationRebindSignBot,
+                onPressed:
+                    privacy
+                        ? null
+                        : () => _signRebind(lnp2pbotIssuerKey, forBot: true),
+              ).withAutomationId(AutomationIds.reputationRebindSignBot),
+              if (_rebind != null) ...[
+                const SizedBox(height: 10),
+                Text(
+                  _rebindForBot
+                      ? l10n.reputationRebindSignedForBot
+                      : l10n.reputationRebindSignedForNode,
+                  style: body,
+                ),
+                _Copyable(
+                  text: _rebind!,
+                ).withAutomationId(AutomationIds.reputationRebindResult),
+              ],
+            ],
           ),
           if (_error != null) Text(_error!, style: TextStyle(color: book.sell)),
         ],
@@ -270,10 +311,11 @@ class _Card extends StatelessWidget {
     final book = OrderBookPalette.of(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
-      padding: const EdgeInsets.all(16),
+      // DS-CMP-8: a card sits on surface, radius 18, padding 14.
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: book.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(color: book.border),
       ),
       child: Column(

@@ -4888,17 +4888,37 @@
   "@reputationExported": {
     "description": "Reputation screen, export card: shown above the exported reputation, which the user copies to import it on another Mostro node"
   },
-  "reputationRebindBody": "Moving to a new identity? Sign an authorization for it here, with the identity your reputation is bound to now. Then, from the new identity, paste it in the authorization field above and export.",
+  "reputationRebindTitle": "Move to a new identity",
+  "@reputationRebindTitle": {
+    "description": "Reputation screen: title of the card that signs an authorization to move an exported reputation to a new identity"
+  },
+  "reputationRebindBody": "Sign an authorization for the new identity with the identity your reputation is bound to now: for this Mostro, or for lnp2pBot if you got it from there.",
   "@reputationRebindBody": {
-    "description": "Reputation screen, export card: how to move the reputation to a new identity; above the new-identity field and the Sign authorization button"
+    "description": "Reputation screen, move card: how to move the reputation to a new identity; above the new-identity field and the two sign buttons"
   },
   "reputationNewIdentityHint": "New identity (npub or hex)",
   "@reputationNewIdentityHint": {
-    "description": "Reputation screen, export card: hint of the field for the public key (npub or hex) of the new identity to authorize"
+    "description": "Reputation screen, move card: hint of the field for the public key (npub or hex) of the new identity to authorize"
+  },
+  "reputationRebindSignNode": "Sign for this Mostro",
+  "@reputationRebindSignNode": {
+    "description": "Reputation screen, move card: button that signs the authorization for the active node's issuer key; shown only while the node exports"
+  },
+  "reputationRebindSignBot": "Sign for lnp2pBot",
+  "@reputationRebindSignBot": {
+    "description": "Reputation screen, move card: button that signs the authorization for lnp2pBot's issuer key"
   },
   "reputationRebindSign": "Sign authorization",
   "@reputationRebindSign": {
-    "description": "Reputation screen: button that signs an authorization for the new identity; also the confirm button of the dialog shown before signing"
+    "description": "Confirm button of the dialog shown before signing a rebind authorization"
+  },
+  "reputationRebindSignedForNode": "From the new identity, paste it in the authorization field of the export card and export.",
+  "@reputationRebindSignedForNode": {
+    "description": "Reputation screen, move card: shown above an authorization signed for the active node, which the new identity pastes into the export card"
+  },
+  "reputationRebindSignedForBot": "lnp2pBot takes this only after the new identity asked it for your reputation: if you have not yet, open lnp2pBot from the new identity with \"Get it from lnp2pBot\" on the import screen, and open no other link to it afterwards. Then paste this in that chat and confirm. It is valid for one hour.",
+  "@reputationRebindSignedForBot": {
+    "description": "Reputation screen, move card: shown above an authorization signed for lnp2pBot. The bot takes it only after the new identity opened the link from the import screen (lnp2pBot/bot#934). The quoted label is reputationOpenLnp2pbot"
   },
   "reputationInvalidIdentity": "That is not a valid npub or hex key.",
   "@reputationInvalidIdentity": {
@@ -4914,7 +4934,16 @@
   },
   "reputationRebindConfirmBody": "Whoever holds this identity will be able to export your reputation from this Mostro, and your current identity no longer will:\n\n{npub}\n\nSign only for an identity that is yours.",
   "@reputationRebindConfirmBody": {
-    "description": "Dialog body before signing a rebind authorization: the key that will take the reputation over",
+    "description": "Dialog body before signing a rebind authorization for the active node: the key that will take the reputation over",
+    "placeholders": {
+      "npub": {
+        "type": "String"
+      }
+    }
+  },
+  "reputationRebindConfirmBodyBot": "Whoever holds this identity will be able to export your reputation from lnp2pBot, and your current identity no longer will:\n\n{npub}\n\nSign only for an identity that is yours.",
+  "@reputationRebindConfirmBodyBot": {
+    "description": "Dialog body before signing a rebind authorization for lnp2pBot: the key that will take the reputation over",
     "placeholders": {
       "npub": {
         "type": "String"

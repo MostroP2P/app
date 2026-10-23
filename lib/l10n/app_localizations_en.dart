@@ -4755,14 +4755,31 @@ class AppLocalizationsEn extends AppLocalizations {
       'Your reputation is ready. Switch to the Mostro where you want it and import it; it is valid for 7 days.';
 
   @override
+  String get reputationRebindTitle => 'Move to a new identity';
+
+  @override
   String get reputationRebindBody =>
-      'Moving to a new identity? Sign an authorization for it here, with the identity your reputation is bound to now. Then, from the new identity, paste it in the authorization field above and export.';
+      'Sign an authorization for the new identity with the identity your reputation is bound to now: for this Mostro, or for lnp2pBot if you got it from there.';
 
   @override
   String get reputationNewIdentityHint => 'New identity (npub or hex)';
 
   @override
+  String get reputationRebindSignNode => 'Sign for this Mostro';
+
+  @override
+  String get reputationRebindSignBot => 'Sign for lnp2pBot';
+
+  @override
   String get reputationRebindSign => 'Sign authorization';
+
+  @override
+  String get reputationRebindSignedForNode =>
+      'From the new identity, paste it in the authorization field of the export card and export.';
+
+  @override
+  String get reputationRebindSignedForBot =>
+      'lnp2pBot takes this only after the new identity asked it for your reputation: if you have not yet, open lnp2pBot from the new identity with \"Get it from lnp2pBot\" on the import screen, and open no other link to it afterwards. Then paste this in that chat and confirm. It is valid for one hour.';
 
   @override
   String get reputationInvalidIdentity =>
@@ -4778,6 +4795,11 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String reputationRebindConfirmBody(String npub) {
     return 'Whoever holds this identity will be able to export your reputation from this Mostro, and your current identity no longer will:\n\n$npub\n\nSign only for an identity that is yours.';
+  }
+
+  @override
+  String reputationRebindConfirmBodyBot(String npub) {
+    return 'Whoever holds this identity will be able to export your reputation from lnp2pBot, and your current identity no longer will:\n\n$npub\n\nSign only for an identity that is yours.';
   }
 
   @override

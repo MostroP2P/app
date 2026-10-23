@@ -22,6 +22,14 @@ void main() {
     expect(lnp2pbotExportUri('npub1nope'), isNull);
   });
 
+  /// The key a rebind authorisation for the bot names as its issuer: the one
+  /// the bot signs attestations with, as hex, which is what
+  /// `sign_reputation_rebind` takes.
+  test('the bot issuer key is a hex public key', () {
+    expect(lnp2pbotIssuerKey, matches(RegExp(r'^[0-9a-f]{64}$')));
+    expect(lnp2pbotIssuerKey, isNot('0' * 64));
+  });
+
   test('finds the attestation inside pasted text', () {
     final vectors = jsonDecode(
       File('rust/tests/fixtures/reputation_v1.json').readAsStringSync(),

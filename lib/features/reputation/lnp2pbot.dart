@@ -4,6 +4,14 @@ import 'dart:convert';
 /// (MostroP2P/protocol reputation_attestation.md, "Telegram hand-off").
 const lnp2pbotUsername = 'lnp2pbot';
 
+/// The key lnp2pBot signs attestations with (`REPUTATION_ISSUER_SK`, a key of
+/// its own, not its Nostr key), as hex. A rebind authorisation for the bot
+/// names it as its issuer: the bot refuses one signed for any other key
+/// (lnp2pBot/bot#934). The bot announces a rotation through its own channels;
+/// this value follows in a release.
+const lnp2pbotIssuerKey =
+    '000004ac730537f1cf7d91f4f584a498a530a0205d35e816ebbaf23aec61e459';
+
 final _hexKey = RegExp(r'^[0-9a-f]{64}$');
 
 /// The link that asks lnp2pBot to attest the user's reputation for

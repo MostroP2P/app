@@ -174,21 +174,30 @@ json: String         # the event JSON as received, to import unchanged
   authorisation signed by the identity the account is bound to now; when
   filled, it is passed trimmed as `rebind` to `export_reputation`. The returned
   attestation is shown to select or copy, and Rust keeps it as pending.
-- **Moving to a new identity.** The user types the new identity as npub or hex.
-  It is validated and encoded through `reputation_identity_npub`, then shown in
-  a confirmation dialog stating that whoever holds that key can export the
-  reputation from this node. Only after confirmation is
-  `sign_reputation_rebind` called with the node's issuer key. The result is
-  shown to select or copy, for the new identity to paste in the export field
-  above.
+- **Moving to a new identity**, a card of its own, always shown. The user
+  types the new identity as npub or hex. It is validated and encoded through
+  `reputation_identity_npub`, then shown in a confirmation dialog stating that
+  whoever holds that key can export the reputation from the issuer. Only after
+  confirmation is `sign_reputation_rebind` called, with the issuer the user
+  chose (#880):
+  - **Sign for this Mostro**, shown only while the node advertises
+    `reputation_issuer`, signs for that key. The result is shown to select or
+    copy, with a note to paste it in the export card from the new identity.
+  - **Sign for lnp2pBot** signs for `lnp2pbotIssuerKey`, the bot's issuer
+    key, a constant next to its username in `lib/features/reputation/lnp2pbot.dart`.
+    The bot takes the authorisation only after the new identity opened
+    `t.me/lnp2pbot?start=rep_…` and was told its reputation is bound to
+    another identity (lnp2pBot/bot#934), so the note with the result says to
+    open the bot from the import screen first, then paste it in that chat and
+    confirm.
 
 In full privacy mode a notice explains why every action is disabled.
 
 Automation identifiers: `settings.reputation`, `reputation.open_import`,
 `reputation.export`, `reputation.export.rebind`, `reputation.export.confirm`,
 `reputation.export.result`, `reputation.rebind.identity`,
-`reputation.rebind.sign`, `reputation.rebind.confirm` and
-`reputation.rebind.result`.
+`reputation.rebind.sign`, `reputation.rebind.sign_bot`,
+`reputation.rebind.confirm` and `reputation.rebind.result`.
 
 ## Import screen
 
