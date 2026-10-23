@@ -26,6 +26,7 @@ use nostr_sdk::prelude::{Keys, PublicKey, Timestamp, ToBech32};
 
 use crate::api::identity::{identity_generation, while_identity_current};
 use crate::api::orders::{ask_daemon_with, fresh_request_id, DaemonAnswer};
+use crate::api::types::MostroNodeEntry;
 use crate::db::settings_keys::PENDING_REPUTATION_ATTESTATION;
 use crate::db::Storage;
 use crate::mostro::reputation_support;
@@ -91,6 +92,18 @@ pub fn get_reputation_support() -> ReputationSupportInfo {
         issuer: support.issuer,
         import_issuers: support.import_issuers,
     }
+}
+
+/// The known Mostro whose info event announces `issuer` as its
+/// `reputation_issuer`, as its registry entry (named when its profile is
+/// cached), or `None` when no fetched node does. The import screen names the
+/// source of an attestation before it is imported (#881).
+pub async fn get_reputation_issuer_node(issuer: String) -> Result<Option<MostroNodeEntry>> {
+    let Some(node) = reputation_support::node_with_issuer(&issuer) else {
+        return Ok(None);
+    };
+    let entries = crate::api::nodes::list_mostro_nodes().await?;
+    Ok(entries.into_iter().find(|entry| entry.pubkey == node))
 }
 
 /// Encode an identity as npub, for the user to confirm before it is bound or
@@ -470,6 +483,26 @@ mod tests {
 
     fn vectors() -> serde_json::Value {
         serde_json::from_str(VECTORS).unwrap()
+    }
+
+    #[tokio::test]
+    async fn the_known_mostro_announcing_an_issuer_key_is_named_before_an_import() {
+        let node = crate::config::TRUSTED_MOSTRO_NODES[0].pubkey;
+        let issuer = "7".repeat(64);
+        reputation_support::set_from_tags(
+            node,
+            &[vec!["reputation_issuer".to_string(), issuer.clone()]],
+        );
+
+        let found = get_reputation_issuer_node(issuer).await.unwrap();
+        let unknown = get_reputation_issuer_node("8".repeat(64)).await.unwrap();
+        // The capabilities are global: leave the trusted node as it was.
+        reputation_support::set_from_tags(node, &[]);
+
+        let found = found.unwrap();
+        assert_eq!(found.pubkey, node);
+        assert!(found.is_trusted);
+        assert!(unknown.is_none());
     }
 
     #[test]

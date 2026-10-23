@@ -30,6 +30,20 @@ retracts an older answer, so both read `None` until the node is fetched again.
 
 ---
 
+### get_reputation_issuer_node(issuer: String) → MostroNodeEntry?
+The one known Mostro whose last capability fetch announced `issuer` as its
+`reputation_issuer`, as its registry entry (named when its kind 0 profile is
+cached), or `None` when no fetched node does, or when two do. Only nodes whose
+info event this app fetched (the active one, and those active before) are
+known. The import screen names the source of a checked attestation before it
+is imported (#881). Nothing goes on the wire: it reads the capabilities
+already fetched and the node registry (`list_mostro_nodes`, with its
+housekeeping of the active node's entry).
+
+**Errors**: those of `list_mostro_nodes`.
+
+---
+
 ### reputation_identity_npub(identity: String) → String *(sync)*
 Encode a public key, given as hex or npub (surrounding whitespace ignored), as
 npub in Rust. The import screen displays the complete, selectable value for
@@ -219,6 +233,13 @@ that importing links the source and destination accounts.
   locally. A user paste can contain surrounding prose; only the JSON object is
   passed to Rust. Check verifies signature, kind, tags, expiry, destination and
   the node's issuer trust list without publishing. Failures are localized.
+- The verified card names its source first, because the import cannot be
+  undone and uses up that issuer for this identity on this node (#881):
+  lnp2pBot when the issuer is `lnp2pbotIssuerKey`; otherwise the known Mostro
+  whose info event announces the key as `reputation_issuer`
+  (`get_reputation_issuer_node`), by its cached profile name or its npub;
+  otherwise the issuer's npub, selectable. A failed registry lookup falls back
+  to the npub: the figures and Import still show.
 - The verified card shows locale-formatted rating, review count and trading
   age, with plural forms. Checks, refusals and successful imports are announced
   to screen readers as live regions. Editing the field withdraws the card and confirmation; an answer
@@ -230,4 +251,5 @@ that importing links the source and destination accounts.
   state is cleared by Rust only when its event id matches the imported event.
 
 Automation identifiers: `reputation.import.identity`, `.open_bot`, `.input`,
-`.check`, `.figures`, and `.confirm` (each suffix follows `reputation.import`).
+`.check`, `.figures`, `.source`, and `.confirm` (each suffix follows
+`reputation.import`).

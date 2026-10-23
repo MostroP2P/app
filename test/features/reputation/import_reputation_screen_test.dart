@@ -7,12 +7,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mostro/core/app_theme.dart';
+import 'package:mostro/features/reputation/lnp2pbot.dart';
 import 'package:mostro/features/reputation/reputation_api.dart';
 import 'package:mostro/features/reputation/screens/import_reputation_screen.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/l10n/app_localizations_de.dart';
 import 'package:mostro/l10n/app_localizations_en.dart';
 import 'package:mostro/src/rust/api/reputation_transfer.dart';
+import 'package:mostro/src/rust/api/types.dart';
 
 import '../../support/load_app_fonts.dart';
 
@@ -24,13 +26,20 @@ const _otherJson = '{"id":"b","kind":38388}';
 const _identity =
     'ab1db593a4d1196eb07335fdc702a314712ed29c631ceaebd84708a17d3bc2f7';
 
+/// The npub of [_issuer], as the fake encodes it.
+const _issuerNpub =
+    'npub1pppppppppppppppppppppppppppppppppppppppppppppppppppppppppp';
+const _issuer =
+    'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+
 ReputationAttestationInfo _info({
   String json = _json,
   int reviews = 214,
   String rating = '4.87',
+  String issuer = _issuer,
 }) => ReputationAttestationInfo(
   id: json == _json ? 'a' : 'b',
-  issuer: 'b' * 64,
+  issuer: issuer,
   destination: _identity,
   subject: 'acct',
   reviews: reviews,
@@ -48,6 +57,7 @@ class _FakeApi extends ReputationApi {
     this.privacy = false,
     this.pendingInfo,
     this.reviews = 214,
+    this.issuer = _issuer,
   });
 
   /// `null`: the node does not import.
@@ -55,6 +65,17 @@ class _FakeApi extends ReputationApi {
   bool privacy;
   final ReputationAttestationInfo? pendingInfo;
   final int reviews;
+
+  /// The key every checked attestation is signed with.
+  final String issuer;
+
+  /// The known Mostro announcing [issuer], as the core answers it.
+  MostroNodeEntry? knownNode;
+
+  /// Thrown by [issuerNode] when set.
+  Object? issuerNodeError;
+  final List<String> issuerLookups = [];
+  Completer<MostroNodeEntry?>? issuerNodeReply;
 
   final List<String> checked = [];
   final List<String> imported = [];
@@ -75,11 +96,19 @@ class _FakeApi extends ReputationApi {
   Completer<ReputationAttestationInfo>? checkReply;
 
   @override
-  String npub(String identity) => _npub;
+  String npub(String identity) => identity == _identity ? _npub : _issuerNpub;
 
   @override
   ReputationSupportInfo support() =>
       ReputationSupportInfo(importIssuers: importIssuers);
+
+  @override
+  Future<MostroNodeEntry?> issuerNode(String issuer) async {
+    issuerLookups.add(issuer);
+    if (issuerNodeReply != null) return issuerNodeReply!.future;
+    if (issuerNodeError != null) throw issuerNodeError!;
+    return knownNode;
+  }
 
   @override
   Future<bool> privacyMode() async =>
@@ -93,7 +122,7 @@ class _FakeApi extends ReputationApi {
     if (json != _json && json != _otherJson) {
       throw Exception('InvalidReputationAttestation: bad');
     }
-    return _info(json: json, reviews: reviews);
+    return _info(json: json, reviews: reviews, issuer: issuer);
   }
 
   @override
@@ -358,6 +387,180 @@ void main() {
     await _tap(tester, _en.reputationCheck);
 
     expect(find.text('★ 4.87 · 214 ratings · since Oct 2023'), findsOneWidget);
+  });
+
+  // #881: the checked card names the issuer before the import, which cannot
+  // be undone and uses up that source for this identity on this node.
+  testWidgets('names lnp2pBot as the source of an attestation it signed', (
+    tester,
+  ) async {
+    // Arrange
+    final api = await _pump(tester, api: _FakeApi(issuer: lnp2pbotIssuerKey));
+
+    // Act
+    await _paste(tester, _json);
+    await _tap(tester, _en.reputationCheck);
+
+    // Assert
+    expect(find.text(_en.reputationIssuedByLnp2pbot), findsOneWidget);
+    expect(find.text(_en.reputationImportConfirm), findsOneWidget);
+    // The bot's key is known on its own: no registry lookup for it.
+    expect(api.issuerLookups, isEmpty);
+  });
+
+  testWidgets('names the Mostro whose info event announces the issuer key', (
+    tester,
+  ) async {
+    // Arrange
+    final api = await _pump(tester);
+    api.knownNode = const MostroNodeEntry(
+      pubkey: 'cc',
+      isTrusted: true,
+      isActive: false,
+      name: 'Mostro Cuba',
+    );
+
+    // Act
+    await _paste(tester, _json);
+    await _tap(tester, _en.reputationCheck);
+
+    // Assert
+    expect(find.text(_en.reputationIssuedByMostro('Mostro Cuba')), findsOne);
+    expect(find.textContaining(_issuerNpub), findsNothing);
+    expect(api.issuerLookups, [_issuer]);
+  });
+
+  testWidgets('a known Mostro without a cached name is named by its npub', (
+    tester,
+  ) async {
+    // Arrange
+    final api = await _pump(tester);
+    api.knownNode = const MostroNodeEntry(
+      pubkey: 'cc',
+      isTrusted: false,
+      isActive: false,
+    );
+
+    // Act
+    await _paste(tester, _json);
+    await _tap(tester, _en.reputationCheck);
+
+    // Assert: the fake encodes every key but the identity as _issuerNpub.
+    expect(find.text(_en.reputationIssuedByMostro(_issuerNpub)), findsOne);
+
+    // A blank profile name reads as none.
+    api.knownNode = const MostroNodeEntry(
+      pubkey: 'cc',
+      isTrusted: false,
+      isActive: false,
+      name: '  ',
+    );
+    await _paste(tester, _otherJson);
+    await _tap(tester, _en.reputationCheck);
+    expect(find.text(_en.reputationIssuedByMostro(_issuerNpub)), findsOne);
+  });
+
+  testWidgets('an attestation exported from another Mostro names its source', (
+    tester,
+  ) async {
+    // Arrange + Act: the pending attestation is prefilled and checked.
+    final api = _FakeApi(pendingInfo: _info());
+    api.knownNode = const MostroNodeEntry(
+      pubkey: 'cc',
+      isTrusted: true,
+      isActive: false,
+      name: 'Mostro Cuba',
+    );
+    await _pump(tester, api: api);
+
+    // Assert
+    expect(find.text(_en.reputationIssuedByMostro('Mostro Cuba')), findsOne);
+  });
+
+  testWidgets('editing during the source lookup discards the delayed answer', (
+    tester,
+  ) async {
+    // Arrange
+    final api = await _pump(tester);
+    final reply = Completer<MostroNodeEntry?>();
+    api.issuerNodeReply = reply;
+    await _paste(tester, _json);
+    await _tap(tester, _en.reputationCheck);
+
+    // Act
+    await _paste(tester, _otherJson);
+    reply.complete(
+      const MostroNodeEntry(
+        pubkey: 'cc',
+        isTrusted: true,
+        isActive: false,
+        name: 'Mostro Cuba',
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Assert
+    expect(find.textContaining('Mostro Cuba'), findsNothing);
+    expect(find.text(_en.reputationImportConfirm), findsNothing);
+  });
+
+  testWidgets('shows the issuer npub when nothing identifies the key', (
+    tester,
+  ) async {
+    // Arrange
+    await _pump(tester);
+
+    // Act
+    await _paste(tester, _json);
+    await _tap(tester, _en.reputationCheck);
+
+    // Assert
+    expect(find.text(_en.reputationIssuedByUnknownKey), findsOneWidget);
+    expect(find.widgetWithText(SelectableText, _issuerNpub), findsOneWidget);
+    expect(find.text(_en.reputationImportConfirm), findsOneWidget);
+  });
+
+  testWidgets('a failed node lookup still shows the figures, with the key', (
+    tester,
+  ) async {
+    // Arrange
+    final api = await _pump(tester);
+    api.issuerNodeError = Exception('registry unavailable');
+
+    // Act
+    await _paste(tester, _json);
+    await _tap(tester, _en.reputationCheck);
+
+    // Assert
+    expect(tester.takeException(), isNull);
+    expect(find.text(_en.reputationIssuedByUnknownKey), findsOneWidget);
+    expect(find.text('★ 4.87 · 214 ratings · since Oct 2023'), findsOneWidget);
+    expect(find.text(_en.reputationImportConfirm), findsOneWidget);
+  });
+
+  testWidgets('the source is withdrawn with the card when the text changes', (
+    tester,
+  ) async {
+    // Arrange
+    final api = await _pump(tester);
+    api.knownNode = const MostroNodeEntry(
+      pubkey: 'cc',
+      isTrusted: true,
+      isActive: false,
+      name: 'Mostro Cuba',
+    );
+    await _paste(tester, _json);
+    await _tap(tester, _en.reputationCheck);
+
+    // Act: the next attestation comes from an unknown key.
+    api.knownNode = null;
+    await _paste(tester, _otherJson);
+    expect(find.textContaining('Mostro Cuba'), findsNothing);
+    await _tap(tester, _en.reputationCheck);
+
+    // Assert
+    expect(find.textContaining('Mostro Cuba'), findsNothing);
+    expect(find.text(_en.reputationIssuedByUnknownKey), findsOneWidget);
   });
 
   testWidgets('shows the full selectable npub for the bot confirmation', (

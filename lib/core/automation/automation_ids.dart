@@ -334,5 +334,6 @@ class AutomationIds {
   static const String reputationImportInput = 'reputation.import.input';
   static const String reputationImportCheck = 'reputation.import.check';
   static const String reputationImportFigures = 'reputation.import.figures';
+  static const String reputationImportSource = 'reputation.import.source';
   static const String reputationImportConfirm = 'reputation.import.confirm';
 }

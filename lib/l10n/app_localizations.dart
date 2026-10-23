@@ -7776,6 +7776,24 @@ abstract class AppLocalizations {
   /// **'Telegram could not be opened. Open lnp2pBot in Telegram yourself and paste here what it sends you.'**
   String get reputationOpenLnp2pbotFailed;
 
+  /// Import reputation screen, above the figures of a checked attestation: it was signed with lnp2pBot's issuer key (#881)
+  ///
+  /// In en, this message translates to:
+  /// **'Issued by lnp2pBot'**
+  String get reputationIssuedByLnp2pbot;
+
+  /// Import reputation screen, above the figures: a known Mostro announces the issuer key; name is its cached profile name, or its npub (#881)
+  ///
+  /// In en, this message translates to:
+  /// **'Issued by the Mostro {name}'**
+  String reputationIssuedByMostro(String name);
+
+  /// Import reputation screen, above the figures: neither lnp2pBot nor a known Mostro signs with the issuer key; its npub follows on the next line (#881)
+  ///
+  /// In en, this message translates to:
+  /// **'Issued by a key this app does not know:'**
+  String get reputationIssuedByUnknownKey;
+
   /// Explain why the complete npub is shown beside the Telegram action
   ///
   /// In en, this message translates to:

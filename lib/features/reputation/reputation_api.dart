@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:mostro/src/rust/api/identity.dart' as identity_api;
 import 'package:mostro/src/rust/api/reputation.dart' as reputation_api;
 import 'package:mostro/src/rust/api/reputation_transfer.dart' as rust;
+import 'package:mostro/src/rust/api/types.dart';
 
 /// The reputation portability calls the screens make, behind one seam so the
 /// widget tests never reach the Rust core or the platform.
@@ -11,6 +12,12 @@ class ReputationApi {
   const ReputationApi();
 
   rust.ReputationSupportInfo support() => rust.getReputationSupport();
+
+  /// The known Mostro whose info event announces [issuer] as its
+  /// `reputation_issuer`, or null: the import screen names the source of an
+  /// attestation before it is imported (#881).
+  Future<MostroNodeEntry?> issuerNode(String issuer) =>
+      rust.getReputationIssuerNode(issuer: issuer);
 
   rust.ReputationAttestationInfo parse(String json) =>
       rust.parseReputationAttestation(json: json);

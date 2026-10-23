@@ -19,6 +19,7 @@ import 'package:mostro/shared/utils/rating_format.dart';
 import 'package:mostro/shared/utils/reputation_age.dart';
 import 'package:mostro/shared/widgets/redesign_app_bar.dart';
 import 'package:mostro/src/rust/api/reputation_transfer.dart';
+import 'package:mostro/src/rust/api/types.dart';
 
 /// Import reputation earned elsewhere: get an attestation from lnp2pBot on
 /// Telegram, or exported from another Mostro, check its figures, and import
@@ -51,6 +52,10 @@ class _ImportReputationScreenState
   ReputationAttestationInfo? _attestation;
   String? _error;
   String? _checkedText;
+
+  /// Who signed [_attestation], as the card names it (#881); withdrawn with
+  /// it.
+  _Source? _source;
 
   String? _botError;
   bool _busy = false;
@@ -88,6 +93,7 @@ class _ImportReputationScreenState
       _loadError = null;
       _botError = null;
       _attestation = null;
+      _source = null;
       _checkedText = null;
       _error = null;
       _imported = false;
@@ -136,6 +142,7 @@ class _ImportReputationScreenState
     if (_checkedText == null || _input.text == _checkedText) return;
     setState(() {
       _attestation = null;
+      _source = null;
       _error = null;
       _imported = false;
       _checkedText = null;
@@ -149,16 +156,20 @@ class _ImportReputationScreenState
     final json = extractAttestationJson(text);
     setState(() {
       _attestation = null;
+      _source = null;
       _imported = false;
       _error = json == null ? l10n.reputationInvalidAttestation : null;
       _checkedText = json == null ? text : null;
       _busy = json != null;
     });
     if (json == null) return;
+    final api = ref.read(reputationApiProvider);
     ReputationAttestationInfo? info;
+    _Source? source;
     String? error;
     try {
-      info = await ref.read(reputationApiProvider).check(json);
+      info = await api.check(json);
+      source = await _resolveSource(api, info.issuer);
     } catch (e) {
       error = localizedReputationError(l10n, e);
     }
@@ -168,9 +179,37 @@ class _ImportReputationScreenState
       // The text changed while the core checked it: the answer is stale.
       if (_input.text != text) return;
       _attestation = info;
+      _source = source;
       _error = error;
       _checkedText = text;
     });
+  }
+
+  /// Who signed an attestation with [issuer]: lnp2pBot, a known Mostro whose
+  /// info event announces the key, or the key itself. A failed registry
+  /// lookup names the key: the figures still show, the import still waits.
+  Future<_Source> _resolveSource(ReputationApi api, String issuer) async {
+    if (issuer == lnp2pbotIssuerKey) return const _Lnp2pbot();
+    MostroNodeEntry? node;
+    try {
+      node = await api.issuerNode(issuer);
+    } catch (_) {
+      node = null;
+    }
+    if (node == null) return _UnknownKey(_npubOrHex(api, issuer));
+    // The name is the node's own profile text: blank reads as none.
+    final name = node.name?.trim();
+    return _KnownMostro(
+      name == null || name.isEmpty ? _npubOrHex(api, node.pubkey) : name,
+    );
+  }
+
+  static String _npubOrHex(ReputationApi api, String key) {
+    try {
+      return api.npub(key);
+    } catch (_) {
+      return key;
+    }
   }
 
   Future<void> _import() async {
@@ -228,6 +267,7 @@ class _ImportReputationScreenState
           _identity = identity;
           _npub = npub;
           _attestation = null;
+          _source = null;
           _checkedText = null;
           _error = null;
           _imported = false;
@@ -381,7 +421,7 @@ class _ImportReputationScreenState
             const SizedBox(height: 14),
             Semantics(
               liveRegion: true,
-              child: _Figures(attestation: attestation),
+              child: _Figures(attestation: attestation, source: _source),
             ).withAutomationId(AutomationIds.reputationImportFigures),
             const SizedBox(height: 14),
             if (_imported)
@@ -428,10 +468,66 @@ class _Notice extends StatelessWidget {
   }
 }
 
+/// Who signed an attestation, as the checked card names it (#881).
+sealed class _Source {
+  const _Source();
+}
+
+class _Lnp2pbot extends _Source {
+  const _Lnp2pbot();
+}
+
+/// A known Mostro, by its cached profile name or its npub.
+class _KnownMostro extends _Source {
+  final String name;
+
+  const _KnownMostro(this.name);
+}
+
+/// A key nothing identifies, as npub.
+class _UnknownKey extends _Source {
+  final String npub;
+
+  const _UnknownKey(this.npub);
+}
+
 class _Figures extends StatelessWidget {
   final ReputationAttestationInfo attestation;
+  final _Source? source;
 
-  const _Figures({required this.attestation});
+  const _Figures({required this.attestation, required this.source});
+
+  /// The source, named before the figures: the import cannot be undone and
+  /// uses up this issuer for the identity on this node.
+  List<Widget> _sourceLines(AppLocalizations l10n, OrderBookPalette book) {
+    final source = this.source;
+    if (source == null) return const [];
+    final label = TextStyle(color: book.textMuted, fontSize: 12);
+    final key = switch (source) {
+      _UnknownKey(:final npub) => npub,
+      _ => null,
+    };
+    return [
+      Text(switch (source) {
+        _Lnp2pbot() => l10n.reputationIssuedByLnp2pbot,
+        _KnownMostro(:final name) => l10n.reputationIssuedByMostro(name),
+        _UnknownKey() => l10n.reputationIssuedByUnknownKey,
+      }, style: label).withAutomationId(AutomationIds.reputationImportSource),
+      if (key != null) ...[
+        const SizedBox(height: 4),
+        SelectableText(
+          key,
+          textDirection: TextDirection.ltr,
+          style: TextStyle(
+            color: book.textPrimary,
+            fontFamily: 'monospace',
+            fontSize: 12,
+          ),
+        ),
+      ],
+      const SizedBox(height: 8),
+    ];
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -457,6 +553,7 @@ class _Figures extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          ..._sourceLines(l10n, book),
           // The same three figures as every reputation (DS-L10N-5).
           Text(
             '★ $rating · ${l10n.reputationRatingsCount(attestation.reviews)}'

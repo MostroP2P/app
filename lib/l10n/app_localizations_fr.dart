@@ -4776,6 +4776,18 @@ class AppLocalizationsFr extends AppLocalizations {
       'Impossible d\'ouvrir Telegram. Ouvrez lnp2pBot vous-même dans Telegram et collez ici ce qu\'il vous envoie.';
 
   @override
+  String get reputationIssuedByLnp2pbot => 'Émise par lnp2pBot';
+
+  @override
+  String reputationIssuedByMostro(String name) {
+    return 'Émise par le Mostro $name';
+  }
+
+  @override
+  String get reputationIssuedByUnknownKey =>
+      'Émise par une clé que cette application ne connaît pas :';
+
+  @override
   String get reputationIdentityHint =>
       'Avant de confirmer dans lnp2pBot, vérifiez que cette même clé publique s\'affiche :';
 

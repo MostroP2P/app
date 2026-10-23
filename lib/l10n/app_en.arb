@@ -4839,6 +4839,23 @@
   "@reputationFiguresNote": {
     "description": "Under the figures: imported reputation is merged with the one on this node"
   },
+  "reputationIssuedByLnp2pbot": "Issued by lnp2pBot",
+  "@reputationIssuedByLnp2pbot": {
+    "description": "Import reputation screen, above the figures of a checked attestation: it was signed with lnp2pBot's issuer key (#881)"
+  },
+  "reputationIssuedByMostro": "Issued by the Mostro {name}",
+  "@reputationIssuedByMostro": {
+    "description": "Import reputation screen, above the figures: a known Mostro announces the issuer key; name is its cached profile name, or its npub (#881)",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "reputationIssuedByUnknownKey": "Issued by a key this app does not know:",
+  "@reputationIssuedByUnknownKey": {
+    "description": "Import reputation screen, above the figures: neither lnp2pBot nor a known Mostro signs with the issuer key; its npub follows on the next line (#881)"
+  },
   "reputationIdentityHint": "Before confirming in lnp2pBot, check that it shows this same public key:",
   "reputationUnavailable": "Unable to check whether reputation can be imported. Try again.",
   "reputationIdentityChanged": "Your identity changed. Check the public key shown here before trying again.",
