@@ -4710,6 +4710,14 @@ class AppLocalizationsEn extends AppLocalizations {
       'Imported reputation is added to the one you have here; your counterparts see them merged.';
 
   @override
+  String get reputationExportFailed =>
+      'This Mostro could not export your reputation. Try again later.';
+
+  @override
+  String get reputationExportUnexpectedIssuer =>
+      'This Mostro signed the answer with a key other than the one it announced. Switch to another Mostro and back to refresh its info, then try again.';
+
+  @override
   String get reputationOpenLnp2pbotFailed =>
       'Telegram could not be opened. Open lnp2pBot in Telegram yourself and paste here what it sends you.';
 

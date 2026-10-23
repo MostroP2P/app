@@ -4814,6 +4814,14 @@
   "@reputationInvalidAttestation": {
     "description": "Pasted text that is not a valid reputation attestation"
   },
+  "reputationExportFailed": "This Mostro could not export your reputation. Try again later.",
+  "@reputationExportFailed": {
+    "description": "Reputation screen: an export failed for a reason without a message of its own (#882)"
+  },
+  "reputationExportUnexpectedIssuer": "This Mostro signed the answer with a key other than the one it announced. Switch to another Mostro and back to refresh its info, then try again.",
+  "@reputationExportUnexpectedIssuer": {
+    "description": "Reputation screen: the export answer is signed by another key than the reputation_issuer the app read for the node, usually a stale info event (#882)"
+  },
   "@reputationImportTitle": {
     "description": "App bar title of the Import reputation screen"
   },

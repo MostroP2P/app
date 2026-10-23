@@ -322,14 +322,20 @@ fn event_id(json: &str) -> Option<String> {
 }
 
 /// The node's answer to an export is signed by the key it advertises and
-/// names the identity the export was asked for.
+/// names the identity the export was asked for. Another signing key is its
+/// own failure (`ReputationIssuerKeyMismatch`): the key the app read for the
+/// node may be stale, as after the operator rotated it, and refreshing the
+/// node's info is the remedy (#882).
 fn check_exported(
     attestation: &ReputationAttestation,
     issuer: &str,
     destination: &PublicKey,
 ) -> Result<()> {
-    if attestation.issuer.to_hex() != issuer || attestation.destination != *destination {
-        bail!("InvalidReputationAttestation: not the node's issuer key, or another identity");
+    if attestation.issuer.to_hex() != issuer {
+        bail!("ReputationIssuerKeyMismatch: signed by another key than the node announced");
+    }
+    if attestation.destination != *destination {
+        bail!("InvalidReputationAttestation: it names another identity");
     }
     Ok(())
 }
@@ -617,11 +623,13 @@ mod tests {
 
         // Act + Assert
         assert!(check_exported(&valid, &issuer, &identity).is_ok());
+        // Signed by another key than the one the node announced: its own
+        // marker, since the fix is to refresh the node's info (#882).
         let wrong_issuer = check_exported(&valid, &someone_else.to_hex(), &identity);
         assert!(wrong_issuer
             .unwrap_err()
             .to_string()
-            .starts_with("InvalidReputationAttestation"));
+            .starts_with("ReputationIssuerKeyMismatch"));
         let wrong_identity = check_exported(&valid, &issuer, &someone_else);
         assert!(wrong_identity
             .unwrap_err()

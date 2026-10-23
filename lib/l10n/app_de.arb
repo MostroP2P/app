@@ -1270,6 +1270,8 @@
   "reputationIdentityMismatch": "Diese Reputation wurde für eine andere Identität ausgestellt als die, die du verwendest.",
   "reputationAlreadyImported": "Diese Reputation wurde auf diesem Mostro bereits importiert.",
   "reputationInvalidAttestation": "Das ist keine gültige Reputation. Fordere sie erneut bei ihrer Quelle an.",
+  "reputationExportFailed": "Dieser Mostro konnte deine Reputation nicht exportieren. Versuche es später noch einmal.",
+  "reputationExportUnexpectedIssuer": "Dieser Mostro hat die Antwort mit einem anderen Schlüssel signiert als dem angekündigten. Wechsle zu einem anderen Mostro und zurück, um seine Angaben zu aktualisieren, und versuche es dann erneut.",
   "reputationImportTitle": "Reputation importieren",
   "reputationImportIntro": "Bring die Reputation, die du auf lnp2pBot oder einem anderen Mostro verdient hast, auf diesen. Der Import verknüpft die beiden Konten: Die Quelle und dieser Mostro wissen, dass sie derselben Person gehören.",
   "reputationOpenLnp2pbot": "Von lnp2pBot holen",

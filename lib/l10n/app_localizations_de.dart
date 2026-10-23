@@ -4765,6 +4765,14 @@ class AppLocalizationsDe extends AppLocalizations {
       'Importierte Reputation wird zu deiner hiesigen addiert; deine Gegenparteien sehen beide zusammen.';
 
   @override
+  String get reputationExportFailed =>
+      'Dieser Mostro konnte deine Reputation nicht exportieren. Versuche es später noch einmal.';
+
+  @override
+  String get reputationExportUnexpectedIssuer =>
+      'Dieser Mostro hat die Antwort mit einem anderen Schlüssel signiert als dem angekündigten. Wechsle zu einem anderen Mostro und zurück, um seine Angaben zu aktualisieren, und versuche es dann erneut.';
+
+  @override
   String get reputationOpenLnp2pbotFailed =>
       'Telegram konnte nicht geöffnet werden. Öffne lnp2pBot selbst in Telegram und füge hier ein, was er dir schickt.';
 

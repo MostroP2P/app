@@ -111,7 +111,18 @@ class _ReputationScreenState extends ConsumerState<ReputationScreen> {
       );
       if (mounted) setState(() => _exported = attestation.json);
     } catch (e) {
-      if (mounted) setState(() => _error = localizedReputationError(l10n, e));
+      // The user is on the source and pasted nothing: a failure without a
+      // message of its own must not read as an invalid paste (#882).
+      if (mounted) {
+        setState(
+          () =>
+              _error = localizedReputationError(
+                l10n,
+                e,
+                fallback: l10n.reputationExportFailed,
+              ),
+        );
+      }
     } finally {
       if (mounted) setState(() => _busy = false);
     }

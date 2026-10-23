@@ -68,9 +68,15 @@ the identity that asked is still the active one.
 **Errors**: `ReputationExportUnsupported`, `StorageUnavailable` (checked
 before anything is sent), `PrivacyModeEnabled`, `InvalidPubkey`,
 `NoDaemonResponse`, `InvalidPayload`,
-`InvalidReputationAttestation`, the node's `CantDoReason` by name, and
-`NoIdentity` when the identity was deleted or replaced before the answer
-arrived (nothing is stored).
+`ReputationIssuerKeyMismatch` (the answer is signed by another key than the
+`reputation_issuer` the app read for the node, as after a rotation with a
+stale info event; refreshing the node's info is the remedy, #882),
+`InvalidReputationAttestation` (it names another identity), the node's
+`CantDoReason` by name, and `NoIdentity` when the identity was deleted or
+replaced before the answer arrived (nothing is stored). The reputation screen
+shows `ReputationIssuerKeyMismatch` with its own text, and every failure
+without a text of its own as "This Mostro could not export your reputation",
+never as an invalid pasted attestation.
 
 ---
 

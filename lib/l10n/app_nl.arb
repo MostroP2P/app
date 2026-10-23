@@ -1270,6 +1270,8 @@
   "reputationIdentityMismatch": "Deze reputatie is uitgegeven voor een andere identiteit dan die je gebruikt.",
   "reputationAlreadyImported": "Deze reputatie is al geïmporteerd op deze Mostro.",
   "reputationInvalidAttestation": "Dit is geen geldige reputatie. Vraag ze opnieuw aan bij de bron.",
+  "reputationExportFailed": "Deze Mostro kon je reputatie niet exporteren. Probeer het later opnieuw.",
+  "reputationExportUnexpectedIssuer": "Deze Mostro heeft het antwoord ondertekend met een andere sleutel dan aangekondigd. Schakel over naar een andere Mostro en terug om zijn gegevens te vernieuwen, en probeer het dan opnieuw.",
   "reputationImportTitle": "Reputatie importeren",
   "reputationImportIntro": "Breng de reputatie die je op lnp2pBot of op een andere Mostro hebt verdiend naar deze. Importeren koppelt de twee accounts: de bron en deze Mostro weten dat ze van dezelfde persoon zijn.",
   "reputationOpenLnp2pbot": "Ophalen bij lnp2pBot",

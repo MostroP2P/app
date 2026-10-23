@@ -188,6 +188,41 @@ void main() {
     expect(find.textContaining('at least 10 completed trades'), findsOneWidget);
   });
 
+  // #882: the user is on the source, and nothing they pasted is involved, so
+  // "This is not a valid reputation. Request it again from its source."
+  // points them nowhere.
+  testWidgets('an export that fails for a reason without a message of its own '
+      'says this Mostro could not export', (tester) async {
+    // Arrange
+    final api = await _pump(tester, issuer: _issuer);
+    api.refuse = Exception(
+      'InvalidPayload: the node answered without an attestation',
+    );
+
+    // Act
+    await _exportConfirmed(tester);
+
+    // Assert
+    expect(find.textContaining('could not export'), findsOneWidget);
+    expect(find.textContaining('not a valid reputation'), findsNothing);
+  });
+
+  testWidgets('an answer signed by another key than the one the node '
+      'announced says to refresh its info', (tester) async {
+    // Arrange
+    final api = await _pump(tester, issuer: _issuer);
+    api.refuse = Exception(
+      'ReputationIssuerKeyMismatch: signed by another key than announced',
+    );
+
+    // Act
+    await _exportConfirmed(tester);
+
+    // Assert
+    expect(find.textContaining('other than the one it announced'), findsOne);
+    expect(find.textContaining('not a valid reputation'), findsNothing);
+  });
+
   testWidgets('refuses to sign a rebind for a value that is not a key', (
     tester,
   ) async {

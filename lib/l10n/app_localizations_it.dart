@@ -4754,6 +4754,14 @@ class AppLocalizationsIt extends AppLocalizations {
       'La reputazione importata si somma a quella che hai qui; le tue controparti le vedono unite.';
 
   @override
+  String get reputationExportFailed =>
+      'Questo Mostro non ha potuto esportare la tua reputazione. Riprova più tardi.';
+
+  @override
+  String get reputationExportUnexpectedIssuer =>
+      'Questo Mostro ha firmato la risposta con una chiave diversa da quella annunciata. Passa a un altro Mostro e torna indietro per aggiornare le sue informazioni, poi riprova.';
+
+  @override
   String get reputationOpenLnp2pbotFailed =>
       'Impossibile aprire Telegram. Apri lnp2pBot in Telegram e incolla qui ciò che ti invia.';
 

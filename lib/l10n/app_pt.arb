@@ -1270,6 +1270,8 @@
   "reputationIdentityMismatch": "Esta reputação foi emitida para uma identidade diferente da que você está usando.",
   "reputationAlreadyImported": "Esta reputação já foi importada neste Mostro.",
   "reputationInvalidAttestation": "Esta não é uma reputação válida. Solicite-a novamente à fonte.",
+  "reputationExportFailed": "Este Mostro não conseguiu exportar sua reputação. Tente novamente mais tarde.",
+  "reputationExportUnexpectedIssuer": "Este Mostro assinou a resposta com uma chave diferente da que anunciou. Troque para outro Mostro e volte para atualizar as informações dele, depois tente novamente.",
   "reputationImportTitle": "Importar reputação",
   "reputationImportIntro": "Traga para este Mostro a reputação que você conquistou no lnp2pBot ou em outro Mostro. Importar vincula as duas contas: a fonte e este Mostro ficam sabendo que elas pertencem à mesma pessoa.",
   "reputationOpenLnp2pbot": "Obter no lnp2pBot",
