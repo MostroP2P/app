@@ -5010,4 +5010,12 @@ class AppLocalizationsEs extends AppLocalizations {
   String otherNodeCardSwitchPrompt(String nodeName) {
     return '¿Quieres cambiar al nodo $nodeName?';
   }
+
+  @override
+  String get stablecoinsGroupHeader => 'Stablecoins';
+
+  @override
+  String marketPriceNotQuotedByNode(String code) {
+    return 'Este nodo no cotiza $code a precio de mercado. Indica un monto fijo en sats.';
+  }
 }

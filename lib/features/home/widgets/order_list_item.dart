@@ -11,6 +11,7 @@ import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/abbreviated_figure.dart';
 import 'package:mostro/shared/utils/rating_format.dart';
 import 'package:mostro/shared/utils/reputation_age.dart';
+import 'package:mostro/shared/widgets/currency_mark.dart';
 import 'package:mostro/shared/widgets/counterpart_reputation_row.dart'
     show highlightFigures;
 
@@ -112,13 +113,11 @@ class OrderListItem extends StatelessWidget {
     super.key,
     required this.order,
     this.onTap,
-    this.currencyFlags = const {},
     this.reason,
   });
 
   final OrderItem order;
   final VoidCallback? onTap;
-  final Map<String, String> currencyFlags;
 
   /// Highlight chip awarded to this card, if any. Computed across the visible
   /// list (see [orderReasonsProvider]) and passed in by the screen. The
@@ -157,12 +156,7 @@ class OrderListItem extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _HeaderRow(
-                order: order,
-                reason: reason,
-                flag: currencyFlags[order.fiatCode] ?? '',
-                palette: pal,
-              ),
+              _HeaderRow(order: order, reason: reason, palette: pal),
               const SizedBox(height: _rowGap),
               _AmountRow(order: order, formats: formats, palette: pal),
               const SizedBox(height: _rowGap),
@@ -186,13 +180,11 @@ class _HeaderRow extends StatelessWidget {
   const _HeaderRow({
     required this.order,
     required this.reason,
-    required this.flag,
     required this.palette,
   });
 
   final OrderItem order;
   final OrderReason? reason;
-  final String flag;
   final OrderBookPalette palette;
 
   @override
@@ -237,11 +229,7 @@ class _HeaderRow extends StatelessWidget {
                   runSpacing: 6,
                   crossAxisAlignment: WrapCrossAlignment.center,
                   children: [
-                    _CurrencyChip(
-                      flag: flag,
-                      code: order.fiatCode,
-                      palette: palette,
-                    ),
+                    _CurrencyChip(code: order.fiatCode, palette: palette),
                     // Own-order chip before the highlight: on an own order it
                     // must always be readable.
                     if (mineLabel != null)
@@ -281,21 +269,17 @@ String _relativeTime(DateTime dt, AppLocalizations l10n) {
   return l10n.daysAgo(diff.inDays);
 }
 
+/// Mark (flag, or a stablecoin's coin: DS-TYP-9) + code.
 class _CurrencyChip extends StatelessWidget {
-  const _CurrencyChip({
-    required this.flag,
-    required this.code,
-    required this.palette,
-  });
+  const _CurrencyChip({required this.code, required this.palette});
 
-  final String flag;
   final String code;
   final OrderBookPalette palette;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(7, 4, 9, 4),
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
       decoration: BoxDecoration(
         color: palette.currencyChipFill,
         borderRadius: BorderRadius.circular(8),
@@ -303,10 +287,7 @@ class _CurrencyChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (flag.isNotEmpty) ...[
-            Text(flag, style: const TextStyle(fontSize: 13)),
-            const SizedBox(width: 6),
-          ],
+          CurrencyMarkGap(code: code, size: 13, gap: 6),
           Flexible(
             child: Text(
               code,

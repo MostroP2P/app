@@ -5183,5 +5183,18 @@
         "type": "String"
       }
     }
+  },
+  "stablecoinsGroupHeader": "Stablecoins",
+  "@stablecoinsGroupHeader": {
+    "description": "Group header above the stablecoins in the currency pickers (create order, default currency, order book filter)"
+  },
+  "marketPriceNotQuotedByNode": "This node doesn't quote {code} at market price. Set a fixed amount in sats.",
+  "@marketPriceNotQuotedByNode": {
+    "description": "Under the Market | Fixed control when the node's rates event does not quote the selected stablecoin, so Market is locked",
+    "placeholders": {
+      "code": {
+        "type": "String"
+      }
+    }
   }
 }

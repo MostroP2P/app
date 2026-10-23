@@ -1346,5 +1346,7 @@
   "payoutOutcomeMaybePaid": "Betaald aan deze of een andere die hier staat",
   "otherNodeCardLine": "Trade op node: {nodeName}",
   "otherNodeCardDialogTitle": "Trade op een andere node",
-  "otherNodeCardSwitchPrompt": "Wil je overschakelen naar node {nodeName}?"
+  "otherNodeCardSwitchPrompt": "Wil je overschakelen naar node {nodeName}?",
+  "stablecoinsGroupHeader": "Stablecoins",
+  "marketPriceNotQuotedByNode": "Deze node geeft geen marktprijs voor {code}. Stel een vast bedrag in sats in."
 }

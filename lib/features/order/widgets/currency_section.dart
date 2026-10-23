@@ -10,6 +10,8 @@ import 'package:mostro/features/order/models/create_order_rules.dart';
 import 'package:mostro/features/settings/providers/node_stats_provider.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
+import 'package:mostro/shared/widgets/currency_group_header.dart';
+import 'package:mostro/shared/widgets/currency_mark.dart';
 import 'package:mostro/shared/widgets/mostro_modal.dart';
 
 /// The picker's boxed search field (DS-CMP-11).
@@ -65,7 +67,7 @@ final offeredFiatCurrenciesProvider =
         final byCode = {for (final c in catalogue) c.code: c};
         return [
           for (final code in offeredFiatCodes(byCode.keys.toList(), accepted))
-            byCode[code] ?? FiatCurrency(code: code, name: '', flag: ''),
+            byCode[code] ?? FiatCurrency(code: code, name: ''),
         ];
       });
     });
@@ -94,7 +96,6 @@ class CurrencyInlineSelector extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final code = ref.watch(selectedFiatCodeProvider);
-    final flag = ref.watch(currencyFlagsProvider)[code] ?? '';
     final palette = OrderBookPalette.of(context);
 
     return _EditableValue(
@@ -105,8 +106,7 @@ class CurrencyInlineSelector extends ConsumerWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(flag, style: const TextStyle(fontSize: 14)),
-          const SizedBox(width: 6),
+          CurrencyMarkGap(code: code, size: 14, gap: 6),
           Text(
             code,
             style: TextStyle(
@@ -144,8 +144,7 @@ class CurrencyRowSelector extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Row(
           children: [
-            Text(currency?.flag ?? '', style: const TextStyle(fontSize: 14)),
-            const SizedBox(width: 8),
+            CurrencyMarkGap(code: code, size: 14, gap: 8),
             Text(
               code,
               style: TextStyle(
@@ -247,7 +246,8 @@ class _CurrencyPickerDialogState extends ConsumerState<_CurrencyPickerDialog> {
       final q = _query.toLowerCase();
       return c.code.toLowerCase().contains(q) ||
           c.name.toLowerCase().contains(q);
-    }).toList();
+    });
+    final rows = currencyPickerRows(filtered);
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(_kSearchFieldRadius),
       borderSide: BorderSide(color: palette.border),
@@ -289,7 +289,7 @@ class _CurrencyPickerDialogState extends ConsumerState<_CurrencyPickerDialog> {
             height: 300,
             child: currencies.isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : filtered.isEmpty
+                : rows.isEmpty
                     ? Center(
                         child: Text(
                           AppLocalizations.of(context).noCurrenciesFoundMessage,
@@ -297,15 +297,16 @@ class _CurrencyPickerDialogState extends ConsumerState<_CurrencyPickerDialog> {
                         ),
                       )
                     : ListView.builder(
-                        itemCount: filtered.length,
+                        itemCount: rows.length,
                         itemBuilder: (_, i) {
-                          final c = filtered[i];
+                          final row = rows[i];
+                          if (row is StablecoinsHeaderRow) {
+                            return const StablecoinsGroupHeader();
+                          }
+                          final c = (row as CurrencyRow).currency;
                           return ListTile(
                             contentPadding: EdgeInsets.zero,
-                            leading: Text(
-                              c.flag,
-                              style: const TextStyle(fontSize: 19),
-                            ),
+                            leading: CurrencyMark(code: c.code, size: 19),
                             title: Text(c.code),
                             // A code the node accepts but the catalogue
                             // does not name has no subtitle.

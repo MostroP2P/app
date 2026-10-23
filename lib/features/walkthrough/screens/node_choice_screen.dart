@@ -20,7 +20,6 @@ import 'package:mostro/features/settings/widgets/node_operator_disclaimer.dart';
 import 'package:mostro/features/walkthrough/providers/first_run_provider.dart';
 import 'package:mostro/features/walkthrough/providers/node_prefetch_provider.dart';
 import 'package:mostro/l10n/app_localizations.dart';
-import 'package:mostro/shared/utils/fiat_currencies.dart';
 import 'package:mostro/shared/widgets/redesign_app_bar.dart';
 import 'package:mostro/src/rust/api/node_stats.dart' show MostroNodeStats;
 
@@ -212,7 +211,6 @@ class _NodeList extends ConsumerWidget {
     final myFiat = ref.watch(
       settingsProvider.select((s) => s.defaultFiatCode?.toUpperCase()),
     );
-    final flags = ref.watch(currencyFlagsProvider);
     final btcPrice =
         myFiat == null
             ? null
@@ -250,7 +248,6 @@ class _NodeList extends ConsumerWidget {
           statsCached: live == null,
           statsLoading: statsAsync.isLoading,
           myFiat: myFiat,
-          flags: flags,
           btcPrice: btcPrice,
           selected: entry.pubkey == picked,
           now: now,

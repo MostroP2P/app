@@ -1346,5 +1346,7 @@
   "payoutOutcomeMaybePaid": "An diesen oder einen anderen hier gelisteten bezahlt",
   "otherNodeCardLine": "Trade auf Node: {nodeName}",
   "otherNodeCardDialogTitle": "Trade auf einem anderen Node",
-  "otherNodeCardSwitchPrompt": "Möchtest du zum Node {nodeName} wechseln?"
+  "otherNodeCardSwitchPrompt": "Möchtest du zum Node {nodeName} wechseln?",
+  "stablecoinsGroupHeader": "Stablecoins",
+  "marketPriceNotQuotedByNode": "Dieser Node bietet für {code} keinen Marktpreis an. Gib einen festen Betrag in Sats an."
 }

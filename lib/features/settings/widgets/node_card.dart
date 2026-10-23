@@ -12,6 +12,7 @@ import 'package:mostro/features/settings/models/settings_rows.dart';
 import 'package:mostro/features/settings/providers/mostro_nodes_provider.dart';
 import 'package:mostro/features/settings/widgets/node_avatar.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/currency_mark.dart';
 import 'package:mostro/src/rust/api/node_stats.dart';
 import 'package:mostro/src/rust/api/types.dart';
 
@@ -35,7 +36,6 @@ class NodeCard extends StatelessWidget {
     required this.statsLoading,
     this.statsCached = false,
     required this.myFiat,
-    required this.flags,
     required this.btcPrice,
     required this.selected,
     required this.now,
@@ -54,9 +54,6 @@ class NodeCard extends StatelessWidget {
 
   /// The user's preferred fiat code, or `null` for "all currencies".
   final String? myFiat;
-
-  /// Fiat code → flag emoji.
-  final Map<String, String> flags;
 
   /// Price of one BTC in [myFiat], for the range's fiat equivalent.
   final double? btcPrice;
@@ -102,9 +99,9 @@ class NodeCard extends StatelessWidget {
             dim: dim,
             onCopyPubkey: onCopyPubkey,
           ),
-          const SizedBox(height: 11),
-          _CurrencyRow(stats: s, myFiat: myFiat, flags: flags, dim: dim),
-          const SizedBox(height: 11),
+          const SizedBox(height: 12),
+          _CurrencyRow(stats: s, myFiat: myFiat, dim: dim),
+          const SizedBox(height: 12),
           _MetricsStrip(
             stats: s,
             liquidityStats: liveStats,
@@ -113,7 +110,7 @@ class NodeCard extends StatelessWidget {
             btcPrice: btcPrice,
             dim: dim,
           ),
-          const SizedBox(height: 11),
+          const SizedBox(height: 12),
           _TrustRow(stats: s, dim: dim),
         ],
       ),
@@ -366,13 +363,11 @@ class _CurrencyRow extends StatelessWidget {
   const _CurrencyRow({
     required this.stats,
     required this.myFiat,
-    required this.flags,
     required this.dim,
   });
 
   final MostroNodeStats? stats;
   final String? myFiat;
-  final Map<String, String> flags;
   final double dim;
 
   @override
@@ -388,15 +383,17 @@ class _CurrencyRow extends StatelessWidget {
     final accepts = acceptsMyFiat(s, mine);
     final chips = currencyChips(s.acceptedCurrencies, mine);
 
+    // `code` draws the currency's mark (flag or coin, DS-TYP-9) before the
+    // text; the missing-currency chip has none.
     Widget chip({
       required String text,
-      String? flag,
+      String? code,
       required Color bg,
       Color? border,
       required Color ink,
     }) {
       return Container(
-        padding: const EdgeInsets.fromLTRB(6, 3, 8, 3),
+        padding: const EdgeInsets.fromLTRB(6, 2, 8, 2),
         decoration: BoxDecoration(
           color: dimmed(bg, dim),
           borderRadius: BorderRadius.circular(8),
@@ -406,10 +403,7 @@ class _CurrencyRow extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (flag != null) ...[
-              Text(flag, style: const TextStyle(fontSize: 11)),
-              const SizedBox(width: 4),
-            ],
+            if (code != null) CurrencyMarkGap(code: code, size: 11, gap: 4),
             Text(
               text,
               style: TextStyle(
@@ -438,14 +432,14 @@ class _CurrencyRow extends StatelessWidget {
           code == mine
               ? chip(
                 text: code,
-                flag: flags[code],
+                code: code,
                 bg: pal.chipMineBg,
                 border: pal.chipMineBorder,
                 ink: pal.chipMineInk,
               )
               : chip(
                 text: code,
-                flag: flags[code],
+                code: code,
                 bg: pal.chipNeutralBg,
                 ink: pal.chipNeutralInk,
               ),

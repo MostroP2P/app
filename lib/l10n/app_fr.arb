@@ -1346,5 +1346,7 @@
   "payoutOutcomeMaybePaid": "Payé à celui-ci ou à un autre listé ici",
   "otherNodeCardLine": "Transaction sur le nœud : {nodeName}",
   "otherNodeCardDialogTitle": "Transaction sur un autre nœud",
-  "otherNodeCardSwitchPrompt": "Voulez-vous passer au nœud {nodeName} ?"
+  "otherNodeCardSwitchPrompt": "Voulez-vous passer au nœud {nodeName} ?",
+  "stablecoinsGroupHeader": "Stablecoins",
+  "marketPriceNotQuotedByNode": "Ce nœud ne cote pas {code} au prix du marché. Indiquez un montant fixe en sats."
 }

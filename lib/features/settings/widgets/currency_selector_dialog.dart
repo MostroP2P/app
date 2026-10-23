@@ -1,35 +1,20 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/utils/fiat_currencies.dart';
+import 'package:mostro/shared/widgets/currency_group_header.dart';
+import 'package:mostro/shared/widgets/currency_mark.dart';
+import 'package:mostro/shared/widgets/redesign_app_bar.dart';
 
-// ── Model ─────────────────────────────────────────────────────────────────────
+/// The search field's box (DS-CMP-11), as the create-order picker's.
+const _kSearchFieldRadius = 14.0;
 
-class _FiatEntry {
-  const _FiatEntry({
-    required this.code,
-    required this.name,
-    required this.flag,
-  });
-
-  final String code;
-  final String name;
-  final String flag;
-
-  factory _FiatEntry.fromJson(Map<String, dynamic> json) => _FiatEntry(
-        code: (json['code'] as String?) ?? '',
-        name: (json['name'] as String?) ?? '',
-        flag: (json['flag'] as String?) ?? '',
-      );
-}
-
-// ── Widget ────────────────────────────────────────────────────────────────────
-
+/// Full-screen picker of the default currency (Settings). Reads the same
+/// catalogue as the create-order picker, through [fiatCurrenciesProvider],
+/// so the two never disagree on an entry.
 class CurrencySelectorDialog extends ConsumerStatefulWidget {
   const CurrencySelectorDialog({super.key});
 
@@ -40,15 +25,12 @@ class CurrencySelectorDialog extends ConsumerStatefulWidget {
 
 class _CurrencySelectorDialogState
     extends ConsumerState<CurrencySelectorDialog> {
-  List<_FiatEntry> _allEntries = [];
-  List<_FiatEntry> _filtered = [];
   final TextEditingController _searchController = TextEditingController();
-  bool _loading = true;
+  String _query = '';
 
   @override
   void initState() {
     super.initState();
-    _loadCurrencies();
     _searchController.addListener(_onSearch);
   }
 
@@ -59,56 +41,38 @@ class _CurrencySelectorDialogState
     super.dispose();
   }
 
-  Future<void> _loadCurrencies() async {
-    try {
-      final raw = await rootBundle.loadString('assets/data/fiat.json');
-      final List<dynamic> parsed = json.decode(raw) as List<dynamic>;
-      final entries = parsed
-          .cast<Map<String, dynamic>>()
-          .map(_FiatEntry.fromJson)
-          .where((e) => e.code.isNotEmpty)
-          .toList();
-      if (mounted) {
-        setState(() {
-          _allEntries = entries;
-          _filtered = entries;
-          _loading = false;
-        });
-      }
-    } catch (e, stack) {
-      debugPrint('Failed to load currencies: $e\n$stack');
-      if (mounted) setState(() => _loading = false);
-    }
-  }
-
   void _onSearch() {
-    final query = _searchController.text.toLowerCase();
-    setState(() {
-      _filtered = _allEntries.where((e) {
-        return e.code.toLowerCase().contains(query) ||
-            e.name.toLowerCase().contains(query);
-      }).toList();
-    });
+    setState(() => _query = _searchController.text.toLowerCase());
   }
 
-  void _select(_FiatEntry entry) {
+  void _select(FiatCurrency entry) {
     ref.read(settingsProvider.notifier).setDefaultFiatCode(entry.code);
     Navigator.of(context).pop();
   }
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColors>();
-    if (colors == null) throw StateError('AppColors theme extension must be registered');
+    final book = OrderBookPalette.of(context);
     final l10n = AppLocalizations.of(context);
+    final catalogue = ref.watch(fiatCurrenciesProvider);
+    final filtered = (catalogue.valueOrNull ?? const <FiatCurrency>[]).where(
+      (e) =>
+          _query.isEmpty ||
+          e.code.toLowerCase().contains(_query) ||
+          e.name.toLowerCase().contains(_query),
+    );
+    final rows = currencyPickerRows(filtered);
+    final border = OutlineInputBorder(
+      borderRadius: BorderRadius.circular(_kSearchFieldRadius),
+      borderSide: BorderSide(color: book.border),
+    );
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(l10n.selectCurrencyDialogTitle),
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+      backgroundColor: book.bg,
+      appBar: redesignAppBar(
+        context,
+        title: l10n.selectCurrencyDialogTitle,
+        onBack: () => Navigator.of(context).pop(),
       ),
       body: Column(
         children: [
@@ -116,39 +80,69 @@ class _CurrencySelectorDialogState
             padding: const EdgeInsets.all(AppSpacing.lg),
             child: TextField(
               controller: _searchController,
+              autocorrect: false,
+              enableSuggestions: false,
+              style: TextStyle(fontSize: 14, color: book.textPrimary),
               decoration: InputDecoration(
+                isDense: true,
+                filled: true,
+                fillColor: book.inset,
+                border: border,
+                enabledBorder: border,
+                // The focus has to show (DS-COL-7).
+                focusedBorder: border.copyWith(
+                  borderSide: BorderSide(color: book.limeText),
+                ),
                 hintText: l10n.searchCurrenciesHint,
-                prefixIcon: Icon(Icons.search, color: colors.textSubtle),
+                hintStyle: TextStyle(fontSize: 13, color: book.textFaint),
+                prefixIcon: Icon(
+                  Icons.search,
+                  size: 16,
+                  color: book.textTertiary,
+                ),
               ),
             ),
           ),
           Expanded(
-            child: _loading
-                ? const Center(child: CircularProgressIndicator())
-                : _filtered.isEmpty
+            child:
+                catalogue.isLoading
+                    ? const Center(child: CircularProgressIndicator())
+                    : rows.isEmpty
                     ? Center(
-                        child: Text(
-                          l10n.noCurrenciesFoundMessage,
-                          style: Theme.of(context).textTheme.bodyMedium,
+                      child: Text(
+                        l10n.noCurrenciesFoundMessage,
+                        style: TextStyle(
+                          fontSize: 14,
+                          color: book.textTertiary,
                         ),
-                      )
-                    : ListView.builder(
-                        itemCount: _filtered.length,
-                        itemBuilder: (context, index) {
-                          final entry = _filtered[index];
-                          return ListTile(
-                            leading: Text(
-                              entry.flag,
-                              style: const TextStyle(fontSize: 24),
-                            ),
-                            title: Text(
-                              '${entry.code} — ${entry.name}',
-                              style: Theme.of(context).textTheme.bodyLarge,
-                            ),
-                            onTap: () => _select(entry),
-                          );
-                        },
                       ),
+                    )
+                    : ListView.builder(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: AppSpacing.sm,
+                      ),
+                      itemCount: rows.length,
+                      itemBuilder: (context, index) {
+                        final row = rows[index];
+                        if (row is StablecoinsHeaderRow) {
+                          return const StablecoinsGroupHeader(
+                            padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
+                          );
+                        }
+                        final entry = (row as CurrencyRow).currency;
+                        return ListTile(
+                          leading: CurrencyMark(code: entry.code, size: 22),
+                          title: Text(
+                            '${entry.code} — ${entry.name}',
+                            style: TextStyle(
+                              fontSize: 15,
+                              color: book.textPrimary,
+                            ),
+                          ),
+                          onTap: () => _select(entry),
+                        );
+                      },
+                    ),
           ),
         ],
       ),
