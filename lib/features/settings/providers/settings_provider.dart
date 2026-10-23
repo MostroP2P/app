@@ -41,12 +41,14 @@ class AppSettingsState {
   }) {
     return AppSettingsState(
       language: language ?? this.language,
-      defaultFiatCode: identical(defaultFiatCode, _unset)
-          ? this.defaultFiatCode
-          : defaultFiatCode as String?,
-      defaultLightningAddress: identical(defaultLightningAddress, _unset)
-          ? this.defaultLightningAddress
-          : defaultLightningAddress as String?,
+      defaultFiatCode:
+          identical(defaultFiatCode, _unset)
+              ? this.defaultFiatCode
+              : defaultFiatCode as String?,
+      defaultLightningAddress:
+          identical(defaultLightningAddress, _unset)
+              ? this.defaultLightningAddress
+              : defaultLightningAddress as String?,
       loggingEnabled: loggingEnabled ?? this.loggingEnabled,
       themeMode: themeMode ?? this.themeMode,
     );
@@ -111,9 +113,9 @@ class SettingsNotifier extends StateNotifier<AppSettingsState> {
     SharedPreferences? prefs,
     AppSettingsState? initial,
     LightningAddressSink? syncLightningAddress,
-  })  : _prefs = prefs,
-        _syncLightningAddress = syncLightningAddress,
-        super(initial ?? const AppSettingsState());
+  }) : _prefs = prefs,
+       _syncLightningAddress = syncLightningAddress,
+       super(initial ?? const AppSettingsState());
 
   final SharedPreferences? _prefs;
   final LightningAddressSink? _syncLightningAddress;
@@ -187,8 +189,9 @@ class SettingsNotifier extends StateNotifier<AppSettingsState> {
 /// synchronously before the first frame.
 final settingsProvider =
     StateNotifierProvider<SettingsNotifier, AppSettingsState>(
-  (ref) => SettingsNotifier(), // no-persistence fallback; replaced in main()
-);
+      (ref) =>
+          SettingsNotifier(), // no-persistence fallback; replaced in main()
+    );
 
 /// Language codes the app ships translations for, derived from the generated
 /// [AppLocalizations]. Used to validate stored and device languages.

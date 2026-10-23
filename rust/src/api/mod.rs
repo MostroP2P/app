@@ -1,3 +1,4 @@
+pub mod announcements;
 pub mod bond;
 pub mod bridge_handler;
 pub mod cashu;

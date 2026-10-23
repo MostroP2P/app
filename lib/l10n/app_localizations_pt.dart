@@ -1378,6 +1378,17 @@ class AppLocalizationsPt extends AppLocalizations {
       'Ações do mediador e resoluções de disputas';
 
   @override
+  String get notifAnnouncementsTitle => 'Anúncios';
+
+  @override
+  String get notifAnnouncementsSubtitle =>
+      'Versões, quedas e mudanças de relays, assinados pelo projeto Mostro';
+
+  @override
+  String get announcementsGroupSubtitle =>
+      'Os anúncios são lidos dos relays e nunca respondidos: nada sobre você é enviado.';
+
+  @override
   String get searchCurrenciesHint => 'Buscar moedas…';
 
   @override

@@ -13,8 +13,9 @@ typedef LogEntryReader = Future<LogEntry?> Function();
 
 /// The two bridge calls behind function seams, so the merge below can be
 /// driven in tests without a live bridge.
-final logHistoryProvider =
-    Provider<Future<List<LogEntry>> Function()>((ref) => logging_api.recentLogs);
+final logHistoryProvider = Provider<Future<List<LogEntry>> Function()>(
+  (ref) => logging_api.recentLogs,
+);
 
 final logStreamProvider = Provider<Future<LogEntryReader> Function()>(
   (ref) => () async => (await logging_api.onLogEntry()).next,
@@ -25,8 +26,9 @@ final logStreamProvider = Provider<Future<LogEntryReader> Function()>(
 /// Seeded from the Rust ring buffer so the screen opens on the history that led
 /// to whatever the user is reporting, then followed live. Cancelled when the
 /// provider is disposed (e.g. when LogReportScreen is popped).
-final logEntriesProvider =
-    StreamProvider.autoDispose<List<LogEntry>>((ref) async* {
+final logEntriesProvider = StreamProvider.autoDispose<List<LogEntry>>((
+  ref,
+) async* {
   var cancelled = false;
   ref.onDispose(() => cancelled = true);
 

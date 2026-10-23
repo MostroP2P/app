@@ -1714,6 +1714,18 @@
   "@notifDisputeUpdatesSubtitle": {
     "description": "Subtitle of the dispute updates notification toggle"
   },
+  "notifAnnouncementsTitle": "Announcements",
+  "@notifAnnouncementsTitle": {
+    "description": "Title of the Announcements toggle in notification settings (specs/006)"
+  },
+  "notifAnnouncementsSubtitle": "Releases, outages and relay changes, signed by the Mostro project",
+  "@notifAnnouncementsSubtitle": {
+    "description": "Subtitle of the Announcements toggle"
+  },
+  "announcementsGroupSubtitle": "Announcements are read from the relays and never answered: nothing about you is sent.",
+  "@announcementsGroupSubtitle": {
+    "description": "Line above the Announcements toggle: the channel is one-way, nothing is reported back"
+  },
   "searchCurrenciesHint": "Search currencies…",
   "@searchCurrenciesHint": {
     "description": "Hint text of the currency search field"

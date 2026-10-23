@@ -2466,6 +2466,24 @@ abstract class AppLocalizations {
   /// **'Resolver actions and dispute resolutions'**
   String get notifDisputeUpdatesSubtitle;
 
+  /// Title of the Announcements toggle in notification settings (specs/006)
+  ///
+  /// In en, this message translates to:
+  /// **'Announcements'**
+  String get notifAnnouncementsTitle;
+
+  /// Subtitle of the Announcements toggle
+  ///
+  /// In en, this message translates to:
+  /// **'Releases, outages and relay changes, signed by the Mostro project'**
+  String get notifAnnouncementsSubtitle;
+
+  /// Line above the Announcements toggle: the channel is one-way, nothing is reported back
+  ///
+  /// In en, this message translates to:
+  /// **'Announcements are read from the relays and never answered: nothing about you is sent.'**
+  String get announcementsGroupSubtitle;
+
   /// Hint text of the currency search field
   ///
   /// In en, this message translates to:

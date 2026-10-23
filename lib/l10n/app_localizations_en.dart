@@ -1362,6 +1362,17 @@ class AppLocalizationsEn extends AppLocalizations {
       'Resolver actions and dispute resolutions';
 
   @override
+  String get notifAnnouncementsTitle => 'Announcements';
+
+  @override
+  String get notifAnnouncementsSubtitle =>
+      'Releases, outages and relay changes, signed by the Mostro project';
+
+  @override
+  String get announcementsGroupSubtitle =>
+      'Announcements are read from the relays and never answered: nothing about you is sent.';
+
+  @override
   String get searchCurrenciesHint => 'Search currencies…';
 
   @override

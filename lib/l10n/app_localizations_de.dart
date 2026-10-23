@@ -1380,6 +1380,17 @@ class AppLocalizationsDe extends AppLocalizations {
       'Schlichter-Aktionen und Streitbeilegungen';
 
   @override
+  String get notifAnnouncementsTitle => 'Ankündigungen';
+
+  @override
+  String get notifAnnouncementsSubtitle =>
+      'Versionen, Ausfälle und Relay-Änderungen, signiert vom Mostro-Projekt';
+
+  @override
+  String get announcementsGroupSubtitle =>
+      'Ankündigungen werden von den Relays gelesen und nie beantwortet: Nichts über dich wird gesendet.';
+
+  @override
   String get searchCurrenciesHint => 'Währungen suchen…';
 
   @override

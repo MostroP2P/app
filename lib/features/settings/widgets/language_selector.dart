@@ -55,7 +55,8 @@ class LanguageSelector extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final currentCode = ref.watch(settingsProvider).language;
     final colorsRaw = Theme.of(context).extension<AppColors>();
-    if (colorsRaw == null) throw StateError('AppColors theme extension must be registered');
+    if (colorsRaw == null)
+      throw StateError('AppColors theme extension must be registered');
     final colors = colorsRaw;
 
     return MostroSheet(
@@ -70,18 +71,18 @@ class LanguageSelector extends ConsumerWidget {
               title: Text(
                 lang.native,
                 style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color:
-                          lang.code == currentCode ? colors.mostroGreen : null,
-                    ),
+                  fontWeight: FontWeight.bold,
+                  color: lang.code == currentCode ? colors.mostroGreen : null,
+                ),
               ),
               subtitle: Text(
                 lang.name,
                 style: Theme.of(context).textTheme.bodyMedium,
               ),
-              trailing: lang.code == currentCode
-                  ? Icon(Icons.check_circle, color: colors.mostroGreen)
-                  : null,
+              trailing:
+                  lang.code == currentCode
+                      ? Icon(Icons.check_circle, color: colors.mostroGreen)
+                      : null,
               onTap: () {
                 Navigator.of(context).pop();
                 if (lang.code == currentCode) return;
