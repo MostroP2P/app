@@ -1385,6 +1385,22 @@ class AppLocalizationsIt extends AppLocalizations {
       'Gli annunci vengono letti dai relay e mai risposti: non viene inviato nulla su di te.';
 
   @override
+  String get announcementLevelInfo => 'Annuncio';
+
+  @override
+  String get announcementLevelWarning => 'Avviso';
+
+  @override
+  String get announcementLevelCritical => 'Aggiornamento di sicurezza';
+
+  @override
+  String get announcementOpenLink => 'Apri il link';
+
+  @override
+  String get notificationsBellCritical =>
+      'Notifiche, un aggiornamento di sicurezza non letto';
+
+  @override
   String get searchCurrenciesHint => 'Cerca valute…';
 
   @override

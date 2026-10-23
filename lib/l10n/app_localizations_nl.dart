@@ -1390,6 +1390,22 @@ class AppLocalizationsNl extends AppLocalizations {
       'Aankondigingen worden van de relays gelezen en nooit beantwoord: er wordt niets over jou verstuurd.';
 
   @override
+  String get announcementLevelInfo => 'Aankondiging';
+
+  @override
+  String get announcementLevelWarning => 'Mededeling';
+
+  @override
+  String get announcementLevelCritical => 'Beveiligingsupdate';
+
+  @override
+  String get announcementOpenLink => 'Link openen';
+
+  @override
+  String get notificationsBellCritical =>
+      'Meldingen, een ongelezen beveiligingsupdate';
+
+  @override
   String get searchCurrenciesHint => 'Valuta zoeken…';
 
   @override

@@ -1388,6 +1388,22 @@ class AppLocalizationsFr extends AppLocalizations {
       'Les annonces sont lues depuis les relais et jamais répondues : rien vous concernant n\'est envoyé.';
 
   @override
+  String get announcementLevelInfo => 'Annonce';
+
+  @override
+  String get announcementLevelWarning => 'Avis';
+
+  @override
+  String get announcementLevelCritical => 'Mise à jour de sécurité';
+
+  @override
+  String get announcementOpenLink => 'Ouvrir le lien';
+
+  @override
+  String get notificationsBellCritical =>
+      'Notifications, une mise à jour de sécurité non lue';
+
+  @override
   String get searchCurrenciesHint => 'Rechercher des devises…';
 
   @override

@@ -206,6 +206,22 @@ NoticeSections sectionNotices(
   int newestFirst(NoticeEntry a, NoticeEntry b) =>
       b.latestAt.compareTo(a.latestAt);
   pinned.sort(newestFirst);
-  recent.sort(newestFirst);
+  // A `critical` announcement sorts above everything else in the timeline,
+  // then by date (specs/006 §3.4): "your trade key can leak" is not a
+  // notice to find under yesterday's chat.
+  int criticalFirst(NoticeEntry a, NoticeEntry b) {
+    final byLevel = _isCritical(b).compareTo(_isCritical(a));
+    return byLevel != 0 ? byLevel : newestFirst(a, b);
+  }
+
+  recent.sort(criticalFirst);
   return NoticeSections(needsAction: pinned, recent: recent);
 }
+
+/// 1 for a critical announcement, 0 for anything else — comparable.
+int _isCritical(NoticeEntry entry) => switch (entry) {
+  NoticeSystemEntry(:final notification)
+      when notification.isCriticalAnnouncement =>
+    1,
+  _ => 0,
+};
