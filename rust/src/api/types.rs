@@ -1228,6 +1228,13 @@ pub enum FundsAtRiskReason {
     /// under this identity, so only these words bring it back. Not tied to an
     /// order: `order_id` is empty.
     CashuWalletBalance,
+    /// Cashu invoices of this identity not minted yet (phase C3b-2): one
+    /// paid while the app was closed still reads unpaid until its mint is
+    /// asked, so each may be money on its way. They live only in this
+    /// identity's proof store, collected when these words are loaded again.
+    /// `amount_sats` is what is known paid, `None` when none is yet.
+    /// `order_id` is empty.
+    CashuPendingInvoices,
 }
 
 /// One thing the current identity still has in flight, as listed by
@@ -1350,6 +1357,16 @@ pub struct CashuWalletStatus {
     /// can pay one — phase C3b-1. False when not connected. Optional: a mint
     /// without it is still usable, and the UI hides "to Lightning" instead.
     pub can_send_lightning: bool,
+    /// Whether the mint issues ecash against a `bolt11` invoice (NUT-04), so
+    /// the wallet can be funded from any Lightning wallet — phase C3b-2.
+    /// False when not connected. Optional, like `can_send_lightning`: the UI
+    /// hides "via Lightning" instead of refusing the mint.
+    pub can_receive_lightning: bool,
+    /// Sats of invoices the wallet knows were paid at this mint and not yet
+    /// minted — phase C3b-2: the mint did not answer, or failed to mint, when
+    /// last asked. Collected at the next start, resume or Sync. Read from the
+    /// store alone; 0 when it cannot be read.
+    pub receiving_sats: u64,
 }
 
 /// What paying a Lightning invoice from the Cashu wallet costs — phase C3b-1.
@@ -1386,6 +1403,30 @@ pub enum CashuMeltResult {
     /// not answer after the request left. Its ecash stays reserved until the
     /// mint says, at the next sync.
     Pending,
+}
+
+/// An invoice that funds the Cashu wallet once paid — phase C3b-2.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct CashuMintQuote {
+    /// The mint's quote id, handed back to ask whether it was paid.
+    pub quote_id: String,
+    /// The bolt11 invoice to pay from any Lightning wallet.
+    pub invoice: String,
+    pub amount_sats: u64,
+    /// Unix time after which the invoice can no longer be paid; 0 when the
+    /// mint states none.
+    pub expires_at: u64,
+}
+
+/// Where an invoice from `cashu_mint_quote` stands — phase C3b-2.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub enum CashuMintQuoteState {
+    /// Not paid yet, or not known to be this round: ask again.
+    Waiting,
+    /// Paid, and its ecash is in the wallet.
+    Issued { amount_sats: u64 },
+    /// Expired without being paid.
+    Expired,
 }
 
 /// What a seller is about to lock into a Cashu escrow — phase C5.

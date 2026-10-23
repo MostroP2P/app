@@ -348,6 +348,469 @@ abstract class CashuMeltResult_Pending extends CashuMeltResult {
 }
 
 /// @nodoc
+mixin _$CashuMintQuoteState {
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() waiting,
+    required TResult Function(BigInt amountSats) issued,
+    required TResult Function() expired,
+  }) => throw _privateConstructorUsedError;
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? waiting,
+    TResult? Function(BigInt amountSats)? issued,
+    TResult? Function()? expired,
+  }) => throw _privateConstructorUsedError;
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? waiting,
+    TResult Function(BigInt amountSats)? issued,
+    TResult Function()? expired,
+    required TResult orElse(),
+  }) => throw _privateConstructorUsedError;
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(CashuMintQuoteState_Waiting value) waiting,
+    required TResult Function(CashuMintQuoteState_Issued value) issued,
+    required TResult Function(CashuMintQuoteState_Expired value) expired,
+  }) => throw _privateConstructorUsedError;
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(CashuMintQuoteState_Waiting value)? waiting,
+    TResult? Function(CashuMintQuoteState_Issued value)? issued,
+    TResult? Function(CashuMintQuoteState_Expired value)? expired,
+  }) => throw _privateConstructorUsedError;
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(CashuMintQuoteState_Waiting value)? waiting,
+    TResult Function(CashuMintQuoteState_Issued value)? issued,
+    TResult Function(CashuMintQuoteState_Expired value)? expired,
+    required TResult orElse(),
+  }) => throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $CashuMintQuoteStateCopyWith<$Res> {
+  factory $CashuMintQuoteStateCopyWith(
+    CashuMintQuoteState value,
+    $Res Function(CashuMintQuoteState) then,
+  ) = _$CashuMintQuoteStateCopyWithImpl<$Res, CashuMintQuoteState>;
+}
+
+/// @nodoc
+class _$CashuMintQuoteStateCopyWithImpl<$Res, $Val extends CashuMintQuoteState>
+    implements $CashuMintQuoteStateCopyWith<$Res> {
+  _$CashuMintQuoteStateCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of CashuMintQuoteState
+  /// with the given fields replaced by the non-null parameter values.
+}
+
+/// @nodoc
+abstract class _$$CashuMintQuoteState_WaitingImplCopyWith<$Res> {
+  factory _$$CashuMintQuoteState_WaitingImplCopyWith(
+    _$CashuMintQuoteState_WaitingImpl value,
+    $Res Function(_$CashuMintQuoteState_WaitingImpl) then,
+  ) = __$$CashuMintQuoteState_WaitingImplCopyWithImpl<$Res>;
+}
+
+/// @nodoc
+class __$$CashuMintQuoteState_WaitingImplCopyWithImpl<$Res>
+    extends
+        _$CashuMintQuoteStateCopyWithImpl<
+          $Res,
+          _$CashuMintQuoteState_WaitingImpl
+        >
+    implements _$$CashuMintQuoteState_WaitingImplCopyWith<$Res> {
+  __$$CashuMintQuoteState_WaitingImplCopyWithImpl(
+    _$CashuMintQuoteState_WaitingImpl _value,
+    $Res Function(_$CashuMintQuoteState_WaitingImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of CashuMintQuoteState
+  /// with the given fields replaced by the non-null parameter values.
+}
+
+/// @nodoc
+
+class _$CashuMintQuoteState_WaitingImpl extends CashuMintQuoteState_Waiting {
+  const _$CashuMintQuoteState_WaitingImpl() : super._();
+
+  @override
+  String toString() {
+    return 'CashuMintQuoteState.waiting()';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$CashuMintQuoteState_WaitingImpl);
+  }
+
+  @override
+  int get hashCode => runtimeType.hashCode;
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() waiting,
+    required TResult Function(BigInt amountSats) issued,
+    required TResult Function() expired,
+  }) {
+    return waiting();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? waiting,
+    TResult? Function(BigInt amountSats)? issued,
+    TResult? Function()? expired,
+  }) {
+    return waiting?.call();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? waiting,
+    TResult Function(BigInt amountSats)? issued,
+    TResult Function()? expired,
+    required TResult orElse(),
+  }) {
+    if (waiting != null) {
+      return waiting();
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(CashuMintQuoteState_Waiting value) waiting,
+    required TResult Function(CashuMintQuoteState_Issued value) issued,
+    required TResult Function(CashuMintQuoteState_Expired value) expired,
+  }) {
+    return waiting(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(CashuMintQuoteState_Waiting value)? waiting,
+    TResult? Function(CashuMintQuoteState_Issued value)? issued,
+    TResult? Function(CashuMintQuoteState_Expired value)? expired,
+  }) {
+    return waiting?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(CashuMintQuoteState_Waiting value)? waiting,
+    TResult Function(CashuMintQuoteState_Issued value)? issued,
+    TResult Function(CashuMintQuoteState_Expired value)? expired,
+    required TResult orElse(),
+  }) {
+    if (waiting != null) {
+      return waiting(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class CashuMintQuoteState_Waiting extends CashuMintQuoteState {
+  const factory CashuMintQuoteState_Waiting() =
+      _$CashuMintQuoteState_WaitingImpl;
+  const CashuMintQuoteState_Waiting._() : super._();
+}
+
+/// @nodoc
+abstract class _$$CashuMintQuoteState_IssuedImplCopyWith<$Res> {
+  factory _$$CashuMintQuoteState_IssuedImplCopyWith(
+    _$CashuMintQuoteState_IssuedImpl value,
+    $Res Function(_$CashuMintQuoteState_IssuedImpl) then,
+  ) = __$$CashuMintQuoteState_IssuedImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({BigInt amountSats});
+}
+
+/// @nodoc
+class __$$CashuMintQuoteState_IssuedImplCopyWithImpl<$Res>
+    extends
+        _$CashuMintQuoteStateCopyWithImpl<
+          $Res,
+          _$CashuMintQuoteState_IssuedImpl
+        >
+    implements _$$CashuMintQuoteState_IssuedImplCopyWith<$Res> {
+  __$$CashuMintQuoteState_IssuedImplCopyWithImpl(
+    _$CashuMintQuoteState_IssuedImpl _value,
+    $Res Function(_$CashuMintQuoteState_IssuedImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of CashuMintQuoteState
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? amountSats = null}) {
+    return _then(
+      _$CashuMintQuoteState_IssuedImpl(
+        amountSats:
+            null == amountSats
+                ? _value.amountSats
+                : amountSats // ignore: cast_nullable_to_non_nullable
+                    as BigInt,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+
+class _$CashuMintQuoteState_IssuedImpl extends CashuMintQuoteState_Issued {
+  const _$CashuMintQuoteState_IssuedImpl({required this.amountSats})
+    : super._();
+
+  @override
+  final BigInt amountSats;
+
+  @override
+  String toString() {
+    return 'CashuMintQuoteState.issued(amountSats: $amountSats)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$CashuMintQuoteState_IssuedImpl &&
+            (identical(other.amountSats, amountSats) ||
+                other.amountSats == amountSats));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, amountSats);
+
+  /// Create a copy of CashuMintQuoteState
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$CashuMintQuoteState_IssuedImplCopyWith<_$CashuMintQuoteState_IssuedImpl>
+  get copyWith => __$$CashuMintQuoteState_IssuedImplCopyWithImpl<
+    _$CashuMintQuoteState_IssuedImpl
+  >(this, _$identity);
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() waiting,
+    required TResult Function(BigInt amountSats) issued,
+    required TResult Function() expired,
+  }) {
+    return issued(amountSats);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? waiting,
+    TResult? Function(BigInt amountSats)? issued,
+    TResult? Function()? expired,
+  }) {
+    return issued?.call(amountSats);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? waiting,
+    TResult Function(BigInt amountSats)? issued,
+    TResult Function()? expired,
+    required TResult orElse(),
+  }) {
+    if (issued != null) {
+      return issued(amountSats);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(CashuMintQuoteState_Waiting value) waiting,
+    required TResult Function(CashuMintQuoteState_Issued value) issued,
+    required TResult Function(CashuMintQuoteState_Expired value) expired,
+  }) {
+    return issued(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(CashuMintQuoteState_Waiting value)? waiting,
+    TResult? Function(CashuMintQuoteState_Issued value)? issued,
+    TResult? Function(CashuMintQuoteState_Expired value)? expired,
+  }) {
+    return issued?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(CashuMintQuoteState_Waiting value)? waiting,
+    TResult Function(CashuMintQuoteState_Issued value)? issued,
+    TResult Function(CashuMintQuoteState_Expired value)? expired,
+    required TResult orElse(),
+  }) {
+    if (issued != null) {
+      return issued(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class CashuMintQuoteState_Issued extends CashuMintQuoteState {
+  const factory CashuMintQuoteState_Issued({required final BigInt amountSats}) =
+      _$CashuMintQuoteState_IssuedImpl;
+  const CashuMintQuoteState_Issued._() : super._();
+
+  BigInt get amountSats;
+
+  /// Create a copy of CashuMintQuoteState
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$CashuMintQuoteState_IssuedImplCopyWith<_$CashuMintQuoteState_IssuedImpl>
+  get copyWith => throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$CashuMintQuoteState_ExpiredImplCopyWith<$Res> {
+  factory _$$CashuMintQuoteState_ExpiredImplCopyWith(
+    _$CashuMintQuoteState_ExpiredImpl value,
+    $Res Function(_$CashuMintQuoteState_ExpiredImpl) then,
+  ) = __$$CashuMintQuoteState_ExpiredImplCopyWithImpl<$Res>;
+}
+
+/// @nodoc
+class __$$CashuMintQuoteState_ExpiredImplCopyWithImpl<$Res>
+    extends
+        _$CashuMintQuoteStateCopyWithImpl<
+          $Res,
+          _$CashuMintQuoteState_ExpiredImpl
+        >
+    implements _$$CashuMintQuoteState_ExpiredImplCopyWith<$Res> {
+  __$$CashuMintQuoteState_ExpiredImplCopyWithImpl(
+    _$CashuMintQuoteState_ExpiredImpl _value,
+    $Res Function(_$CashuMintQuoteState_ExpiredImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of CashuMintQuoteState
+  /// with the given fields replaced by the non-null parameter values.
+}
+
+/// @nodoc
+
+class _$CashuMintQuoteState_ExpiredImpl extends CashuMintQuoteState_Expired {
+  const _$CashuMintQuoteState_ExpiredImpl() : super._();
+
+  @override
+  String toString() {
+    return 'CashuMintQuoteState.expired()';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$CashuMintQuoteState_ExpiredImpl);
+  }
+
+  @override
+  int get hashCode => runtimeType.hashCode;
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function() waiting,
+    required TResult Function(BigInt amountSats) issued,
+    required TResult Function() expired,
+  }) {
+    return expired();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function()? waiting,
+    TResult? Function(BigInt amountSats)? issued,
+    TResult? Function()? expired,
+  }) {
+    return expired?.call();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function()? waiting,
+    TResult Function(BigInt amountSats)? issued,
+    TResult Function()? expired,
+    required TResult orElse(),
+  }) {
+    if (expired != null) {
+      return expired();
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(CashuMintQuoteState_Waiting value) waiting,
+    required TResult Function(CashuMintQuoteState_Issued value) issued,
+    required TResult Function(CashuMintQuoteState_Expired value) expired,
+  }) {
+    return expired(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(CashuMintQuoteState_Waiting value)? waiting,
+    TResult? Function(CashuMintQuoteState_Issued value)? issued,
+    TResult? Function(CashuMintQuoteState_Expired value)? expired,
+  }) {
+    return expired?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(CashuMintQuoteState_Waiting value)? waiting,
+    TResult Function(CashuMintQuoteState_Issued value)? issued,
+    TResult Function(CashuMintQuoteState_Expired value)? expired,
+    required TResult orElse(),
+  }) {
+    if (expired != null) {
+      return expired(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class CashuMintQuoteState_Expired extends CashuMintQuoteState {
+  const factory CashuMintQuoteState_Expired() =
+      _$CashuMintQuoteState_ExpiredImpl;
+  const CashuMintQuoteState_Expired._() : super._();
+}
+
+/// @nodoc
 mixin _$InvoiceVerdict {
   @optionalTypeArgs
   TResult when<TResult extends Object?>({

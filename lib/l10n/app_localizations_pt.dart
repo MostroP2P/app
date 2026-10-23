@@ -3904,6 +3904,10 @@ class AppLocalizationsPt extends AppLocalizations {
   String get fundsAtRiskCashuBalance => 'Ecash na carteira Cashu';
 
   @override
+  String get fundsAtRiskCashuInvoices =>
+      'Faturas Cashu que podem já ter sido pagas';
+
+  @override
   String get fundsAtRiskCashuHint =>
       'Só as palavras secretas deste usuário o recuperam';
 
@@ -4410,6 +4414,65 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String get cashuErrorMeltFailed =>
       'O pagamento não foi concluído. Nada foi pago; os sats voltaram ao seu saldo.';
+
+  @override
+  String get cashuReceiveTokenOption => 'Token de ecash';
+
+  @override
+  String get cashuReceiveLightningOption => 'Lightning';
+
+  @override
+  String get cashuMintAmountTitle => 'Receber via Lightning';
+
+  @override
+  String get cashuMintInvoiceTitle => 'Pague esta fatura';
+
+  @override
+  String get cashuMintInvoiceWaiting => 'Aguardando o pagamento…';
+
+  @override
+  String get cashuMintInvoiceNote =>
+      'Você pode fechar isto. Se a fatura for paga depois, os sats chegam na próxima vez que você abrir o app.';
+
+  @override
+  String cashuMintReceivedTitle(String sats) {
+    return '$sats sats recebidos';
+  }
+
+  @override
+  String get cashuMintExpiredTitle => 'Fatura expirada';
+
+  @override
+  String get cashuMintExpiredBody =>
+      'Ela não foi paga, então nada foi recebido. Crie uma nova fatura para tentar de novo.';
+
+  @override
+  String get cashuMintFailedTitle => 'Não foi possível receber';
+
+  @override
+  String get cashuInvoiceTooLargeForQr =>
+      'Esta fatura é grande demais para um código QR. Copie-a.';
+
+  @override
+  String get cashuErrorMintUnsupported =>
+      'Este mint não pode receber pagamentos Lightning.';
+
+  @override
+  String get cashuErrorMintAmountOutOfRange =>
+      'Este mint não emite faturas desse valor.';
+
+  @override
+  String get cashuErrorMintQuoteFailed =>
+      'O mint não conseguiu criar uma fatura. Tente mais tarde.';
+
+  @override
+  String get cashuErrorMintQuoteUnknown =>
+      'Esta fatura pertence a outro mint. Volte para esse mint para recebê-la.';
+
+  @override
+  String cashuReceivingSats(String sats) {
+    return 'Recebendo $sats sats';
+  }
 
   @override
   String get lockEscrowTitle => 'Bloquear a custódia';

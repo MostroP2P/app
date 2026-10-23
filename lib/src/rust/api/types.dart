@@ -10,7 +10,7 @@ part 'types.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `default_expiration_hours`, `default_expiration_seconds`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AppState`, `MostroNodeInfo`, `QueuedMessageStatus`, `TradeHistoryEntry`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 /// The `bond_claims` key for a node / order pair.
 Future<String> bondClaimKey({
@@ -704,6 +704,59 @@ sealed class CashuMeltResult with _$CashuMeltResult {
   const factory CashuMeltResult.pending() = CashuMeltResult_Pending;
 }
 
+/// An invoice that funds the Cashu wallet once paid — phase C3b-2.
+class CashuMintQuote {
+  /// The mint's quote id, handed back to ask whether it was paid.
+  final String quoteId;
+
+  /// The bolt11 invoice to pay from any Lightning wallet.
+  final String invoice;
+  final BigInt amountSats;
+
+  /// Unix time after which the invoice can no longer be paid; 0 when the
+  /// mint states none.
+  final BigInt expiresAt;
+
+  const CashuMintQuote({
+    required this.quoteId,
+    required this.invoice,
+    required this.amountSats,
+    required this.expiresAt,
+  });
+
+  @override
+  int get hashCode =>
+      quoteId.hashCode ^
+      invoice.hashCode ^
+      amountSats.hashCode ^
+      expiresAt.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CashuMintQuote &&
+          runtimeType == other.runtimeType &&
+          quoteId == other.quoteId &&
+          invoice == other.invoice &&
+          amountSats == other.amountSats &&
+          expiresAt == other.expiresAt;
+}
+
+@freezed
+sealed class CashuMintQuoteState with _$CashuMintQuoteState {
+  const CashuMintQuoteState._();
+
+  /// Not paid yet, or not known to be this round: ask again.
+  const factory CashuMintQuoteState.waiting() = CashuMintQuoteState_Waiting;
+
+  /// Paid, and its ecash is in the wallet.
+  const factory CashuMintQuoteState.issued({required BigInt amountSats}) =
+      CashuMintQuoteState_Issued;
+
+  /// Expired without being paid.
+  const factory CashuMintQuoteState.expired() = CashuMintQuoteState_Expired;
+}
+
 /// State of the embedded Cashu wallet — phase C2 of `docs/cashu/README.md`.
 ///
 /// Reported for every node, including Lightning ones, where it is simply
@@ -735,12 +788,26 @@ class CashuWalletStatus {
   /// without it is still usable, and the UI hides "to Lightning" instead.
   final bool canSendLightning;
 
+  /// Whether the mint issues ecash against a `bolt11` invoice (NUT-04), so
+  /// the wallet can be funded from any Lightning wallet — phase C3b-2.
+  /// False when not connected. Optional, like `can_send_lightning`: the UI
+  /// hides "via Lightning" instead of refusing the mint.
+  final bool canReceiveLightning;
+
+  /// Sats of invoices the wallet knows were paid at this mint and not yet
+  /// minted — phase C3b-2: the mint did not answer, or failed to mint, when
+  /// last asked. Collected at the next start, resume or Sync. Read from the
+  /// store alone; 0 when it cannot be read.
+  final BigInt receivingSats;
+
   const CashuWalletStatus({
     required this.connected,
     this.mintUrl,
     this.balanceSats,
     required this.missingCapabilities,
     required this.canSendLightning,
+    required this.canReceiveLightning,
+    required this.receivingSats,
   });
 
   @override
@@ -749,7 +816,9 @@ class CashuWalletStatus {
       mintUrl.hashCode ^
       balanceSats.hashCode ^
       missingCapabilities.hashCode ^
-      canSendLightning.hashCode;
+      canSendLightning.hashCode ^
+      canReceiveLightning.hashCode ^
+      receivingSats.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -760,7 +829,9 @@ class CashuWalletStatus {
           mintUrl == other.mintUrl &&
           balanceSats == other.balanceSats &&
           missingCapabilities == other.missingCapabilities &&
-          canSendLightning == other.canSendLightning;
+          canSendLightning == other.canSendLightning &&
+          canReceiveLightning == other.canReceiveLightning &&
+          receivingSats == other.receivingSats;
 }
 
 class ChatMessage {
@@ -1108,6 +1179,14 @@ enum FundsAtRiskReason {
   /// under this identity, so only these words bring it back. Not tied to an
   /// order: `order_id` is empty.
   cashuWalletBalance,
+
+  /// Cashu invoices of this identity not minted yet (phase C3b-2): one
+  /// paid while the app was closed still reads unpaid until its mint is
+  /// asked, so each may be money on its way. They live only in this
+  /// identity's proof store, collected when these words are loaded again.
+  /// `amount_sats` is what is known paid, `None` when none is yet.
+  /// `order_id` is empty.
+  cashuPendingInvoices,
 }
 
 class IdentityInfo {

@@ -1,4 +1,4 @@
-//! Melts still talking to their mint (issue #864).
+//! Melts and issues still talking to their mint (issue #864, phase C3b-2).
 //!
 //! cdk resumes every melt saga it finds in `MeltRequested` or `PaymentPending`
 //! — at Sync (`finalize_pending_melts`) and at connect
@@ -36,6 +36,20 @@
 //!   Without NUT-19 nothing bounds the request, and a restart is also what
 //!   frees a mint whose request hangs.
 //!
+//! **Issues have a mark of their own** (phase C3b-2), in a set apart: a melt
+//! and an issue touch different sagas, so neither waits for the other. cdk's
+//! status check of a mint quote, `inner_check_mint_quote_status`
+//! (`wallet/issue/mod.rs`, cdk 0.18.1), resumes any issue saga it finds on the
+//! quote, with no check that its mint call is still running. Against a mint
+//! that has not signed yet the restore comes back empty and the saga is
+//! deleted; the check then rewrites the quote, the live mint's versioned write
+//! of it fails, and it returns before storing its proofs — the mint has issued
+//! and the wallet holds nothing. So every status check of a quote, the mint
+//! that follows it, and connect's recovery hold the issue mark. Unlike the
+//! melt mark it is never an error: whoever finds it held skips this round
+//! ([`try_begin_issue`] returns `None`), since another caller is already doing
+//! the work.
+//!
 //! [`CashuWallet::melt`]: super::CashuWallet::melt
 
 use std::collections::HashSet;
@@ -48,8 +62,18 @@ use cdk::mint_url::MintUrl;
 /// across an `await`.
 fn marked() -> MutexGuard<'static, HashSet<String>> {
     static MARKED: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
-    MARKED
-        .get_or_init(Default::default)
+    lock(&MARKED)
+}
+
+/// The mints an issue holds the mark on, by their normalized URL. Never held
+/// across an `await`.
+fn issuing() -> MutexGuard<'static, HashSet<String>> {
+    static ISSUING: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    lock(&ISSUING)
+}
+
+fn lock(set: &'static OnceLock<Mutex<HashSet<String>>>) -> MutexGuard<'static, HashSet<String>> {
+    set.get_or_init(Default::default)
         .lock()
         // The set holds no invariant a panic could break halfway.
         .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -86,6 +110,28 @@ pub(crate) fn try_begin_melt(mint: &MintUrl) -> Result<MeltInFlight> {
 /// Whether a melt holds the mark on `mint`.
 pub(crate) fn melt_in_flight(mint: &MintUrl) -> bool {
     marked().contains(&mint.to_string())
+}
+
+/// The mark an issue holds on its mint; dropping it clears the mark.
+#[must_use = "the mark is cleared as soon as it is dropped"]
+pub(crate) struct IssueInFlight {
+    mint: String,
+}
+
+impl Drop for IssueInFlight {
+    fn drop(&mut self) {
+        issuing().remove(&self.mint);
+    }
+}
+
+/// Mark `mint` as having its mint quotes checked or minted, or `None` when
+/// someone already does: the caller skips this round rather than fail.
+pub(crate) fn try_begin_issue(mint: &MintUrl) -> Option<IssueInFlight> {
+    let mint = mint.to_string();
+    // Not `then_some`: it would build the mark even when the mint is taken,
+    // and dropping it would clear the holder's mark.
+    let taken = issuing().insert(mint.clone());
+    taken.then(|| IssueInFlight { mint })
 }
 
 #[cfg(test)]
@@ -135,6 +181,23 @@ mod tests {
         let mint = a_mint();
         assert!(a_melt_that_fails(&mint).is_err());
         assert!(!melt_in_flight(&mint), "cleared once it returned");
+    }
+
+    #[test]
+    fn an_issue_at_a_held_mint_skips_and_a_melt_does_not_hold_it() {
+        // Arrange
+        let mint = a_mint();
+        let first = try_begin_issue(&mint).expect("a free mint is taken");
+
+        // Act / Assert — a second issue at the same mint skips, with no error.
+        assert!(try_begin_issue(&mint).is_none());
+        // Another mint is not held up by it.
+        assert!(try_begin_issue(&a_mint()).is_some());
+        // Melts and issues are apart: neither holds the other's mark.
+        assert!(!melt_in_flight(&mint));
+        let _melt = try_begin_melt(&mint).unwrap();
+        drop(first);
+        assert!(try_begin_issue(&mint).is_some(), "free once the first ends");
     }
 
     #[test]

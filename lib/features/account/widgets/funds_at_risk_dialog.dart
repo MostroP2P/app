@@ -37,6 +37,7 @@ String fundsAtRiskLabel(
   FundsAtRiskReason.tradeInProgress => l10n.fundsAtRiskTradeInProgress,
   FundsAtRiskReason.bondInvoicePending => l10n.fundsAtRiskBondInvoicePending,
   FundsAtRiskReason.cashuWalletBalance => l10n.fundsAtRiskCashuBalance,
+  FundsAtRiskReason.cashuPendingInvoices => l10n.fundsAtRiskCashuInvoices,
 };
 
 class FundsAtRiskDialog extends StatelessWidget {
@@ -120,10 +121,14 @@ class _RiskRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    // The Cashu wallet is not an order: say what gets it back.
-                    risk.reason == FundsAtRiskReason.cashuWalletBalance
-                        ? l10n.fundsAtRiskCashuHint
-                        : l10n.orderLabel(shortOrderId(risk.orderId)),
+                    // The Cashu wallet and its invoices are not an order: say
+                    // what gets them back.
+                    switch (risk.reason) {
+                      FundsAtRiskReason.cashuWalletBalance ||
+                      FundsAtRiskReason
+                          .cashuPendingInvoices => l10n.fundsAtRiskCashuHint,
+                      _ => l10n.orderLabel(shortOrderId(risk.orderId)),
+                    },
                     style: TextStyle(fontSize: 11, color: book.textSecondary),
                   ),
                 ],

@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
@@ -29,8 +30,13 @@ class _FakeController extends CashuWalletController {
     this.token = 'cashuBtesttoken',
     List<CashuMeltQuote>? quotes,
     List<Object>? meltOutcomes,
+    this.mintQuoteError,
+    this.invoiceLifetime,
+    this.mintInvoice = _invoice,
+    List<Object>? claimOutcomes,
   }) : quotes = quotes ?? [],
-       meltOutcomes = meltOutcomes ?? [];
+       meltOutcomes = meltOutcomes ?? [],
+       claimOutcomes = claimOutcomes ?? [];
 
   final Object? connectError;
   final Object? createTokenError;
@@ -46,6 +52,25 @@ class _FakeController extends CashuWalletController {
 
   /// Every invoice handed to [meltQuote].
   final List<String> quoted = [];
+
+  /// What [mintQuote] throws, when set.
+  final Object? mintQuoteError;
+
+  /// How long the invoice [mintQuote] gives can be paid; none when null.
+  final Duration? invoiceLifetime;
+
+  /// The invoice [mintQuote] gives.
+  final String mintInvoice;
+
+  /// What each [claimMintQuote] does, in order: a [CashuMintQuoteState] is
+  /// returned, anything else is thrown. Once used up, it keeps waiting.
+  final List<Object> claimOutcomes;
+
+  /// Every amount handed to [mintQuote].
+  final List<BigInt> mintQuoted = [];
+
+  /// Every quote id handed to [claimMintQuote].
+  final List<String> claims = [];
 
   /// Every (quote id, confirmed total) handed to [melt].
   final List<(String, BigInt)> melts = [];
@@ -86,6 +111,32 @@ class _FakeController extends CashuWalletController {
   }
 
   @override
+  Future<CashuMintQuote> mintQuote(BigInt amountSats) async {
+    mintQuoted.add(amountSats);
+    if (mintQuoteError != null) throw mintQuoteError!;
+    return CashuMintQuote(
+      quoteId: 'mq1',
+      invoice: mintInvoice,
+      amountSats: amountSats,
+      expiresAt: switch (invoiceLifetime) {
+        final lifetime? => BigInt.from(
+          clock.now().add(lifetime).millisecondsSinceEpoch ~/ 1000,
+        ),
+        null => BigInt.zero,
+      },
+    );
+  }
+
+  @override
+  Future<CashuMintQuoteState> claimMintQuote(String quoteId) async {
+    claims.add(quoteId);
+    if (claimOutcomes.isEmpty) return const CashuMintQuoteState.waiting();
+    final outcome = claimOutcomes.removeAt(0);
+    if (outcome is CashuMintQuoteState) return outcome;
+    throw outcome;
+  }
+
+  @override
   Future<CashuMeltResult> melt(String quoteId, BigInt maxTotalSats) async {
     melts.add((quoteId, maxTotalSats));
     final outcome = meltOutcomes.removeAt(0);
@@ -114,6 +165,8 @@ CashuWalletStatus _status({
   required bool connected,
   required int? balance,
   bool canSendLightning = false,
+  bool canReceiveLightning = false,
+  int receiving = 0,
 }) {
   return CashuWalletStatus(
     connected: connected,
@@ -121,6 +174,8 @@ CashuWalletStatus _status({
     balanceSats: balance == null ? null : BigInt.from(balance),
     missingCapabilities: const [],
     canSendLightning: canSendLightning,
+    canReceiveLightning: canReceiveLightning,
+    receivingSats: BigInt.from(receiving),
   );
 }
 
@@ -548,6 +603,8 @@ void main() {
         balanceSats: BigInt.parse('9007199254740993'),
         missingCapabilities: const [],
         canSendLightning: false,
+        canReceiveLightning: false,
+        receivingSats: BigInt.zero,
       );
 
       // Act
@@ -1025,6 +1082,8 @@ void main() {
           balanceSats: BigInt.from(500),
           missingCapabilities: const [],
           canSendLightning: false,
+          canReceiveLightning: false,
+          receivingSats: BigInt.zero,
         ),
         controller: _FakeController(connectError: 'CashuMintUnreachable'),
       );
@@ -1616,6 +1675,379 @@ void main() {
         await tester.ensureVisible(button);
         expect(tester.getRect(button).bottom, lessThanOrEqualTo(800));
       }
+    });
+  });
+
+  group('CashuWalletScreen — receive via Lightning (C3b-2)', () {
+    /// A mint that issues against Lightning, and Receive → Lightning →
+    /// [amount] → Confirm: the invoice is on screen. Pumped by hand: the
+    /// dialog polls on a timer and spins, so nothing ever settles.
+    Future<void> openInvoice(
+      WidgetTester tester,
+      _FakeController controller, {
+      String amount = '1000',
+    }) async {
+      await _pump(
+        tester,
+        status: _status(connected: true, balance: 0, canReceiveLightning: true),
+        controller: controller,
+      );
+      await tester.tap(find.text('Receive'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Lightning'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), amount);
+      await tester.pump();
+      await tester.tap(find.text('Confirm'));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+
+    /// One poll: the timer fires, and its answer lands.
+    Future<void> poll(WidgetTester tester) async {
+      await tester.pump(const Duration(seconds: 3));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+
+    testWidgets('a mint that cannot issue receives a token, as before', (
+      tester,
+    ) async {
+      await _pump(tester, status: _status(connected: true, balance: 0));
+
+      await tester.tap(find.text('Receive'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Receive a token'), findsOneWidget);
+      expect(find.text('Lightning'), findsNothing);
+    });
+
+    testWidgets('a mint that issues offers a token or Lightning', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        status: _status(connected: true, balance: 0, canReceiveLightning: true),
+      );
+
+      await tester.tap(find.text('Receive'));
+      await tester.pumpAndSettle();
+
+      // Rows of equal weight, no primary button (DS-CMP-2); Cancel only.
+      expect(find.byType(MostroDialog), findsOneWidget);
+      expect(find.text('Ecash token'), findsOneWidget);
+      expect(find.text('Lightning'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byType(MostroDialog),
+          matching: find.byType(FilledButton),
+        ),
+        findsNothing,
+      );
+
+      // The token is the flow it always was.
+      await tester.tap(find.text('Ecash token'));
+      await tester.pumpAndSettle();
+      expect(find.text('Receive a token'), findsOneWidget);
+    });
+
+    testWidgets('the invoice waits, then shows what was received', (
+      tester,
+    ) async {
+      final controller = _FakeController(
+        claimOutcomes: [
+          const CashuMintQuoteState.waiting(),
+          CashuMintQuoteState.issued(amountSats: BigInt.from(1000)),
+        ],
+      );
+      await openInvoice(tester, controller);
+
+      // The invoice for the amount asked, as a QR, and nothing claimed yet.
+      expect(controller.mintQuoted, [BigInt.from(1000)]);
+      expect(find.text('Pay this invoice'), findsOneWidget);
+      expect(find.byType(MostroQr), findsOneWidget);
+      expect(find.text('1,000 Satoshis'), findsOneWidget);
+      expect(find.text('Waiting for the payment…'), findsOneWidget);
+      expect(controller.claims, isEmpty);
+
+      // Not paid yet: still the invoice.
+      await poll(tester);
+      expect(controller.claims, ['mq1']);
+      expect(find.text('Pay this invoice'), findsOneWidget);
+
+      // Paid: the outcome, in the same dialog, as a live region.
+      await poll(tester);
+      expect(find.text('Received 1,000 sats'), findsOneWidget);
+      expect(find.byType(MostroQr), findsNothing);
+      expect(
+        tester.widget<MostroDialog>(find.byType(MostroDialog)).liveRegion,
+        isTrue,
+      );
+
+      // No more polling once it ended.
+      await tester.pump(const Duration(seconds: 10));
+      expect(controller.claims, hasLength(2));
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+      expect(find.byType(MostroDialog), findsNothing);
+    });
+
+    testWidgets('an invoice that expires unpaid says so', (tester) async {
+      final controller = _FakeController(
+        claimOutcomes: [const CashuMintQuoteState.expired()],
+      );
+      await openInvoice(tester, controller);
+
+      await poll(tester);
+
+      expect(find.text('Invoice expired'), findsOneWidget);
+      expect(find.byType(MostroQr), findsNothing);
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('a failed check shows the reason, never the marker', (
+      tester,
+    ) async {
+      final controller = _FakeController(
+        claimOutcomes: [Exception('CashuMintQuoteUnknown')],
+      );
+      await openInvoice(tester, controller);
+
+      await poll(tester);
+
+      expect(find.text('Could not receive'), findsOneWidget);
+      expect(
+        find.text(
+          'This invoice belongs to another mint. Switch back to that mint '
+          'to receive it.',
+        ),
+        findsOneWidget,
+      );
+      expect(find.textContaining('CashuMint'), findsNothing);
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('closing the invoice stops asking about it', (tester) async {
+      final controller = _FakeController();
+      await openInvoice(tester, controller);
+
+      // Closing is allowed while it waits, and says nothing is lost.
+      expect(
+        find.text(
+          'You can close this. If the invoice is paid later, the sats arrive '
+          'the next time you open the app.',
+        ),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+      expect(find.byType(MostroDialog), findsNothing);
+
+      await tester.pump(const Duration(seconds: 10));
+      expect(controller.claims, isEmpty);
+    });
+
+    testWidgets('a refused amount shows the mint\'s reason', (tester) async {
+      final controller = _FakeController(
+        mintQuoteError: Exception('CashuMintAmountOutOfRange: 1000 sat'),
+      );
+      await openInvoice(tester, controller);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Pay this invoice'), findsNothing);
+      expect(
+        find.text('This mint does not issue invoices of that amount.'),
+        findsOneWidget,
+      );
+    });
+
+    // DS-CMP-21: the time left, labelled, ticking down — never the clock
+    // time it ends at, which reads as minutes and seconds that never move.
+    testWidgets('the invoice counts down the time left to pay it', (
+      tester,
+    ) async {
+      final controller = _FakeController(
+        invoiceLifetime: const Duration(minutes: 10),
+      );
+      await openInvoice(tester, controller);
+
+      expect(find.text('Expires in'), findsOneWidget);
+      final shown = RegExp(r'^\d\d:\d\d$');
+      String figure() =>
+          tester
+              .widgetList<Text>(find.byType(Text))
+              .map((text) => text.data ?? '')
+              .firstWhere(shown.hasMatch);
+      final first = figure();
+      expect(first, anyOf('10:00', '09:59'));
+
+      await tester.pump(const Duration(seconds: 2));
+      expect(figure(), isNot(first), reason: 'the countdown did not move');
+
+      await tester.tap(find.text('Close'));
+      await tester.pump(const Duration(milliseconds: 500));
+    });
+
+    // DS-CMP-2: copying is what the user does while it waits; closing is
+    // the way out, and loses nothing.
+    testWidgets('Copy is the answer while the invoice waits, Close the way out', (
+      tester,
+    ) async {
+      await openInvoice(tester, _FakeController());
+
+      final dialog = find.byType(MostroDialog);
+      expect(
+        find.descendant(
+          of: dialog,
+          matching: find.widgetWithText(FilledButton, 'Copy'),
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(
+          of: dialog,
+          matching: find.widgetWithText(FilledButton, 'Close'),
+        ),
+        findsNothing,
+      );
+      await tester.tap(find.text('Close'));
+      await tester.pumpAndSettle();
+      expect(find.byType(MostroDialog), findsNothing);
+    });
+
+    testWidgets('an invoice too large for a QR is shown as text to copy', (
+      tester,
+    ) async {
+      final huge = 'lnbcrt${'q' * 6000}';
+      await openInvoice(tester, _FakeController(mintInvoice: huge));
+
+      expect(tester.takeException(), isNull);
+      expect(find.byType(MostroQr), findsNothing);
+      expect(
+        find.text('This invoice is too large for a QR code. Copy it instead.'),
+        findsOneWidget,
+      );
+      expect(find.text(huge), findsOneWidget);
+      await tester.tap(find.text('Close'));
+      await tester.pump(const Duration(milliseconds: 500));
+    });
+
+    // DS-MOT-3: no looping spinner when the system asks for reduced motion.
+    testWidgets('the waiting spinner stands still with animations off', (
+      tester,
+    ) async {
+      tester.platformDispatcher.accessibilityFeaturesTestValue =
+          const FakeAccessibilityFeatures(disableAnimations: true);
+      addTearDown(tester.platformDispatcher.clearAccessibilityFeaturesTestValue);
+      await openInvoice(tester, _FakeController());
+
+      final dialog = find.byType(MostroDialog);
+      expect(
+        find.descendant(
+          of: dialog,
+          matching: find.byType(CircularProgressIndicator),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.descendant(of: dialog, matching: find.byIcon(Icons.schedule_rounded)),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Close'));
+      await tester.pump(const Duration(milliseconds: 500));
+    });
+
+    // A clock ahead of the mint's runs out before the invoice does: 00:00
+    // would read as dead an invoice that can still be paid. Only the mint
+    // calls it expired; until then it waits, and keeps asking.
+    testWidgets('a run-out countdown leaves the invoice waiting, not dead', (
+      tester,
+    ) async {
+      final controller = _FakeController(
+        invoiceLifetime: const Duration(seconds: 2),
+      );
+      await openInvoice(tester, controller);
+      expect(find.text('Expires in'), findsOneWidget);
+
+      await poll(tester);
+      await poll(tester);
+
+      expect(find.text('Expires in'), findsNothing);
+      expect(find.text('00:00'), findsNothing);
+      expect(find.text('Waiting for the payment…'), findsOneWidget);
+      expect(controller.claims, hasLength(2), reason: 'it still asks');
+      await tester.tap(find.text('Close'));
+      await tester.pump(const Duration(milliseconds: 500));
+    });
+
+    testWidgets('an invoice with no expiry shows no countdown', (tester) async {
+      await openInvoice(tester, _FakeController());
+
+      expect(find.text('Expires in'), findsNothing);
+      await tester.tap(find.text('Close'));
+      await tester.pump(const Duration(milliseconds: 500));
+    });
+
+    testWidgets('sats paid and not minted yet show as receiving', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        status: _status(connected: true, balance: 500, receiving: 1500),
+      );
+
+      // Under the balance, never added to it.
+      expect(find.text('500 Satoshis'), findsOneWidget);
+      expect(find.text('Receiving 1,500 sats'), findsOneWidget);
+    });
+
+    testWidgets('nothing receiving shows no row', (tester) async {
+      await _pump(tester, status: _status(connected: true, balance: 500));
+
+      expect(find.textContaining('Receiving'), findsNothing);
+    });
+
+    // DS-A11Y-4: the longest translation, doubled, on the narrowest phone.
+    testWidgets('the invoice fits a narrow screen at German and 2x text', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(320, 800);
+      tester.view.devicePixelRatio = 1.0;
+      tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+      addTearDown(tester.view.reset);
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      final de = await AppLocalizations.delegate.load(const Locale('de'));
+      await _pump(
+        tester,
+        status: _status(connected: true, balance: 0, canReceiveLightning: true),
+        locale: const Locale('de'),
+      );
+
+      await tester.tap(find.text(de.cashuReceiveButton));
+      await tester.pumpAndSettle();
+      expect(tester.takeException(), isNull);
+      await tester.tap(find.text(de.cashuReceiveLightningOption));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '1000');
+      await tester.pump();
+      await tester.tap(find.text(de.confirm));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+
+      expect(tester.takeException(), isNull);
+      for (final action in [de.cashuCopyToken, de.closeButtonLabel]) {
+        final button = find.descendant(
+          of: find.byType(MostroDialog),
+          matching: find.text(action),
+        );
+        await tester.ensureVisible(button);
+        await tester.pump();
+        expect(tester.getRect(button).bottom, lessThanOrEqualTo(800));
+      }
+      await tester.tap(find.text(de.closeButtonLabel));
+      await tester.pump(const Duration(milliseconds: 500));
     });
   });
 }

@@ -6384,6 +6384,12 @@ abstract class AppLocalizations {
   /// **'Ecash in the Cashu wallet'**
   String get fundsAtRiskCashuBalance;
 
+  /// Funds-at-risk list entry: invoices to fund the current user's Cashu wallet not minted yet; any may have been paid while the app was closed, and only this user's words collect them
+  ///
+  /// In en, this message translates to:
+  /// **'Cashu invoices that may have been paid'**
+  String get fundsAtRiskCashuInvoices;
+
   /// Funds-at-risk list entry, second line under the Cashu balance: only the current user's recovery words restore it
   ///
   /// In en, this message translates to:
@@ -7211,6 +7217,102 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The payment did not go through. Nothing was paid; the sats are back in your balance.'**
   String get cashuErrorMeltFailed;
+
+  /// Cashu wallet — Receive choice: redeem an ecash token
+  ///
+  /// In en, this message translates to:
+  /// **'Ecash token'**
+  String get cashuReceiveTokenOption;
+
+  /// Cashu wallet — Receive choice: fund the wallet by paying a Lightning invoice
+  ///
+  /// In en, this message translates to:
+  /// **'Lightning'**
+  String get cashuReceiveLightningOption;
+
+  /// Cashu wallet — title of the dialog asking how much to receive over Lightning
+  ///
+  /// In en, this message translates to:
+  /// **'Receive via Lightning'**
+  String get cashuMintAmountTitle;
+
+  /// Cashu wallet — title of the dialog showing the Lightning invoice that funds the wallet
+  ///
+  /// In en, this message translates to:
+  /// **'Pay this invoice'**
+  String get cashuMintInvoiceTitle;
+
+  /// Cashu wallet — status while the invoice has not been paid yet
+  ///
+  /// In en, this message translates to:
+  /// **'Waiting for the payment…'**
+  String get cashuMintInvoiceWaiting;
+
+  /// Cashu wallet — closing the invoice dialog loses nothing: a later payment is collected when the app opens
+  ///
+  /// In en, this message translates to:
+  /// **'You can close this. If the invoice is paid later, the sats arrive the next time you open the app.'**
+  String get cashuMintInvoiceNote;
+
+  /// Cashu wallet — the invoice was paid and its ecash is in the wallet; sats is a formatted number
+  ///
+  /// In en, this message translates to:
+  /// **'Received {sats} sats'**
+  String cashuMintReceivedTitle(String sats);
+
+  /// Cashu wallet — the invoice expired unpaid
+  ///
+  /// In en, this message translates to:
+  /// **'Invoice expired'**
+  String get cashuMintExpiredTitle;
+
+  /// Cashu wallet — body under an expired invoice
+  ///
+  /// In en, this message translates to:
+  /// **'It was not paid, so nothing was received. Create a new invoice to try again.'**
+  String get cashuMintExpiredBody;
+
+  /// Cashu wallet — the invoice could not be checked or collected; the reason follows
+  ///
+  /// In en, this message translates to:
+  /// **'Could not receive'**
+  String get cashuMintFailedTitle;
+
+  /// Cashu wallet — shown instead of the QR when the invoice to pay does not fit one; the invoice follows as copyable text
+  ///
+  /// In en, this message translates to:
+  /// **'This invoice is too large for a QR code. Copy it instead.'**
+  String get cashuInvoiceTooLargeForQr;
+
+  /// Cashu error — the mint does not issue ecash against Lightning invoices
+  ///
+  /// In en, this message translates to:
+  /// **'This mint cannot receive Lightning payments.'**
+  String get cashuErrorMintUnsupported;
+
+  /// Cashu error — the amount is zero or outside the mint's limits for invoices
+  ///
+  /// In en, this message translates to:
+  /// **'This mint does not issue invoices of that amount.'**
+  String get cashuErrorMintAmountOutOfRange;
+
+  /// Cashu error — the mint did not create the invoice, or it could not be read back
+  ///
+  /// In en, this message translates to:
+  /// **'The mint could not create an invoice. Try again later.'**
+  String get cashuErrorMintQuoteFailed;
+
+  /// Cashu error — the invoice belongs to a mint other than the wallet's current one
+  ///
+  /// In en, this message translates to:
+  /// **'This invoice belongs to another mint. Switch back to that mint to receive it.'**
+  String get cashuErrorMintQuoteUnknown;
+
+  /// Cashu wallet — under the balance: invoices known paid and not minted yet, collected at the next start, resume or sync; sats is a formatted number
+  ///
+  /// In en, this message translates to:
+  /// **'Receiving {sats} sats'**
+  String cashuReceivingSats(String sats);
 
   /// Title of the seller's Cashu escrow funding screen
   ///

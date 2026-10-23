@@ -11,7 +11,9 @@ use cdk::cdk_database::{self, WalletDatabase};
 use cdk::nuts::nut10::SpendingConditions;
 use cdk::mint_url::MintUrl;
 use cdk::nuts::MeltQuoteState;
-use cdk::nuts::{CurrencyUnit, KeySetInfo, MeltMethodSettings, PaymentMethod, Proof, Token};
+use cdk::nuts::{
+    CurrencyUnit, KeySetInfo, MeltMethodSettings, MintMethodSettings, PaymentMethod, Proof, Token,
+};
 use cdk::wallet::types::KeysetLoadPolicy;
 use cdk::wallet::{MeltOutcome, PreparedMelt, ReceiveOptions, SendMemo, SendOptions, Wallet};
 use cdk::Amount;
@@ -19,7 +21,7 @@ use cdk_sqlite::WalletSqliteDatabase;
 use std::str::FromStr;
 use uuid::Uuid;
 
-use super::in_flight;
+use super::{in_flight, mint_clock};
 
 /// Everything the escrow flow needs a mint to support.
 ///
@@ -50,6 +52,17 @@ pub struct MintCapabilities {
     pub melt_min_sats: Option<u64>,
     /// The largest melt the mint accepts, in sats, when it states one.
     pub melt_max_sats: Option<u64>,
+    /// NUT-04 — mint against a `bolt11` invoice in `sat`, and minting not
+    /// `disabled`. What "receive via Lightning" needs (phase C3b-2).
+    ///
+    /// **Optional**, like [`Self::nut05_bolt11`]: an escrow never mints from
+    /// Lightning, so the wallet screen hides "via Lightning" instead of
+    /// refusing the mint.
+    pub nut04_bolt11: bool,
+    /// The smallest invoice the mint issues, in sats, when it states one.
+    pub mint_min_sats: Option<u64>,
+    /// The largest invoice the mint issues, in sats, when it states one.
+    pub mint_max_sats: Option<u64>,
 }
 
 impl MintCapabilities {
@@ -201,7 +214,8 @@ impl CashuWallet {
     /// send or a melt being prepared. Here the wallet is not installed yet, so
     /// nothing runs on it — but an earlier wallet for the same mint, left by
     /// switching mints and back, may still be melting. So recovery waits for
-    /// the next connect while a melt holds the mint ([`in_flight`]). A send
+    /// the next connect while a melt holds the mint ([`in_flight`]), and
+    /// likewise while its mint quotes are being checked or minted. A send
     /// or escrow lock still running there is not covered: closing that needs
     /// those operations to hold a mark too.
     ///
@@ -216,6 +230,15 @@ impl CashuWallet {
             );
             return;
         }
+        // Held for the whole recovery: it resumes issue sagas too, and an
+        // invoice screen still polling a wallet for this mint must not run a
+        // check against one meanwhile, nor this against its mint.
+        let Some(_issuing) = in_flight::try_begin_issue(&self.inner.mint_url) else {
+            log::info!(
+                "[cashu] mint quotes are being checked at this mint: recovery waits for the next connect"
+            );
+            return;
+        };
         match self.inner.recover_incomplete_sagas().await {
             Ok(report) if report.is_empty() => {}
             Ok(report) => log::info!(
@@ -248,6 +271,7 @@ impl CashuWallet {
             .map_err(|e| anyhow!("CashuMintUnreachable: {e}"))?;
 
         let melt = bolt11_sat_melt(&info.nuts.nut05);
+        let mint = bolt11_sat_mint(&info.nuts.nut04);
         Ok(MintCapabilities {
             nut07_state_check: info.nuts.nut07.supported,
             nut11_p2pk: info.nuts.nut11.supported,
@@ -258,6 +282,9 @@ impl CashuWallet {
             nut05_bolt11: melt.is_some(),
             melt_min_sats: melt.as_ref().and_then(|m| m.min_amount).map(u64::from),
             melt_max_sats: melt.as_ref().and_then(|m| m.max_amount).map(u64::from),
+            nut04_bolt11: mint.is_some(),
+            mint_min_sats: mint.as_ref().and_then(|m| m.min_amount).map(u64::from),
+            mint_max_sats: mint.as_ref().and_then(|m| m.max_amount).map(u64::from),
         })
     }
 
@@ -442,6 +469,131 @@ impl CashuWallet {
         };
 
         Ok(token.to_string())
+    }
+
+    /// An invoice for `amount_sats`: once it is paid, the mint issues that
+    /// much ecash to this wallet — phase C3b-2.
+    ///
+    /// cdk stores the quote, with its NUT-20 key, before it returns
+    /// (`add_mint_quote`), so a paid invoice is collected even if the app is
+    /// killed before anyone asks again.
+    ///
+    /// **Errors** (stable markers): those of [`mint_gate`], and
+    /// `CashuMintQuoteFailed` when the mint does not give one.
+    pub async fn mint_quote(&self, amount_sats: u64) -> Result<MintQuoteInfo> {
+        mint_gate(&self.capabilities, amount_sats)?;
+        let quote = self
+            .inner
+            .mint_quote(
+                PaymentMethod::BOLT11,
+                Some(Amount::from(amount_sats)),
+                None,
+                None,
+            )
+            .await
+            .map_err(|e| match e {
+                cdk::Error::AmountOutofLimitRange(..) => {
+                    anyhow!("CashuMintAmountOutOfRange: {e}")
+                }
+                cdk::Error::UnsupportedPaymentMethod | cdk::Error::UnsupportedUnit => {
+                    anyhow!("CashuMintUnsupported: {e}")
+                }
+                other => anyhow!("CashuMintQuoteFailed: {other}"),
+            })?;
+        Ok(MintQuoteInfo {
+            quote_id: quote.id,
+            invoice: quote.request,
+            amount_sats,
+            expires_at: quote.expiry,
+        })
+    }
+
+    /// Ask the mint about the quote `quote_id` and, once it is paid, mint its
+    /// ecash into the wallet. What the invoice screen polls.
+    ///
+    /// Holds this mint's issue mark ([`in_flight`]) for the check and the
+    /// mint: cdk's check resumes the quote's issue saga, and would destroy a
+    /// mint still running elsewhere. While someone else holds it this round
+    /// is skipped, as `Waiting`, with nothing asked. A mint that does not
+    /// answer, or a mint call that fails, is `Waiting` too: the next round,
+    /// or the next start, tries again.
+    ///
+    /// **Errors** (stable markers): `CashuMintQuoteUnknown` for a quote this
+    /// wallet does not hold at its mint; `CashuMintQuoteFailed` when the store
+    /// cannot be read, or the mint has issued a quote whose ecash the wallet
+    /// does not hold.
+    pub async fn claim_mint_quote(&self, quote_id: &str) -> Result<MintQuoteStatus> {
+        let Some(_issuing) = in_flight::try_begin_issue(&self.inner.mint_url) else {
+            return Ok(MintQuoteStatus::Waiting);
+        };
+        let stored = self
+            .inner
+            .localstore
+            .get_mint_quote(quote_id)
+            .await
+            .map_err(|e| anyhow!("CashuMintQuoteFailed: {e}"))?
+            .filter(|quote| quote.mint_url == self.inner.mint_url)
+            .ok_or_else(|| anyhow!("CashuMintQuoteUnknown"))?;
+        if stored.amount_issued > Amount::ZERO {
+            return Ok(mint_quote_status(&stored, unix_now().as_secs()));
+        }
+
+        let checked = match self.inner.check_mint_quote_status(quote_id).await {
+            Ok(quote) => quote,
+            Err(e) => {
+                log::info!("[cashu] mint quote not checked this round: {e}");
+                return Ok(MintQuoteStatus::Waiting);
+            }
+        };
+        if checked.amount_mintable() > Amount::ZERO {
+            return match self
+                .inner
+                .mint(quote_id, SplitTarget::default(), None)
+                .await
+            {
+                Ok(proofs) => Ok(MintQuoteStatus::Issued {
+                    amount_sats: proofs.iter().map(|p| u64::from(p.amount)).sum(),
+                }),
+                Err(e) => {
+                    log::warn!("[cashu] minting a paid quote failed, retried next round: {e}");
+                    Ok(MintQuoteStatus::Waiting)
+                }
+            };
+        }
+        if checked.state == cdk::nuts::MintQuoteState::Issued
+            && checked.amount_issued == Amount::ZERO
+        {
+            bail!("CashuMintQuoteFailed: issued at the mint, nothing held here");
+        }
+        let status = mint_quote_status(&checked, unix_now().as_secs());
+        if status != MintQuoteStatus::Expired {
+            return Ok(status);
+        }
+        // The device's clock says it ran out; only the mint's may. A phone set
+        // ahead runs out early, and the user would be told to give up on an
+        // invoice that can still be paid ([`mint_clock`]). A mint whose time
+        // cannot be read leaves it waiting.
+        Ok(match mint_clock::mint_now(&self.inner.mint_url).await {
+            Some(mint_now) => mint_quote_status(&checked, mint_now),
+            None => MintQuoteStatus::Waiting,
+        })
+    }
+
+    /// This mint's [`PendingQuotes`], from the store alone.
+    ///
+    /// **Errors**: `CashuStoreUnavailable`.
+    pub async fn pending_quotes(&self) -> Result<PendingQuotes> {
+        let quotes = self
+            .inner
+            .localstore
+            .get_unissued_mint_quotes()
+            .await
+            .map_err(|e| anyhow!("CashuStoreUnavailable: {e}"))?;
+        Ok(pending_quotes_of(
+            quotes,
+            Some(&self.inner.mint_url),
+            unix_now().as_secs(),
+        ))
     }
 
     /// Mint `amount_sats` straight from the mint, for tests only.
@@ -869,6 +1021,37 @@ fn quote_info_of(quote: &cdk::wallet::MeltQuote, input_fee_sats: u64) -> Result<
     })
 }
 
+/// An invoice to fund the wallet from Lightning, from [`CashuWallet::mint_quote`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MintQuoteInfo {
+    /// The mint's quote, to check with [`CashuWallet::claim_mint_quote`].
+    pub quote_id: String,
+    /// The bolt11 invoice to pay.
+    pub invoice: String,
+    pub amount_sats: u64,
+    /// Unix time after which the invoice can no longer be paid; 0 when the
+    /// mint states none.
+    pub expires_at: u64,
+}
+
+/// Where a mint quote stands, from [`CashuWallet::claim_mint_quote`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MintQuoteStatus {
+    /// Not paid yet, or not known to be: the mint did not answer, or the
+    /// quote was being checked elsewhere this round. Ask again.
+    Waiting,
+    /// The mint issued the quote's ecash to this wallet.
+    Issued { amount_sats: u64 },
+    /// Past its expiry, and still unpaid at the mint.
+    Expired,
+}
+
+/// How long after its expiry a quote still unpaid at the mint is called
+/// [`MintQuoteStatus::Expired`]: a payment that left just before the expiry
+/// can take that long to show as paid. Past it, the collector still picks the
+/// quote up if it was paid after all.
+const MINT_QUOTE_EXPIRY_GRACE_SECS: u64 = 120;
+
 /// The most a melt can take from the balance: the invoice, the routing fee
 /// reserve and the mint's input fees. Change from an unspent reserve only
 /// ever lowers it.
@@ -904,6 +1087,53 @@ fn melt_gate(capabilities: &MintCapabilities, amount_sats: u64) -> Result<()> {
         bail!("CashuMeltAmountOutOfRange: {amount_sats} sat");
     }
     Ok(())
+}
+
+/// Refuse, from what the mint advertised at connect, an invoice it will not
+/// issue — before it is asked for one.
+///
+/// **Errors** (stable markers): `CashuMintUnsupported` when the mint does not
+/// mint `sat` against `bolt11`, `CashuMintAmountOutOfRange` for zero or
+/// outside its NUT-04 limits, where it states any.
+fn mint_gate(capabilities: &MintCapabilities, amount_sats: u64) -> Result<()> {
+    if !capabilities.nut04_bolt11 {
+        bail!("CashuMintUnsupported");
+    }
+    let above_min = capabilities
+        .mint_min_sats
+        .is_none_or(|min| amount_sats >= min);
+    let below_max = capabilities
+        .mint_max_sats
+        .is_none_or(|max| amount_sats <= max);
+    if amount_sats == 0 || !(above_min && below_max) {
+        bail!("CashuMintAmountOutOfRange: {amount_sats} sat");
+    }
+    Ok(())
+}
+
+/// What a quote the mint has just been asked about means, once nothing is
+/// left to mint from it. `now` is unix time.
+///
+/// `Issued` reads `amount_issued`, which cdk takes from the mint's answer as
+/// well as from its own mints (`apply_mint_quote_response`, cdk 0.18.1): the
+/// mint's word that it issued, which only this wallet's NUT-20 key can ask
+/// for. A quote the mint calls unpaid is `Expired` only once its expiry is
+/// [`MINT_QUOTE_EXPIRY_GRACE_SECS`] behind; an expiry of 0 means none.
+fn mint_quote_status(quote: &cdk::wallet::MintQuote, now: u64) -> MintQuoteStatus {
+    use cdk::nuts::MintQuoteState;
+
+    if quote.amount_issued > Amount::ZERO {
+        return MintQuoteStatus::Issued {
+            amount_sats: u64::from(quote.amount_issued),
+        };
+    }
+    let expired = quote.expiry != 0
+        && now >= quote.expiry.saturating_add(MINT_QUOTE_EXPIRY_GRACE_SECS);
+    if quote.state == MintQuoteState::Unpaid && expired {
+        MintQuoteStatus::Expired
+    } else {
+        MintQuoteStatus::Waiting
+    }
 }
 
 fn unix_now() -> Duration {
@@ -952,6 +1182,264 @@ fn bolt11_sat_melt(nut05: &cdk::nuts::nut05::Settings) -> Option<MeltMethodSetti
         return None;
     }
     nut05.get_settings(&CurrencyUnit::Sat, &PaymentMethod::BOLT11)
+}
+
+/// The mint's NUT-04 settings for minting against a `bolt11` invoice in
+/// `sat`, or `None` when it does not offer that or has minting disabled.
+fn bolt11_sat_mint(nut04: &cdk::nuts::nut04::Settings) -> Option<MintMethodSettings> {
+    if nut04.disabled {
+        return None;
+    }
+    nut04.get_settings(&CurrencyUnit::Sat, &PaymentMethod::BOLT11)
+}
+
+/// Collect every invoice of the proof store at `db_path` that was paid and
+/// not yet minted, at every mint it holds quotes for — phase C3b-2. Returns
+/// the sats minted.
+///
+/// The invoice is usually paid from another app, with this one closed or in
+/// the background, so this runs at start, on resume and on Sync. With no
+/// unissued quote in the store it returns without contacting any mint, and a
+/// store that does not exist is not created.
+///
+/// cdk's `mint_unissued_quotes` keeps only its wallet's own mint, so a quote
+/// at a mint the user has since left would wait until they return to it.
+/// Each mint with quotes gets its own pass: on `active` for the mint it is
+/// bound to, otherwise on a throwaway `cdk::Wallet` over the same seed and
+/// store, never installed and never asked to `recover_incomplete_sagas` — a
+/// recovery here could roll back an operation still running on the bound
+/// wallet. Each pass holds that mint's issue mark ([`in_flight`]), and a
+/// mint already held is skipped: whoever holds it is checking those quotes.
+///
+/// cdk does not filter by expiry, so a quote paid before it expired is
+/// collected whenever this next runs. A mint that does not answer, or a
+/// quote that fails, is logged and left for the next run: nothing here is
+/// an error but a store that cannot be read.
+///
+/// A mint whose every quote is [`dormant`] — long expired, and never called
+/// unpaid by the mint, which would have had it forgotten — is asked only
+/// with [`Collect::Everything`], what Sync asks for. A mint gone for good
+/// would otherwise be contacted at every start and resume, forever; its
+/// quotes are kept all the same, with their NUT-20 keys, in case it returns.
+///
+/// **Errors** (stable markers): `CashuStoreUnavailable`.
+pub async fn collect_pending_quotes(
+    db_path: &str,
+    seed: &zeroize::Zeroizing<[u8; 64]>,
+    active: Option<&CashuWallet>,
+    which: Collect,
+) -> Result<u64> {
+    if !std::path::Path::new(db_path).exists() {
+        return Ok(0);
+    }
+    let store = Arc::new(
+        WalletSqliteDatabase::new(db_path)
+            .await
+            .map_err(|e| anyhow!("CashuStoreUnavailable: {e}"))?,
+    );
+    let mut by_mint: std::collections::BTreeMap<MintUrl, Vec<cdk::wallet::MintQuote>> =
+        Default::default();
+    for quote in store
+        .get_unissued_mint_quotes()
+        .await
+        .map_err(|e| anyhow!("CashuStoreUnavailable: {e}"))?
+        .into_iter()
+        .filter(|quote| quote.unit == CurrencyUnit::Sat)
+    {
+        by_mint.entry(quote.mint_url.clone()).or_default().push(quote);
+    }
+
+    let now = unix_now().as_secs();
+    let mut minted = 0u64;
+    for (mint, quotes) in by_mint {
+        if which == Collect::Live && quotes.iter().all(|quote| dormant(quote, now)) {
+            log::info!("[cashu] quotes at {mint} are long expired: left to Sync");
+            continue;
+        }
+        let Some(_issuing) = in_flight::try_begin_issue(&mint) else {
+            log::info!("[cashu] quotes at {mint} are being checked already: skipped");
+            continue;
+        };
+        let throwaway;
+        let wallet = match active.filter(|wallet| wallet.inner.mint_url == mint) {
+            Some(bound) => &bound.inner,
+            None => match Wallet::new(
+                &mint.to_string(),
+                CurrencyUnit::Sat,
+                store.clone(),
+                **seed,
+                None,
+            ) {
+                Ok(wallet) => {
+                    throwaway = wallet;
+                    &throwaway
+                }
+                Err(e) => {
+                    log::warn!("[cashu] no wallet to collect paid invoices at {mint}: {e}");
+                    continue;
+                }
+            },
+        };
+        forget_expired_unpaid(wallet, &quotes, now).await;
+        match wallet.mint_unissued_quotes().await {
+            Ok(amount) if amount > Amount::ZERO => {
+                log::info!("[cashu] collected {amount} sat of paid invoices at {mint}");
+                minted = minted.saturating_add(u64::from(amount));
+            }
+            Ok(_) => {}
+            Err(e) => log::warn!("[cashu] collecting paid invoices at {mint} failed: {e}"),
+        }
+    }
+    Ok(minted)
+}
+
+/// Which quotes [`collect_pending_quotes`] asks their mint about.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Collect {
+    /// Every mint with a quote that is not [`dormant`]: at start and resume.
+    Live,
+    /// Every mint with a quote, dormant or not: at Sync, which the user asks
+    /// for.
+    Everything,
+}
+
+/// The invoices of a proof store not minted yet, as the store knows them —
+/// phase C3b-2. Read without contacting any mint.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PendingQuotes {
+    /// Sats the store knows were paid and not issued yet: a mint that did not
+    /// answer, or failed to mint, when it was last asked. Collected at the
+    /// next start, resume or Sync.
+    pub paid_sats: u64,
+    /// Every invoice not minted yet, not forgotten and not [`dormant`], paid
+    /// or not. One paid while the app was closed still reads unpaid here
+    /// until its mint is asked, so this, not [`Self::paid_sats`], is what a
+    /// lost store could cost.
+    pub open: u32,
+}
+
+/// [`PendingQuotes`] over `quotes`, the store's unissued ones: in sats, at
+/// `mint` or at every mint when `None`, leaving out the [`dormant`] ones at
+/// `now` (unix time).
+fn pending_quotes_of(
+    quotes: Vec<cdk::wallet::MintQuote>,
+    mint: Option<&MintUrl>,
+    now: u64,
+) -> PendingQuotes {
+    quotes
+        .into_iter()
+        .filter(|quote| quote.unit == CurrencyUnit::Sat)
+        .filter(|quote| mint.is_none_or(|mint| &quote.mint_url == mint))
+        .filter(|quote| !dormant(quote, now))
+        .fold(PendingQuotes::default(), |pending, quote| PendingQuotes {
+            paid_sats: pending
+                .paid_sats
+                .saturating_add(u64::from(quote.amount_mintable())),
+            open: pending.open.saturating_add(1),
+        })
+}
+
+/// The [`PendingQuotes`] of the proof store at `db_path` — at `mint_url`, or
+/// across every mint when `None` — without contacting any. A store that does
+/// not exist holds none and is not created.
+///
+/// **Errors**: `CashuStoreUnavailable`, `InvalidMintUrl`.
+pub async fn stored_pending_quotes(db_path: &str, mint_url: Option<&str>) -> Result<PendingQuotes> {
+    if !std::path::Path::new(db_path).exists() {
+        return Ok(PendingQuotes::default());
+    }
+    let mint_url = mint_url
+        .map(MintUrl::from_str)
+        .transpose()
+        .map_err(|e| anyhow!("InvalidMintUrl: {e}"))?;
+    let store = WalletSqliteDatabase::new(db_path)
+        .await
+        .map_err(|e| anyhow!("CashuStoreUnavailable: {e}"))?;
+    let quotes = store
+        .get_unissued_mint_quotes()
+        .await
+        .map_err(|e| anyhow!("CashuStoreUnavailable: {e}"))?;
+    Ok(pending_quotes_of(
+        quotes,
+        mint_url.as_ref(),
+        unix_now().as_secs(),
+    ))
+}
+
+/// How long after its expiry a quote still unpaid at the mint is forgotten.
+/// Not at once: a payment that left just before the expiry can take a while
+/// to show as paid.
+const MINT_QUOTE_FORGET_AFTER_SECS: u64 = 24 * 60 * 60;
+
+/// How long after its expiry a quote the mint never called unpaid stops
+/// being asked about at start and resume, and counted as open ([`dormant`]).
+/// A mint that answers gets the quote forgotten a day after its expiry, so
+/// only a mint that has not answered for this long gets here: down for good,
+/// or one that purged the quote — cdk reads "unknown quote" as a generic
+/// error (code 50000), so a mint saying it no longer has it cannot be told
+/// from one failing.
+const MINT_QUOTE_DORMANT_AFTER_SECS: u64 = 30 * 24 * 60 * 60;
+
+/// Whether `quote` is unpaid as far as the store knows — nothing paid,
+/// nothing issued, no operation on it — and expired `margin` seconds before
+/// `now`, or longer. An expiry of 0 means none.
+fn unpaid_since(quote: &cdk::wallet::MintQuote, now: u64, margin: u64) -> bool {
+    quote.state == cdk::nuts::MintQuoteState::Unpaid
+        && quote.amount_paid == Amount::ZERO
+        && quote.amount_issued == Amount::ZERO
+        && quote.used_by_operation.is_none()
+        && quote.expiry != 0
+        && now >= quote.expiry.saturating_add(margin)
+}
+
+/// Whether `quote` is one to forget once the mint confirms it unpaid:
+/// expired over [`MINT_QUOTE_FORGET_AFTER_SECS`] before `now`, the mint's
+/// time.
+fn forgettable(quote: &cdk::wallet::MintQuote, now: u64) -> bool {
+    unpaid_since(quote, now, MINT_QUOTE_FORGET_AFTER_SECS)
+}
+
+/// Whether `quote` is past being asked about but at Sync: expired over
+/// [`MINT_QUOTE_DORMANT_AFTER_SECS`] before `now` and never called unpaid
+/// since. Kept, and only set aside: the device's clock decides it, which at
+/// worst leaves a quote to Sync early or asks about it a while longer.
+fn dormant(quote: &cdk::wallet::MintQuote, now: u64) -> bool {
+    unpaid_since(quote, now, MINT_QUOTE_DORMANT_AFTER_SECS)
+}
+
+/// Forget the `quotes` of `wallet`'s mint that expired unpaid long ago, so
+/// they are not checked at every start — each check links the quotes to one
+/// another at the mint. The caller holds that mint's issue mark.
+///
+/// Only once the mint has said so: a quote the store calls unpaid may have
+/// been paid while the app was closed, and the store's word is not enough. A
+/// mint that does not answer keeps the quote for the next run.
+///
+/// And only by the mint's clock ([`mint_clock`]): `now`, the device's, just
+/// says whether any quote may be due. A phone set a day ahead would otherwise
+/// forget an invoice still being paid, and a payment that lands afterwards
+/// would have no quote to mint with. A mint whose time cannot be read keeps
+/// every quote.
+async fn forget_expired_unpaid(wallet: &Wallet, quotes: &[cdk::wallet::MintQuote], now: u64) {
+    if !quotes.iter().any(|quote| forgettable(quote, now)) {
+        return;
+    }
+    let Some(now) = mint_clock::mint_now(&wallet.mint_url).await else {
+        log::info!("[cashu] expired mint quotes kept: the mint's clock is unknown");
+        return;
+    };
+    for quote in quotes.iter().filter(|quote| forgettable(quote, now)) {
+        match wallet.check_mint_quote_status(&quote.id).await {
+            Ok(checked) if forgettable(&checked, now) => {
+                match wallet.localstore.remove_mint_quote(&quote.id).await {
+                    Ok(()) => log::info!("[cashu] forgot a mint quote that expired unpaid"),
+                    Err(e) => log::warn!("[cashu] forgetting an expired mint quote failed: {e}"),
+                }
+            }
+            Ok(_) => {}
+            Err(e) => log::info!("[cashu] expired mint quote kept, not checked: {e}"),
+        }
+    }
 }
 
 /// The sats held in the proof store at `db_path` — at `mint_url`, or across
@@ -1320,9 +1808,9 @@ mod tests {
     }
 
     #[test]
-    fn a_mint_without_melt_still_trades() {
-        // Arrange — every escrow requirement, and no NUT-05.
-        let no_melt = MintCapabilities {
+    fn a_mint_without_lightning_still_trades() {
+        // Arrange — every escrow requirement, and neither NUT-04 nor NUT-05.
+        let no_lightning = MintCapabilities {
             nut07_state_check: true,
             nut11_p2pk: true,
             nut12_dleq: true,
@@ -1330,11 +1818,15 @@ mod tests {
             nut05_bolt11: false,
             melt_min_sats: None,
             melt_max_sats: None,
+            nut04_bolt11: false,
+            mint_min_sats: None,
+            mint_max_sats: None,
         };
 
-        // Assert — "send to Lightning" is hidden, the mint is not refused.
-        assert!(no_melt.is_usable());
-        assert!(no_melt.missing().is_empty());
+        // Assert — "to Lightning" and "via Lightning" are hidden, the mint is
+        // not refused.
+        assert!(no_lightning.is_usable());
+        assert!(no_lightning.missing().is_empty());
     }
 
     #[test]
@@ -1385,6 +1877,57 @@ mod tests {
             (offering(Vec::new(), false), "nothing listed"),
         ] {
             assert!(bolt11_sat_melt(&settings).is_none(), "{why}");
+        }
+    }
+
+    #[test]
+    fn minting_counts_only_for_bolt11_in_sats_and_not_disabled() {
+        use cdk::nuts::nut04::Settings;
+
+        let method = |method: PaymentMethod, unit: CurrencyUnit| MintMethodSettings {
+            method,
+            unit,
+            method_name: None,
+            min_amount: Some(Amount::from(1)),
+            max_amount: Some(Amount::from(500_000)),
+            options: None,
+        };
+        let offering =
+            |methods: Vec<MintMethodSettings>, disabled: bool| Settings { methods, disabled };
+
+        // bolt11 in sats: offered, with its limits.
+        let mint = bolt11_sat_mint(&offering(
+            vec![method(PaymentMethod::BOLT11, CurrencyUnit::Sat)],
+            false,
+        ))
+        .expect("bolt11/sat is a mint this wallet can use");
+        assert_eq!(mint.min_amount, Some(Amount::from(1)));
+        assert_eq!(mint.max_amount, Some(Amount::from(500_000)));
+
+        // The same method with minting disabled, another unit, another
+        // method, or nothing listed: not offered.
+        for (settings, why) in [
+            (
+                offering(vec![method(PaymentMethod::BOLT11, CurrencyUnit::Sat)], true),
+                "disabled",
+            ),
+            (
+                offering(
+                    vec![method(PaymentMethod::BOLT11, CurrencyUnit::Usd)],
+                    false,
+                ),
+                "usd only",
+            ),
+            (
+                offering(
+                    vec![method(PaymentMethod::BOLT12, CurrencyUnit::Sat)],
+                    false,
+                ),
+                "bolt12 only",
+            ),
+            (offering(Vec::new(), false), "nothing listed"),
+        ] {
+            assert!(bolt11_sat_mint(&settings).is_none(), "{why}");
         }
     }
 
@@ -1807,7 +2350,8 @@ mod tests {
 
     /// A mint's HTTP endpoint, as far as these tests need one: it counts the
     /// connections it gets and answers each with `body` as JSON, or hangs up
-    /// when there is none.
+    /// when there is none. Each answer is dated, as every HTTP server's is,
+    /// by the device's clock.
     struct StubMint {
         url: String,
         connections: Arc<std::sync::atomic::AtomicUsize>,
@@ -1815,11 +2359,19 @@ mod tests {
 
     impl StubMint {
         async fn start(body: Option<String>) -> Self {
+            Self::start_with_clock(body, Some(0)).await
+        }
+
+        /// [`StubMint::start`], with a clock `offset` seconds off the
+        /// device's, or no `Date` on its answers when `None`.
+        async fn start_with_clock(body: Option<String>, offset: Option<i64>) -> Self {
             use std::sync::atomic::{AtomicUsize, Ordering};
             use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
             let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
             let url = format!("http://{}", listener.local_addr().unwrap());
+            // A port an earlier stub had must not lend this one its clock.
+            mint_clock::forget_offset(&MintUrl::from_str(&url).unwrap());
             let connections = Arc::new(AtomicUsize::new(0));
             let counted = connections.clone();
             tokio::spawn(async move {
@@ -1838,9 +2390,15 @@ mod tests {
                             }
                         }
                         if let Some(body) = body {
+                            let date = offset
+                                .map(|offset| {
+                                    let now = unix_now().as_secs().saturating_add_signed(offset);
+                                    format!("date: {}\r\n", mint_clock::http_date(now))
+                                })
+                                .unwrap_or_default();
                             let answer = format!(
                                 "HTTP/1.1 200 OK\r\ncontent-type: application/json\r\n\
-                                 content-length: {}\r\nconnection: close\r\n\r\n{body}",
+                                 {date}content-length: {}\r\nconnection: close\r\n\r\n{body}",
                                 body.len()
                             );
                             let _ = socket.write_all(answer.as_bytes()).await;
@@ -1863,12 +2421,17 @@ mod tests {
     /// A wallet at `mint_url` with one [`SEEDED_SATS`] proof under a keyset
     /// seeded in its store, and no fees anywhere.
     async fn seeded_wallet(mint_url: &str) -> CashuWallet {
+        seeded_wallet_at(mint_url, &temp_db_path()).await
+    }
+
+    /// [`seeded_wallet`], with its store at `db_path`.
+    async fn seeded_wallet_at(mint_url: &str, db_path: &std::path::Path) -> CashuWallet {
         use cdk::nuts::{Id, KeySet, Keys, SecretKey, State};
         use cdk::secret::Secret;
         use cdk::wallet::types::ProofInfo;
         use std::collections::BTreeMap;
 
-        let store = WalletSqliteDatabase::new(temp_db_path().to_str().unwrap())
+        let store = WalletSqliteDatabase::new(db_path.to_str().unwrap())
             .await
             .unwrap();
         let mint = MintUrl::from_str(mint_url).unwrap();
@@ -2177,5 +2740,710 @@ mod tests {
         );
         assert_eq!(unspent_sats(&wallet).await, 0);
         assert_eq!(mint.connections(), 0, "the mint was asked about it");
+    }
+
+    // ── Receiving via Lightning (C3b-2) ──────────────────────────────────────
+
+    #[test]
+    fn an_invoice_is_gated_on_what_the_mint_advertised() {
+        let mints = MintCapabilities {
+            nut04_bolt11: true,
+            ..MintCapabilities::default()
+        };
+        let gate = |caps: &MintCapabilities, sats: u64| mint_gate(caps, sats).map_err(marker_of);
+
+        // No NUT-04: unsupported, whatever the amount.
+        assert_eq!(
+            gate(&MintCapabilities::default(), 100),
+            Err("CashuMintUnsupported".to_string())
+        );
+
+        // No stated limits: any amount but zero goes to the mint.
+        assert_eq!(gate(&mints, 1), Ok(()));
+        assert_eq!(gate(&mints, u64::MAX), Ok(()));
+        assert_eq!(gate(&mints, 0), Err("CashuMintAmountOutOfRange".to_string()));
+
+        // Limits are inclusive at both ends.
+        let limited = MintCapabilities {
+            mint_min_sats: Some(10),
+            mint_max_sats: Some(1_000),
+            ..mints
+        };
+        assert_eq!(gate(&limited, 10), Ok(()));
+        assert_eq!(gate(&limited, 1_000), Ok(()));
+        for outside in [9, 1_001] {
+            assert_eq!(
+                gate(&limited, outside),
+                Err("CashuMintAmountOutOfRange".to_string()),
+                "{outside} sat"
+            );
+        }
+    }
+
+    /// A bolt11 mint quote for [`SEEDED_SATS`] at `mint`, as cdk stores one.
+    fn mint_quote_for(id: &str, mint: &MintUrl, expiry: u64) -> cdk::wallet::MintQuote {
+        cdk::wallet::MintQuote::new(
+            id.to_string(),
+            mint.clone(),
+            PaymentMethod::BOLT11,
+            Some(Amount::from(SEEDED_SATS)),
+            CurrencyUnit::Sat,
+            "lnbcrt640n1placeholder".to_string(),
+            expiry,
+            None,
+        )
+    }
+
+    #[test]
+    fn an_unpaid_quote_expires_only_past_its_grace() {
+        use cdk::nuts::MintQuoteState;
+
+        let mint = MintUrl::from_str("https://mint.example.com").unwrap();
+        let expiry = 1_000_000;
+        let unpaid = mint_quote_for("q", &mint, expiry);
+        let at = |quote: &cdk::wallet::MintQuote, now: u64| mint_quote_status(quote, now);
+
+        // Unpaid: waiting until the grace after its expiry has run out.
+        assert_eq!(at(&unpaid, expiry - 1), MintQuoteStatus::Waiting);
+        assert_eq!(
+            at(&unpaid, expiry + MINT_QUOTE_EXPIRY_GRACE_SECS - 1),
+            MintQuoteStatus::Waiting
+        );
+        assert_eq!(
+            at(&unpaid, expiry + MINT_QUOTE_EXPIRY_GRACE_SECS),
+            MintQuoteStatus::Expired
+        );
+
+        // Paid but not minted yet: never expired, whatever the clock says.
+        let paid = cdk::wallet::MintQuote {
+            state: MintQuoteState::Paid,
+            ..unpaid.clone()
+        };
+        assert_eq!(at(&paid, u64::MAX), MintQuoteStatus::Waiting);
+
+        // Issued: what was issued, expired or not.
+        let issued = cdk::wallet::MintQuote {
+            state: MintQuoteState::Issued,
+            amount_issued: Amount::from(SEEDED_SATS),
+            ..unpaid.clone()
+        };
+        assert_eq!(
+            at(&issued, u64::MAX),
+            MintQuoteStatus::Issued {
+                amount_sats: SEEDED_SATS
+            }
+        );
+
+        // No expiry stated: never expired.
+        let open = mint_quote_for("q", &mint, 0);
+        assert_eq!(at(&open, u64::MAX), MintQuoteStatus::Waiting);
+    }
+
+    /// How the mint answers a check of `quote_id`: unpaid, with `expiry`.
+    fn unpaid_mint_quote_answer(quote_id: &str, expiry: u64) -> String {
+        format!(
+            r#"{{"quote":"{quote_id}","request":"lnbcrt640n1placeholder","amount":{SEEDED_SATS},"unit":"sat","state":"UNPAID","expiry":{expiry}}}"#
+        )
+    }
+
+    #[tokio::test]
+    async fn a_quote_check_skips_while_the_mint_is_being_issued_to() {
+        // Arrange — a quote the mint would call expired, while an issue holds
+        // the mint: a mint call may be running on it.
+        let mint = StubMint::start(Some(unpaid_mint_quote_answer("held", 1))).await;
+        let wallet = seeded_wallet(&mint.url).await;
+        let quote = mint_quote_for("held", &wallet.inner.mint_url, 1);
+        wallet.inner.localstore.add_mint_quote(quote).await.unwrap();
+        let _issuing = in_flight::try_begin_issue(&wallet.inner.mint_url).unwrap();
+
+        // Act
+        let status = wallet.claim_mint_quote("held").await.unwrap();
+
+        // Assert — this round is skipped, as waiting, and nothing is asked.
+        assert_eq!(status, MintQuoteStatus::Waiting);
+        assert_eq!(mint.connections(), 0, "the mint was asked about it");
+    }
+
+    #[tokio::test]
+    async fn a_quote_check_marks_the_mint_while_it_runs() {
+        use tokio::io::AsyncReadExt;
+
+        // Arrange — a mint that takes the request and never answers, so the
+        // check is still running when the second one comes.
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let reached = Arc::new(tokio::sync::Notify::new());
+        tokio::spawn({
+            let reached = reached.clone();
+            async move {
+                let mut held = Vec::new();
+                while let Ok((mut socket, _)) = listener.accept().await {
+                    let mut chunk = [0u8; 4096];
+                    let _ = socket.read(&mut chunk).await;
+                    reached.notify_one();
+                    held.push(socket);
+                }
+            }
+        });
+        let wallet = Arc::new(seeded_wallet(&url).await);
+        let quote = mint_quote_for("slow", &wallet.inner.mint_url, 1);
+        wallet.inner.localstore.add_mint_quote(quote).await.unwrap();
+
+        // Act — a check in flight.
+        let first = tokio::spawn({
+            let wallet = wallet.clone();
+            async move { wallet.claim_mint_quote("slow").await }
+        });
+        reached.notified().await;
+
+        // Assert — the mint is held: another check, or a connect's recovery,
+        // skips it. And the mark goes with the check, even one cancelled.
+        assert!(in_flight::try_begin_issue(&wallet.inner.mint_url).is_none());
+        first.abort();
+        let _ = first.await;
+        assert!(in_flight::try_begin_issue(&wallet.inner.mint_url).is_some());
+    }
+
+    #[tokio::test]
+    async fn a_quote_the_mint_calls_unpaid_past_its_expiry_has_expired() {
+        // Arrange — expired an hour ago, still unpaid at the mint.
+        let expiry = unix_now().as_secs() - 3_600;
+        let mint = StubMint::start(Some(unpaid_mint_quote_answer("late", expiry))).await;
+        let wallet = seeded_wallet(&mint.url).await;
+        let quote = mint_quote_for("late", &wallet.inner.mint_url, expiry);
+        wallet.inner.localstore.add_mint_quote(quote).await.unwrap();
+
+        // Act / Assert — asked, and expired.
+        let status = wallet.claim_mint_quote("late").await.unwrap();
+        assert_eq!(status, MintQuoteStatus::Expired);
+        assert!(mint.connections() > 0);
+    }
+
+    #[tokio::test]
+    async fn a_quote_the_device_calls_expired_waits_until_the_mint_does() {
+        // Arrange — the device's clock is an hour ahead of the mint's: by it
+        // the invoice ran out ten minutes ago, by the mint's it has fifty
+        // minutes left.
+        let device_now = unix_now().as_secs();
+        let expiry = device_now - 600;
+        let mint = StubMint::start_with_clock(
+            Some(unpaid_mint_quote_answer("early", expiry)),
+            Some(-3_600),
+        )
+        .await;
+        let wallet = seeded_wallet(&mint.url).await;
+        let quote = mint_quote_for("early", &wallet.inner.mint_url, expiry);
+        wallet.inner.localstore.add_mint_quote(quote).await.unwrap();
+
+        // Act / Assert — still payable, so still waiting.
+        let status = wallet.claim_mint_quote("early").await.unwrap();
+        assert_eq!(status, MintQuoteStatus::Waiting);
+    }
+
+    #[tokio::test]
+    async fn a_quote_is_not_called_expired_by_a_mint_that_dates_nothing() {
+        // Arrange — long expired by the device's clock, and the mint's time
+        // cannot be read.
+        let expiry = unix_now().as_secs() - 3_600;
+        let mint =
+            StubMint::start_with_clock(Some(unpaid_mint_quote_answer("late", expiry)), None).await;
+        let wallet = seeded_wallet(&mint.url).await;
+        let quote = mint_quote_for("late", &wallet.inner.mint_url, expiry);
+        wallet.inner.localstore.add_mint_quote(quote).await.unwrap();
+
+        // Act / Assert
+        let status = wallet.claim_mint_quote("late").await.unwrap();
+        assert_eq!(status, MintQuoteStatus::Waiting);
+    }
+
+    #[tokio::test]
+    async fn a_quote_already_issued_is_answered_without_the_mint() {
+        // Arrange — the collector, or an earlier round, minted it.
+        let mint = StubMint::start(None).await;
+        let wallet = seeded_wallet(&mint.url).await;
+        let quote = cdk::wallet::MintQuote {
+            state: cdk::nuts::MintQuoteState::Issued,
+            amount_issued: Amount::from(SEEDED_SATS),
+            ..mint_quote_for("done", &wallet.inner.mint_url, 1)
+        };
+        wallet.inner.localstore.add_mint_quote(quote).await.unwrap();
+
+        // Act / Assert
+        let status = wallet.claim_mint_quote("done").await.unwrap();
+        assert_eq!(
+            status,
+            MintQuoteStatus::Issued {
+                amount_sats: SEEDED_SATS
+            }
+        );
+        assert_eq!(mint.connections(), 0, "the mint was asked about it");
+    }
+
+    #[tokio::test]
+    async fn a_quote_unknown_here_or_at_another_mint_is_refused() {
+        // Arrange — one quote taken at another mint, in the same store.
+        let mint = StubMint::start(None).await;
+        let wallet = seeded_wallet(&mint.url).await;
+        let elsewhere = MintUrl::from_str("https://other.mint.example").unwrap();
+        let quote = mint_quote_for("theirs", &elsewhere, 1);
+        wallet.inner.localstore.add_mint_quote(quote).await.unwrap();
+
+        // Act / Assert — neither is checked with this wallet's mint.
+        for id in ["missing", "theirs"] {
+            let refused = wallet.claim_mint_quote(id).await.unwrap_err();
+            assert_eq!(marker_of(refused), "CashuMintQuoteUnknown", "{id}");
+        }
+        assert_eq!(mint.connections(), 0, "the mint was asked about it");
+    }
+
+    #[tokio::test]
+    async fn connect_recovery_waits_while_the_mint_is_being_issued_to() {
+        // Arrange — an interrupted melt that recovery would settle, while an
+        // invoice screen checks a quote at the same mint.
+        let mint = StubMint::start(Some(unpaid_answer("issuing"))).await;
+        let wallet = seeded_wallet(&mint.url).await;
+        let saga = record_melt_in_flight(&wallet, "issuing").await;
+        let _issuing = in_flight::try_begin_issue(&wallet.inner.mint_url).unwrap();
+
+        // Act
+        wallet.recover().await;
+
+        // Assert — recovery did not run at all: it would resume issue sagas
+        // too. The next connect does it.
+        let recorded = wallet.inner.localstore.get_saga(&saga).await.unwrap();
+        assert!(recorded.is_some(), "recovery ran while the mint was held");
+        assert_eq!(mint.connections(), 0, "the mint was asked about it");
+    }
+
+    #[tokio::test]
+    async fn collecting_from_no_store_creates_none_and_asks_no_mint() {
+        let missing = temp_db_path();
+
+        let minted = collect_pending_quotes(
+            missing.to_str().unwrap(),
+            &unique_seed(),
+            None,
+            Collect::Live,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(minted, 0);
+        assert!(!missing.exists(), "the store was created");
+    }
+
+    #[tokio::test]
+    async fn collecting_with_no_quote_asks_no_mint() {
+        // Arrange — a wallet with ecash, and no invoice ever asked for.
+        let mint = StubMint::start(None).await;
+        let db = temp_db_path();
+        let wallet = seeded_wallet_at(&mint.url, &db).await;
+
+        // Act
+        let minted = collect_pending_quotes(
+            db.to_str().unwrap(),
+            &unique_seed(),
+            Some(&wallet),
+            Collect::Live,
+        )
+        .await
+        .unwrap();
+
+        // Assert — the wallet stays lazy.
+        assert_eq!(minted, 0);
+        assert_eq!(mint.connections(), 0, "a mint was contacted");
+    }
+
+    #[tokio::test]
+    async fn collecting_asks_every_mint_with_quotes_not_only_the_bound_one() {
+        // Arrange — quotes at the bound mint and at one the user left, both
+        // still unpaid there.
+        let expiry = unix_now().as_secs() + 3_600;
+        let bound = StubMint::start(Some(unpaid_mint_quote_answer("here", expiry))).await;
+        let left = StubMint::start(Some(unpaid_mint_quote_answer("there", expiry))).await;
+        let db = temp_db_path();
+        let wallet = seeded_wallet_at(&bound.url, &db).await;
+        let store = &wallet.inner.localstore;
+        store
+            .add_mint_quote(mint_quote_for("here", &wallet.inner.mint_url, expiry))
+            .await
+            .unwrap();
+        let elsewhere = MintUrl::from_str(&left.url).unwrap();
+        store
+            .add_mint_quote(mint_quote_for("there", &elsewhere, expiry))
+            .await
+            .unwrap();
+
+        // Act
+        let minted = collect_pending_quotes(
+            db.to_str().unwrap(),
+            &unique_seed(),
+            Some(&wallet),
+            Collect::Live,
+        )
+        .await
+        .unwrap();
+
+        // Assert — both asked; nothing paid, nothing minted.
+        assert_eq!(minted, 0);
+        assert!(bound.connections() > 0, "the bound mint was not asked");
+        assert!(left.connections() > 0, "the mint the user left was not asked");
+    }
+
+    #[tokio::test]
+    async fn collecting_skips_a_mint_whose_quotes_are_being_checked() {
+        // Arrange — two mints with quotes; an invoice screen holds the first.
+        let expiry = unix_now().as_secs() + 3_600;
+        let held = StubMint::start(Some(unpaid_mint_quote_answer("held", expiry))).await;
+        let free = StubMint::start(Some(unpaid_mint_quote_answer("free", expiry))).await;
+        let db = temp_db_path();
+        let wallet = seeded_wallet_at(&held.url, &db).await;
+        let store = &wallet.inner.localstore;
+        store
+            .add_mint_quote(mint_quote_for("held", &wallet.inner.mint_url, expiry))
+            .await
+            .unwrap();
+        let other = MintUrl::from_str(&free.url).unwrap();
+        store
+            .add_mint_quote(mint_quote_for("free", &other, expiry))
+            .await
+            .unwrap();
+        let _issuing = in_flight::try_begin_issue(&wallet.inner.mint_url).unwrap();
+
+        // Act
+        collect_pending_quotes(
+            db.to_str().unwrap(),
+            &unique_seed(),
+            Some(&wallet),
+            Collect::Live,
+        )
+        .await
+        .unwrap();
+
+        // Assert — the held mint is left to its holder; the other is asked.
+        assert_eq!(held.connections(), 0, "the held mint was asked");
+        assert!(free.connections() > 0, "the free mint was not asked");
+    }
+
+    #[tokio::test]
+    async fn collecting_at_a_mint_left_behind_recovers_nothing_there() {
+        // Arrange — the mint the user left still has a melt on record, which
+        // a recovery would roll back on this "unpaid" answer, and a quote.
+        let expiry = unix_now().as_secs() + 3_600;
+        let left = StubMint::start(Some(unpaid_answer("melting"))).await;
+        let db = temp_db_path();
+        let earlier = seeded_wallet_at(&left.url, &db).await;
+        let saga = record_melt_in_flight(&earlier, "melting").await;
+        earlier
+            .inner
+            .localstore
+            .add_mint_quote(mint_quote_for("quote", &earlier.inner.mint_url, expiry))
+            .await
+            .unwrap();
+
+        // Act — no wallet bound to it: the collector builds its own.
+        collect_pending_quotes(db.to_str().unwrap(), &unique_seed(), None, Collect::Live)
+            .await
+            .unwrap();
+
+        // Assert — the mint was asked about the quote, and the melt is
+        // untouched: the throwaway wallet ran no recovery.
+        assert!(left.connections() > 0, "the mint was not asked");
+        let recorded = earlier.inner.localstore.get_saga(&saga).await.unwrap();
+        assert!(recorded.is_some(), "the melt was rolled back");
+        assert_eq!(unspent_sats(&earlier).await, 0);
+    }
+
+    #[test]
+    fn a_quote_is_forgettable_only_long_after_it_expired_unpaid() {
+        use cdk::nuts::MintQuoteState;
+
+        let mint = MintUrl::from_str("https://mint.example.com").unwrap();
+        let expiry = 1_000_000;
+        let quote = mint_quote_for("q", &mint, expiry);
+        let forget_at = expiry + MINT_QUOTE_FORGET_AFTER_SECS;
+
+        assert!(!forgettable(&quote, forget_at - 1), "not yet");
+        assert!(forgettable(&quote, forget_at));
+
+        // Anything the mint said was paid or issued, an operation on it, or
+        // no expiry at all: kept, whatever the clock says.
+        let kept = [
+            cdk::wallet::MintQuote {
+                state: MintQuoteState::Paid,
+                ..quote.clone()
+            },
+            cdk::wallet::MintQuote {
+                amount_paid: Amount::from(SEEDED_SATS),
+                ..quote.clone()
+            },
+            cdk::wallet::MintQuote {
+                amount_issued: Amount::from(SEEDED_SATS),
+                ..quote.clone()
+            },
+            cdk::wallet::MintQuote {
+                used_by_operation: Some(Uuid::new_v4().to_string()),
+                ..quote.clone()
+            },
+            mint_quote_for("q", &mint, 0),
+        ];
+        for quote in kept {
+            assert!(!forgettable(&quote, u64::MAX), "{quote:?}");
+        }
+    }
+
+    /// A store at `db` holding one quote at `mint_url`, expired `ago` seconds
+    /// ago.
+    async fn store_with_expired_quote(mint_url: &str, db: &std::path::Path, ago: u64) {
+        let wallet = seeded_wallet_at(mint_url, db).await;
+        let expiry = unix_now().as_secs() - ago;
+        wallet
+            .inner
+            .localstore
+            .add_mint_quote(mint_quote_for("old", &wallet.inner.mint_url, expiry))
+            .await
+            .unwrap();
+    }
+
+    async fn quote_kept(db: &std::path::Path) -> bool {
+        let store = WalletSqliteDatabase::new(db.to_str().unwrap()).await.unwrap();
+        store.get_mint_quote("old").await.unwrap().is_some()
+    }
+
+    #[tokio::test]
+    async fn collecting_forgets_a_quote_the_mint_says_expired_unpaid_long_ago() {
+        // Arrange — expired two days ago, and the mint still calls it unpaid.
+        let db = temp_db_path();
+        let ago = 2 * MINT_QUOTE_FORGET_AFTER_SECS;
+        let expiry = unix_now().as_secs() - ago;
+        let mint = StubMint::start(Some(unpaid_mint_quote_answer("old", expiry))).await;
+        store_with_expired_quote(&mint.url, &db, ago).await;
+
+        // Act
+        collect_pending_quotes(db.to_str().unwrap(), &unique_seed(), None, Collect::Live)
+            .await
+            .unwrap();
+
+        // Assert — gone, so the next start asks nothing.
+        assert!(!quote_kept(&db).await);
+        let asked = mint.connections();
+        collect_pending_quotes(db.to_str().unwrap(), &unique_seed(), None, Collect::Live)
+            .await
+            .unwrap();
+        assert_eq!(mint.connections(), asked, "the mint was asked again");
+    }
+
+    #[tokio::test]
+    async fn collecting_keeps_a_quote_expired_within_the_margin() {
+        // Arrange — expired an hour ago, unpaid at the mint: a payment may
+        // still be on its way.
+        let db = temp_db_path();
+        let expiry = unix_now().as_secs() - 3_600;
+        let mint = StubMint::start(Some(unpaid_mint_quote_answer("old", expiry))).await;
+        store_with_expired_quote(&mint.url, &db, 3_600).await;
+
+        // Act
+        collect_pending_quotes(db.to_str().unwrap(), &unique_seed(), None, Collect::Live)
+            .await
+            .unwrap();
+
+        // Assert
+        assert!(quote_kept(&db).await);
+    }
+
+    #[tokio::test]
+    async fn collecting_keeps_an_expired_quote_the_mint_did_not_answer_for() {
+        // Arrange — long expired, but the mint hangs up: it may have been
+        // paid, and only the mint can say it was not.
+        let db = temp_db_path();
+        let mint = StubMint::start(None).await;
+        store_with_expired_quote(&mint.url, &db, 2 * MINT_QUOTE_FORGET_AFTER_SECS).await;
+
+        // Act
+        collect_pending_quotes(db.to_str().unwrap(), &unique_seed(), None, Collect::Live)
+            .await
+            .unwrap();
+
+        // Assert
+        assert!(mint.connections() > 0);
+        assert!(quote_kept(&db).await);
+    }
+
+    #[tokio::test]
+    async fn a_device_clock_ahead_forgets_no_invoice_still_payable() {
+        // Arrange — the device is two days ahead of the mint. By the device's
+        // clock the quote expired two days ago; by the mint's it was asked
+        // for a minute ago, and the mint truthfully calls it unpaid.
+        let db = temp_db_path();
+        let ahead = 2 * MINT_QUOTE_FORGET_AFTER_SECS;
+        let expiry = unix_now().as_secs() - ahead + 600;
+        let mint = StubMint::start_with_clock(
+            Some(unpaid_mint_quote_answer("old", expiry)),
+            Some(-(ahead as i64)),
+        )
+        .await;
+        store_with_expired_quote(&mint.url, &db, ahead - 600).await;
+
+        // Act
+        collect_pending_quotes(db.to_str().unwrap(), &unique_seed(), None, Collect::Live)
+            .await
+            .unwrap();
+
+        // Assert — kept: a payment now still has its quote to mint with.
+        assert!(mint.connections() > 0);
+        assert!(quote_kept(&db).await);
+    }
+
+    #[tokio::test]
+    async fn collecting_forgets_nothing_at_a_mint_that_dates_nothing() {
+        // Arrange — expired two days ago and unpaid at the mint, whose time
+        // cannot be read.
+        let db = temp_db_path();
+        let ago = 2 * MINT_QUOTE_FORGET_AFTER_SECS;
+        let expiry = unix_now().as_secs() - ago;
+        let mint =
+            StubMint::start_with_clock(Some(unpaid_mint_quote_answer("old", expiry)), None).await;
+        store_with_expired_quote(&mint.url, &db, ago).await;
+
+        // Act
+        collect_pending_quotes(db.to_str().unwrap(), &unique_seed(), None, Collect::Live)
+            .await
+            .unwrap();
+
+        // Assert
+        assert!(quote_kept(&db).await);
+    }
+
+    #[tokio::test]
+    async fn a_long_silent_mint_is_left_to_sync_and_its_quote_kept() {
+        // Arrange — expired over a month ago at a mint that never answers.
+        let db = temp_db_path();
+        let mint = StubMint::start(None).await;
+        store_with_expired_quote(&mint.url, &db, MINT_QUOTE_DORMANT_AFTER_SECS + 60).await;
+
+        // Act — a start or resume.
+        collect_pending_quotes(db.to_str().unwrap(), &unique_seed(), None, Collect::Live)
+            .await
+            .unwrap();
+
+        // Assert — not asked, and not counted as open.
+        assert_eq!(mint.connections(), 0, "a dormant mint was asked");
+        let pending = stored_pending_quotes(db.to_str().unwrap(), None)
+            .await
+            .unwrap();
+        assert_eq!(pending, PendingQuotes::default());
+
+        // Act — Sync, which the user asks for.
+        collect_pending_quotes(
+            db.to_str().unwrap(),
+            &unique_seed(),
+            None,
+            Collect::Everything,
+        )
+        .await
+        .unwrap();
+
+        // Assert — asked again, and the quote, with its key, is still there.
+        assert!(mint.connections() > 0, "Sync did not ask the dormant mint");
+        assert!(quote_kept(&db).await);
+    }
+
+    #[test]
+    fn a_quote_goes_dormant_only_a_month_after_it_expired_unpaid() {
+        let mint = MintUrl::from_str("https://mint.example.com").unwrap();
+        let expiry = 1_000_000;
+        let quote = mint_quote_for("q", &mint, expiry);
+        let dormant_at = expiry + MINT_QUOTE_DORMANT_AFTER_SECS;
+
+        assert!(!dormant(&quote, dormant_at - 1));
+        assert!(dormant(&quote, dormant_at));
+        // Paid: never dormant, it is money on its way.
+        let paid = cdk::wallet::MintQuote {
+            state: cdk::nuts::MintQuoteState::Paid,
+            ..quote
+        };
+        assert!(!dormant(&paid, u64::MAX));
+    }
+
+    #[test]
+    fn pending_quotes_count_every_open_invoice_and_the_paid_sats() {
+        use cdk::nuts::MintQuoteState;
+
+        let ours = MintUrl::from_str("https://mint.example.com").unwrap();
+        let theirs = MintUrl::from_str("https://other.example.com").unwrap();
+        let unpaid = mint_quote_for("unpaid", &ours, 1);
+        let paid = cdk::wallet::MintQuote {
+            state: MintQuoteState::Paid,
+            ..mint_quote_for("paid", &ours, 1)
+        };
+        let elsewhere = cdk::wallet::MintQuote {
+            state: MintQuoteState::Paid,
+            ..mint_quote_for("elsewhere", &theirs, 1)
+        };
+        let usd = cdk::wallet::MintQuote {
+            unit: CurrencyUnit::Usd,
+            state: MintQuoteState::Paid,
+            ..mint_quote_for("usd", &ours, 1)
+        };
+        let all = vec![unpaid, paid, elsewhere, usd];
+
+        // At this mint: both sat invoices are open, one of them paid.
+        assert_eq!(
+            pending_quotes_of(all.clone(), Some(&ours), 2),
+            PendingQuotes {
+                paid_sats: SEEDED_SATS,
+                open: 2
+            }
+        );
+        // Across every mint: the one at the other mint too. Never the usd.
+        assert_eq!(
+            pending_quotes_of(all.clone(), None, 2),
+            PendingQuotes {
+                paid_sats: 2 * SEEDED_SATS,
+                open: 3
+            }
+        );
+        // A month on, the unpaid one has gone dormant: no longer open. The
+        // paid ones still are — the mint said so.
+        assert_eq!(
+            pending_quotes_of(all, None, 1 + MINT_QUOTE_DORMANT_AFTER_SECS),
+            PendingQuotes {
+                paid_sats: 2 * SEEDED_SATS,
+                open: 2
+            }
+        );
+    }
+
+    #[tokio::test]
+    async fn pending_quotes_are_read_from_the_store_alone() {
+        // Arrange — a paid quote the mint has not issued yet, and no mint up.
+        let mint = StubMint::start(None).await;
+        let db = temp_db_path();
+        let wallet = seeded_wallet_at(&mint.url, &db).await;
+        let paid = cdk::wallet::MintQuote {
+            state: cdk::nuts::MintQuoteState::Paid,
+            ..mint_quote_for("paid", &wallet.inner.mint_url, 1)
+        };
+        wallet.inner.localstore.add_mint_quote(paid).await.unwrap();
+        let expected = PendingQuotes {
+            paid_sats: SEEDED_SATS,
+            open: 1,
+        };
+
+        // Act / Assert — bound or not, the same answer, and no mint asked.
+        assert_eq!(wallet.pending_quotes().await.unwrap(), expected);
+        let stored = stored_pending_quotes(db.to_str().unwrap(), Some(&mint.url))
+            .await
+            .unwrap();
+        assert_eq!(stored, expected);
+        assert_eq!(mint.connections(), 0, "a mint was contacted");
+        let missing = temp_db_path();
+        assert_eq!(
+            stored_pending_quotes(missing.to_str().unwrap(), None)
+                .await
+                .unwrap(),
+            PendingQuotes::default()
+        );
+        assert!(!missing.exists(), "the store was created");
     }
 }

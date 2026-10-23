@@ -36,6 +36,7 @@ import 'package:mostro/src/rust/api/nostr.dart' as nostr_api;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/settings.dart' as settings_api;
 import 'package:mostro/src/rust/api/bond.dart' as bond_api;
+import 'package:mostro/src/rust/api/cashu.dart' as cashu_api;
 import 'package:mostro/src/rust/api/identity.dart' as identity_api;
 import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/src/rust/api/types.dart'
@@ -315,6 +316,7 @@ Future<void> _startup(
 
     final nodeInfoWarmed = _warmNodeInfoCache();
     unawaited(_refreshMyReputation());
+    unawaited(_collectCashuInvoices());
 
     final container = ProviderContainer(
       overrides: [
@@ -407,6 +409,10 @@ Future<void> _startup(
     return container;
   });
 
+  // An invoice that funds the Cashu wallet is usually paid from another app,
+  // with this one in the background: collect it on the way back (C3b-2).
+  AppLifecycleService(onResume: _collectCashuInvoices).attach();
+
   // Copies of attachments handed to another app ("open with…", share):
   // whatever an earlier run left behind goes now, and a resume clears those
   // past their lifetime — a younger one may still be read (#589).
@@ -490,6 +496,19 @@ Future<void> _refreshMyReputation() => my_reputation_api
     .catchError((Object e) {
       debugPrint('[main] own reputation refresh failed: $e');
     });
+
+/// Collect the Cashu wallet's invoices paid since the app last looked, at
+/// every mint (C3b-2). Never awaited: Rust contacts no mint when nothing is
+/// pending, logs what fails and broadcasts the balance when something came
+/// in. No wallet on web.
+Future<void> _collectCashuInvoices() async {
+  if (kIsWeb) return;
+  try {
+    await cashu_api.cashuCollectPendingQuotes();
+  } catch (e) {
+    debugPrint('[main] collecting paid Cashu invoices failed: $e');
+  }
+}
 
 /// Reconnect a previously saved NWC wallet in the background.
 void _restoreNwcConnection(String nwcUri, ProviderContainer container) {
