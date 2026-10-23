@@ -7,7 +7,7 @@ use nostr_sdk::prelude::Event;
 use std::sync::Arc;
 use tokio::sync::OnceCell;
 
-use crate::api::types::{ConnectionState, RelayInfo, ResyncOutcome};
+use crate::api::types::{ConnectionState, ExchangeRateLookup, RelayInfo, ResyncOutcome};
 use crate::db::Storage;
 use crate::nostr::relay_pool::RelayPool;
 use crate::queue::outbox;
@@ -746,14 +746,39 @@ pub async fn fetch_exchange_rate(
     mostro_pubkey_hex: String,
     fiat_code: String,
 ) -> Result<Option<f64>> {
+    let lookup = lookup_exchange_rate(mostro_pubkey_hex, fiat_code).await?;
+    Ok(match lookup {
+        ExchangeRateLookup::Quoted { rate } => Some(rate),
+        ExchangeRateLookup::NoRates | ExchangeRateLookup::NotQuoted => None,
+    })
+}
+
+/// [`fetch_exchange_rate`] with its two "no rate" cases told apart.
+///
+/// A fiat is checked fail-open either way (#337). A stablecoin is not: a node
+/// that publishes rates without the coin refuses every market order in it
+/// (mostrod `docs/PRICE_PROVIDERS.md` §11.8), so the create-order screen
+/// locks Market on [`ExchangeRateLookup::NotQuoted`] and keeps failing open on
+/// [`ExchangeRateLookup::NoRates`], where nothing can be told (app#884).
+/// Same cache and errors as [`fetch_exchange_rate`].
+pub async fn lookup_exchange_rate(
+    mostro_pubkey_hex: String,
+    fiat_code: String,
+) -> Result<ExchangeRateLookup> {
     use crate::mostro::rates;
 
     let now = crate::rt::unix_now();
-    if let Some(rate) = rates::cached_rate(&mostro_pubkey_hex, &fiat_code, now) {
-        return Ok(Some(rate));
-    }
-    let fetched = refresh_rates(&mostro_pubkey_hex, now).await?;
-    Ok(fetched.and_then(|(rates, _)| rates.get(&fiat_code.to_uppercase()).copied()))
+    let looked_up = match rates::cached_lookup(&mostro_pubkey_hex, &fiat_code, now) {
+        Some(cached) => Some(cached),
+        None => refresh_rates(&mostro_pubkey_hex, now)
+            .await?
+            .map(|(rates, _)| rates.get(&fiat_code.to_uppercase()).copied()),
+    };
+    Ok(match looked_up {
+        None => ExchangeRateLookup::NoRates,
+        Some(None) => ExchangeRateLookup::NotQuoted,
+        Some(Some(rate)) => ExchangeRateLookup::Quoted { rate },
+    })
 }
 
 /// The price providers `mostro_pubkey_hex` says its rates come from, as the

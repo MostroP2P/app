@@ -131,12 +131,20 @@ pub fn store(node: &str, rates: HashMap<String, f64>, sources: Vec<String>, expi
 /// usable to answer with: no fetch yet, a snapshot belonging to another node,
 /// one that has expired by `now`, or a currency this node does not quote.
 pub fn cached_rate(node: &str, fiat_code: &str, now: i64) -> Option<f64> {
+    cached_lookup(node, fiat_code, now).flatten()
+}
+
+/// [`cached_rate`] with the two "nothing" cases told apart: the outer `None`
+/// is no usable snapshot for `node` (no fetch yet, another node's, expired by
+/// `now`); `Some(None)` is a usable table that quotes no such currency, which
+/// is what locks a stablecoin's Market price (app#884).
+pub fn cached_lookup(node: &str, fiat_code: &str, now: i64) -> Option<Option<f64>> {
     let guard = SNAPSHOT.read().unwrap_or_else(|e| e.into_inner());
     let snapshot = guard.as_ref()?;
     if snapshot.node != node || now >= snapshot.expires_at {
         return None;
     }
-    snapshot.rates.get(&fiat_code.to_uppercase()).copied()
+    Some(snapshot.rates.get(&fiat_code.to_uppercase()).copied())
 }
 
 /// The price providers `node` named for its cached table, or `None` when
@@ -283,6 +291,21 @@ mod tests {
 
         assert_eq!(cached_rate("node-a", "USD", 1_000), None);
         assert_eq!(cached_rate("node-a", "USD", 1_001), None);
+    }
+
+    /// The lookup tells "no usable table" from "a table without the code":
+    /// the first fails open, the second locks a stablecoin's Market (app#884).
+    #[test]
+    fn the_lookup_tells_no_table_from_a_table_without_the_code() {
+        let _guard = lock();
+        assert_eq!(cached_lookup("node-a", "USDT", 999), None);
+
+        store("node-a", usd(50_000.0), vec![], 1_000);
+
+        assert_eq!(cached_lookup("node-a", "USD", 999), Some(Some(50_000.0)));
+        assert_eq!(cached_lookup("node-a", "usdt", 999), Some(None));
+        assert_eq!(cached_lookup("node-b", "USD", 999), None);
+        assert_eq!(cached_lookup("node-a", "USD", 1_000), None);
     }
 
     #[test]

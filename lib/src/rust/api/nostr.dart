@@ -137,6 +137,22 @@ Future<double?> fetchExchangeRate({
   fiatCode: fiatCode,
 );
 
+/// [`fetch_exchange_rate`] with its two "no rate" cases told apart.
+///
+/// A fiat is checked fail-open either way (#337). A stablecoin is not: a node
+/// that publishes rates without the coin refuses every market order in it
+/// (mostrod `docs/PRICE_PROVIDERS.md` §11.8), so the create-order screen
+/// locks Market on [`ExchangeRateLookup::NotQuoted`] and keeps failing open on
+/// [`ExchangeRateLookup::NoRates`], where nothing can be told (app#884).
+/// Same cache and errors as [`fetch_exchange_rate`].
+Future<ExchangeRateLookup> lookupExchangeRate({
+  required String mostroPubkeyHex,
+  required String fiatCode,
+}) => RustLib.instance.api.crateApiNostrLookupExchangeRate(
+  mostroPubkeyHex: mostroPubkeyHex,
+  fiatCode: fiatCode,
+);
+
 /// The price providers `mostro_pubkey_hex` says its rates come from, as the
 /// `source` tag of the same Kind 30078 event names them (`yadio`,
 /// `coingecko`, `eltoque`…), in its order. mostrod names the providers behind

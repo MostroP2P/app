@@ -208,6 +208,21 @@ pub struct ResyncOutcome {
     pub coalesced: bool,
 }
 
+/// What a node's exchange-rates event (Kind 30078, `d` = `mostro-rates`)
+/// says about one currency (`api::nostr::lookup_exchange_rate`).
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub enum ExchangeRateLookup {
+    /// The node publishes no usable rates event: none on the relays, expired,
+    /// or unreadable. Nothing can be told, so a market order is sent
+    /// unchecked (#337).
+    NoRates,
+    /// The event is there and quotes no such currency. For a stablecoin that
+    /// means the node will refuse a market order in it.
+    NotQuoted,
+    /// The price of one BTC in the currency.
+    Quoted { rate: f64 },
+}
+
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub enum QueuedMessageStatus {
     Pending,
@@ -341,7 +356,8 @@ pub struct NewOrderParams {
     pub fiat_amount_min: Option<f64>,
     /// Max fiat amount for range orders (null if fixed).
     pub fiat_amount_max: Option<f64>,
-    /// ISO 4217 fiat currency code.
+    /// Currency code: ISO 4217, or a stablecoin code from the protocol book's
+    /// list (`USDT`, `USDC`, `DOC`).
     pub fiat_code: String,
     /// Comma-separated payment method descriptions.
     pub payment_method: String,
@@ -1462,7 +1478,8 @@ pub struct AppSettings {
     pub theme: ThemeMode,
     /// BCP-47 language tag, e.g. `"en"`, `"es"`.
     pub language: String,
-    /// ISO 4217 fiat currency code selected as the user's default, if any.
+    /// Currency code selected as the user's default, if any: ISO 4217 or a
+    /// stablecoin code (3 to 5 upper-case letters).
     pub default_fiat_code: Option<String>,
     /// Default Lightning Address in `user@domain` format, if set.
     pub default_lightning_address: Option<String>,
