@@ -2484,6 +2484,36 @@ abstract class AppLocalizations {
   /// **'Announcements are read from the relays and never answered: nothing about you is sent.'**
   String get announcementsGroupSubtitle;
 
+  /// Label on an info-level announcement card (specs/006 §3.4)
+  ///
+  /// In en, this message translates to:
+  /// **'Announcement'**
+  String get announcementLevelInfo;
+
+  /// Label on a warning-level announcement card
+  ///
+  /// In en, this message translates to:
+  /// **'Notice'**
+  String get announcementLevelWarning;
+
+  /// Label on a critical (security) announcement card
+  ///
+  /// In en, this message translates to:
+  /// **'Security update'**
+  String get announcementLevelCritical;
+
+  /// Button on an announcement card that opens its link externally
+  ///
+  /// In en, this message translates to:
+  /// **'Open link'**
+  String get announcementOpenLink;
+
+  /// Semantic label of the bell while a critical announcement is unread
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications, a security update is unread'**
+  String get notificationsBellCritical;
+
   /// Hint text of the currency search field
   ///
   /// In en, this message translates to:

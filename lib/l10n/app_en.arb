@@ -1726,6 +1726,26 @@
   "@announcementsGroupSubtitle": {
     "description": "Line above the Announcements toggle: the channel is one-way, nothing is reported back"
   },
+  "announcementLevelInfo": "Announcement",
+  "@announcementLevelInfo": {
+    "description": "Label on an info-level announcement card (specs/006 §3.4)"
+  },
+  "announcementLevelWarning": "Notice",
+  "@announcementLevelWarning": {
+    "description": "Label on a warning-level announcement card"
+  },
+  "announcementLevelCritical": "Security update",
+  "@announcementLevelCritical": {
+    "description": "Label on a critical (security) announcement card"
+  },
+  "announcementOpenLink": "Open link",
+  "@announcementOpenLink": {
+    "description": "Button on an announcement card that opens its link externally"
+  },
+  "notificationsBellCritical": "Notifications, a security update is unread",
+  "@notificationsBellCritical": {
+    "description": "Semantic label of the bell while a critical announcement is unread"
+  },
   "searchCurrenciesHint": "Search currencies…",
   "@searchCurrenciesHint": {
     "description": "Hint text of the currency search field"

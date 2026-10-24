@@ -165,7 +165,16 @@ final class NoticeSystemEntry extends NoticeEntry {
 
 @immutable
 class NoticeSections {
-  const NoticeSections({required this.needsAction, required this.recent});
+  const NoticeSections({
+    this.critical = const [],
+    required this.needsAction,
+    required this.recent,
+  });
+
+  /// `critical` announcements, newest first. Above everything, the trades
+  /// that need action included (specs/006 §3.4): "your trade key can leak"
+  /// is read before the user continues a trade, not found under it.
+  final List<NoticeSystemEntry> critical;
 
   /// Trades whose next step is the user's right now, newest first.
   final List<NoticeGroupEntry> needsAction;
@@ -174,7 +183,7 @@ class NoticeSections {
   final List<NoticeEntry> recent;
 }
 
-/// Groups [notices] by trade (or dispute) and splits them into the two
+/// Groups [notices] by trade (or dispute) and splits them into the three
 /// sections. [needsAction] answers from the trade's **current** state, not
 /// from its notices: an old "add your invoice" whose invoice was sent long
 /// ago must not pin its trade.
@@ -183,11 +192,12 @@ NoticeSections sectionNotices(
   required bool Function(String orderId) needsAction,
 }) {
   final groups = <String, List<NotificationModel>>{};
+  final critical = <NoticeSystemEntry>[];
   final recent = <NoticeEntry>[];
   for (final n in notices) {
     final key = n.orderId ?? n.disputeId;
     if (key == null) {
-      recent.add(NoticeSystemEntry(n));
+      (n.isCriticalAnnouncement ? critical : recent).add(NoticeSystemEntry(n));
     } else {
       groups.putIfAbsent(key, () => []).add(n);
     }
@@ -205,7 +215,12 @@ NoticeSections sectionNotices(
   }
   int newestFirst(NoticeEntry a, NoticeEntry b) =>
       b.latestAt.compareTo(a.latestAt);
+  critical.sort(newestFirst);
   pinned.sort(newestFirst);
   recent.sort(newestFirst);
-  return NoticeSections(needsAction: pinned, recent: recent);
+  return NoticeSections(
+    critical: critical,
+    needsAction: pinned,
+    recent: recent,
+  );
 }

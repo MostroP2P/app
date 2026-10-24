@@ -1373,6 +1373,22 @@ class AppLocalizationsEn extends AppLocalizations {
       'Announcements are read from the relays and never answered: nothing about you is sent.';
 
   @override
+  String get announcementLevelInfo => 'Announcement';
+
+  @override
+  String get announcementLevelWarning => 'Notice';
+
+  @override
+  String get announcementLevelCritical => 'Security update';
+
+  @override
+  String get announcementOpenLink => 'Open link';
+
+  @override
+  String get notificationsBellCritical =>
+      'Notifications, a security update is unread';
+
+  @override
   String get searchCurrenciesHint => 'Search currencies…';
 
   @override

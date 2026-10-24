@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:mostro/features/notifications/models/notification_model.dart';
+import 'package:mostro/src/rust/api/announcements.dart' as announcements_api;
 
 // Platform-specific imports — the data directory only exists off web.
 import 'package:path/path.dart' as p;
@@ -262,6 +263,23 @@ final sembastNotificationsStoreProvider = Provider<SembastNotificationsStore>(
   (ref) => SembastNotificationsStore(),
 );
 
+/// Reports what the user did with an announcement card to Rust, which holds
+/// the flags: it is Rust that decides whether a later revision re-announces
+/// (specs/006 §6.1). Injected so tests never reach the bridge.
+class AnnouncementFlags {
+  const AnnouncementFlags();
+
+  Future<void> read(String address) =>
+      announcements_api.markAnnouncementRead(address: address);
+
+  Future<void> dismiss(String address) =>
+      announcements_api.dismissAnnouncement(address: address);
+}
+
+final announcementFlagsProvider = Provider<AnnouncementFlags>(
+  (ref) => const AnnouncementFlags(),
+);
+
 /// All app notifications, backed by Sembast persistence. Records survive
 /// restarts and are keyed by a stable id; externally-sourced events go through
 /// [NotificationsNotifier.addIfNew], so a daemon history replay yields exactly
@@ -272,7 +290,10 @@ final notificationsProvider =
       ref,
     ) {
       final store = ref.watch(sembastNotificationsStoreProvider);
-      final notifier = NotificationsNotifier(store: store);
+      final notifier = NotificationsNotifier(
+        store: store,
+        announcementFlags: ref.watch(announcementFlagsProvider),
+      );
       notifier.loadInitialData();
       return notifier;
     });
@@ -282,12 +303,24 @@ final unreadNotificationCountProvider = Provider<int>(
   (ref) => ref.watch(notificationsProvider).where((n) => !n.isRead).length,
 );
 
+/// An unread `critical` announcement is in the list: the bell's dot turns
+/// red (specs/006 §3.4).
+final unreadCriticalAnnouncementProvider = Provider<bool>(
+  (ref) => ref
+      .watch(notificationsProvider)
+      .any((n) => n.isCriticalAnnouncement && !n.isRead),
+);
+
 // ── Notifier ──────────────────────────────────────────────────────────────────
 
 class NotificationsNotifier extends StateNotifier<List<NotificationModel>> {
-  NotificationsNotifier({this.store}) : super([]);
+  NotificationsNotifier({this.store, this.announcementFlags}) : super([]);
 
   final SembastNotificationsStore? store;
+
+  /// Where an announcement card's read and dismiss are reported; null in
+  /// tests that have no announcements.
+  final AnnouncementFlags? announcementFlags;
 
   // Commit and publish mutations in invocation order. Loads remain separate
   // and merge with committed state, so a slow hydration never blocks a read.
@@ -328,6 +361,27 @@ class NotificationsNotifier extends StateNotifier<List<NotificationModel>> {
   /// load returns predates the wipe and is discarded.
   bool _wipedDuringLoad = false;
 
+  /// The addresses of Rust's last announcement snapshot, `null` until one
+  /// arrives. Rust is the authority on which announcements exist, and its
+  /// first snapshot can land before the initial load answers: a card that
+  /// expired while the app was closed must not come back from the store.
+  Set<String>? _announced;
+
+  bool _announcementGone(NotificationModel n) =>
+      n.isAnnouncement && !(_announced?.contains(n.id) ?? true);
+
+  /// Persisted announcement cards Rust no longer lists, found by a load. A
+  /// failed delete is logged: the next load or snapshot drops them again.
+  Future<void> _dropGoneAnnouncements(List<String> ids) async {
+    for (final id in ids) {
+      try {
+        await store?.deleteRecord(id);
+      } catch (e) {
+        debugPrint('NotificationsNotifier: failed to drop announcement: $e');
+      }
+    }
+  }
+
   /// Load persisted notifications into state. Called once on construction
   /// when a [store] is provided, and again on every resume (the resync
   /// hydration, lib/core/lifecycle/resume_resync.dart).
@@ -344,9 +398,14 @@ class NotificationsNotifier extends StateNotifier<List<NotificationModel>> {
     try {
       final loaded = await store!.loadAll();
       if (!mounted || _wipedDuringLoad) return;
+      final gone = [
+        for (final n in loaded)
+          if (_announcementGone(n)) n.id,
+      ];
       final byId = {
         for (final n in loaded)
-          if (!_deletedDuringLoad.contains(n.id)) n.id: n,
+          if (!_deletedDuringLoad.contains(n.id) && !gone.contains(n.id))
+            n.id: n,
       };
       for (final n in state) {
         byId[n.id] = n;
@@ -354,6 +413,7 @@ class NotificationsNotifier extends StateNotifier<List<NotificationModel>> {
       state =
           byId.values.toList()
             ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      await _dropGoneAnnouncements(gone);
     } catch (e) {
       debugPrint('NotificationsNotifier: failed to load from Sembast: $e');
     } finally {
@@ -441,12 +501,21 @@ class NotificationsNotifier extends StateNotifier<List<NotificationModel>> {
       state =
           byId.values.toList()
             ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      // Rust holds an announcement's read state (specs/006 §6.1).
+      for (final n in updated.where((n) => n.isAnnouncement)) {
+        await _flagAnnouncement(n.id, (flags) => flags.read(n.id));
+      }
     } catch (e) {
       debugPrint('NotificationsNotifier: failed to persist mark-read: $e');
     }
   });
 
   Future<void> delete(String id) => _mutate(() async {
+    final card = state.where((n) => n.id == id).firstOrNull;
+    if (card != null && card.isAnnouncement) {
+      await _dismissAnnouncement(card);
+      return;
+    }
     if (_loadsInFlight > 0) _deletedDuringLoad.add(id);
     state = state.where((n) => n.id != id).toList();
     try {
@@ -456,15 +525,117 @@ class NotificationsNotifier extends StateNotifier<List<NotificationModel>> {
     }
   });
 
+  /// Everything goes, except that a `critical` announcement stays listed,
+  /// read, until it expires (specs/006 §3.4) — the user who clears the list
+  /// at a red light should still be able to find "your trade key can leak".
   Future<void> deleteAll() => _mutate(() async {
     if (_loadsInFlight > 0) _wipedDuringLoad = true;
-    state = [];
+    final announcements = state.where((n) => n.isAnnouncement).toList();
+    final kept = [
+      for (final n in announcements)
+        if (n.isCriticalAnnouncement) n.copyWith(isRead: true),
+    ];
+    state = kept;
     try {
       await store?.deleteAll();
+      await store?.saveAll(kept);
     } catch (e) {
       debugPrint('NotificationsNotifier: failed to persist deleteAll: $e');
     }
+    for (final n in announcements) {
+      await _flagAnnouncement(n.id, (flags) => flags.dismiss(n.id));
+    }
   });
+
+  /// A swiped announcement (specs/006 §3.4): a `critical` stays, read; the
+  /// other levels leave the list. Either way Rust records the dismissal, so
+  /// the next snapshot agrees and a correction still re-announces.
+  Future<void> _dismissAnnouncement(NotificationModel card) async {
+    if (card.isCriticalAnnouncement) {
+      final read = card.copyWith(isRead: true);
+      state = [for (final n in state) n.id == card.id ? read : n];
+      try {
+        await store?.save(read);
+      } catch (e) {
+        debugPrint('NotificationsNotifier: failed to persist dismiss: $e');
+      }
+    } else {
+      if (_loadsInFlight > 0) _deletedDuringLoad.add(card.id);
+      state = state.where((n) => n.id != card.id).toList();
+      try {
+        await store?.deleteRecord(card.id);
+      } catch (e) {
+        debugPrint('NotificationsNotifier: failed to persist dismiss: $e');
+      }
+    }
+    await _flagAnnouncement(card.id, (flags) => flags.dismiss(card.id));
+  }
+
+  /// A flag Rust could not record is logged, never surfaced: the card
+  /// already shows what the user did, and the next snapshot resolves it.
+  Future<void> _flagAnnouncement(
+    String address,
+    Future<void> Function(AnnouncementFlags flags) report,
+  ) async {
+    final flags = announcementFlags;
+    if (flags == null) return;
+    try {
+      await report(flags);
+    } catch (e) {
+      debugPrint('NotificationsNotifier: announcement flag $address: $e');
+    }
+  }
+
+  /// Makes the announcement cards match what Rust holds (specs/006 §6.2):
+  /// a new address is added, a new revision at a known address replaces its
+  /// card, an address Rust no longer lists loses its card, and Rust's read
+  /// flag wins — it is the authority on whether a revision was seen. Every
+  /// other card is left alone.
+  Future<void> reconcileAnnouncements(List<NotificationModel> wanted) =>
+      _mutate(() async {
+        final byId = {for (final n in state) n.id: n};
+        final wantedIds = {for (final c in wanted) c.id};
+        _announced = wantedIds;
+        final gone = [
+          for (final n in state)
+            if (n.isAnnouncement && !wantedIds.contains(n.id)) n.id,
+        ];
+        final changed =
+            [
+              for (final card in wanted)
+                if (byId[card.id] case final existing?
+                    when existing.announcementRevision ==
+                            card.announcementRevision &&
+                        existing.isRead == card.isRead)
+                  null
+                else
+                  card,
+            ].nonNulls.toList();
+        if (gone.isEmpty && changed.isEmpty) return;
+        try {
+          for (final id in gone) {
+            await store?.deleteRecord(id);
+          }
+          await store?.saveAll(changed);
+        } catch (e) {
+          debugPrint(
+            'NotificationsNotifier: failed to persist announcements: $e',
+          );
+          return;
+        }
+        if (!mounted) return;
+        for (final id in gone) {
+          byId.remove(id);
+          if (_loadsInFlight > 0) _deletedDuringLoad.add(id);
+        }
+        for (final card in changed) {
+          byId[card.id] = card;
+          _deletedDuringLoad.remove(card.id);
+        }
+        state =
+            byId.values.toList()
+              ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      });
 
   /// Forget everything, ledger included, because the identity changed
   /// (issue #533). Unlike [deleteAll] — the user clearing their own list —

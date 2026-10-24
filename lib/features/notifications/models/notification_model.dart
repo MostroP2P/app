@@ -1,6 +1,9 @@
 import 'package:uuid/uuid.dart';
 
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/utils/platform_int64.dart';
+import 'package:mostro/src/rust/api/types.dart'
+    show AnnouncementInfo, AnnouncementSeverity;
 
 /// In-app notification record.
 enum NotificationType {
@@ -321,6 +324,84 @@ class NotificationModel {
             'completedByAdmin',
           }.contains(detail?[_tradeStatusKey]));
 
+  /// A project announcement (specs/006-announcement-channel §6.2). The id is
+  /// the announcement's address, so a correction — a new revision at the
+  /// same address — replaces the card and starts unread. Every locale rides
+  /// in [detail] and the copy is picked at render time by
+  /// [resolvedTitle] / [resolvedMessage]; [title] and [message] hold the
+  /// English copy for a reader that cannot resolve a locale.
+  factory NotificationModel.announcement(AnnouncementInfo info) {
+    final english =
+        info.texts.where((t) => t.locale == 'en').firstOrNull ??
+        info.texts.first;
+    return NotificationModel(
+      id: info.address,
+      type: NotificationType.system,
+      title: english.title,
+      message: english.body,
+      timestamp: DateTime.fromMillisecondsSinceEpoch(
+        platformInt64ToInt(info.createdAt) * 1000,
+      ),
+      isRead: info.read,
+      detail: {
+        _announcementKey: info.revision,
+        _severityKey: info.severity.name,
+        if (info.url case final url?) _urlKey: url,
+        for (final text in info.texts) ...{
+          '$_localePrefix${text.locale}:title': text.title,
+          '$_localePrefix${text.locale}:body': text.body,
+        },
+      },
+    );
+  }
+
+  /// A card built by [NotificationModel.announcement].
+  bool get isAnnouncement =>
+      type == NotificationType.system &&
+      detail?.containsKey(_announcementKey) == true;
+
+  /// `<created_at>:<event id>` of the revision the card shows; null for any
+  /// other notice. Two cards of one address with different revisions are
+  /// two texts, and the newer one is unread again (§5.3).
+  String? get announcementRevision =>
+      isAnnouncement ? detail![_announcementKey] : null;
+
+  /// How loudly the card is painted (§3.4). A stored level this build does
+  /// not know reads as `warning`, the same rule Rust applies on the wire.
+  AnnouncementSeverity? get announcementSeverity =>
+      isAnnouncement
+          ? AnnouncementSeverity.values
+                  .where((s) => s.name == detail![_severityKey])
+                  .firstOrNull ??
+              AnnouncementSeverity.warning
+          : null;
+
+  /// A `critical` announcement: sorts first, turns the bell's dot red, and
+  /// stays listed once dismissed until it expires (§3.4).
+  bool get isCriticalAnnouncement =>
+      announcementSeverity == AnnouncementSeverity.critical;
+
+  /// The announcement's one action link, `https` only, already checked by
+  /// Rust; null when it has none or the card is not an announcement.
+  String? get announcementUrl => isAnnouncement ? detail![_urlKey] : null;
+
+  /// The level's label, so the distinction survives without colour (§3.4).
+  String? announcementLevelLabel(AppLocalizations l10n) =>
+      switch (announcementSeverity) {
+        null => null,
+        AnnouncementSeverity.info => l10n.announcementLevelInfo,
+        AnnouncementSeverity.warning => l10n.announcementLevelWarning,
+        AnnouncementSeverity.critical => l10n.announcementLevelCritical,
+      };
+
+  /// The copy for the locale on screen. Rust guarantees every supported
+  /// locale is present (§3.2); the English stored in [title] / [message]
+  /// is the fallback for a locale this build added since.
+  String? _announcementText(AppLocalizations l10n, String field) {
+    final language = l10n.localeName.split(RegExp('[_-]')).first.toLowerCase();
+    return detail?['$_localePrefix$language:$field'];
+  }
+
   factory NotificationModel.backupReminder() {
     return NotificationModel(
       id: const Uuid().v4(),
@@ -348,6 +429,10 @@ class NotificationModel {
   static const _tradeReasonKey = 'tradeReason';
   static const _chatCountKey = 'chatCount';
   static const _chatSolverKey = 'chatSolver';
+  static const _announcementKey = 'announcement';
+  static const _severityKey = 'severity';
+  static const _urlKey = 'url';
+  static const _localePrefix = 'loc:';
 
   bool get _isBondSlashed => type == NotificationType.bondSlashed;
 
@@ -455,6 +540,7 @@ class NotificationModel {
   /// Title for display, localized at render time for bond notices and
   /// falling back to the stored [title] for other types.
   String resolvedTitle(AppLocalizations l10n) {
+    if (isAnnouncement) return _announcementText(l10n, 'title') ?? title;
     if (_isTradeStatus) return _tradeTitle(l10n);
     if (_isChatCard) {
       return _chatFromSolver ? l10n.chatCardSolverTitle : l10n.chatCardTitle;
@@ -468,6 +554,7 @@ class NotificationModel {
 
   /// Message for display (see [resolvedTitle]).
   String resolvedMessage(AppLocalizations l10n) {
+    if (isAnnouncement) return _announcementText(l10n, 'body') ?? message;
     if (_isTradeStatus) return _tradeMessage(l10n);
     if (_isChatCard) {
       return _chatFromSolver
@@ -492,7 +579,7 @@ class NotificationModel {
   /// render time (see [resolvedTitle]).
   Map<String, String> resolvedDetail(AppLocalizations l10n) {
     // Their stored keys are markers for the copy, not rows to show.
-    if (_isTradeStatus || _isChatCard) return const {};
+    if (_isTradeStatus || _isChatCard || isAnnouncement) return const {};
     if (!_isBondSlashed) return detail ?? const {};
     final d = detail ?? const {};
     final amount = d[_bondAmountKey] ?? '0';

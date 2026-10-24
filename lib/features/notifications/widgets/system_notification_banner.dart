@@ -1,91 +1,109 @@
 import 'package:flutter/material.dart';
 
-import 'package:mostro/core/app_theme.dart';
-import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/core/activity_palette.dart';
+import 'package:mostro/core/order_book_palette.dart';
 import 'package:mostro/features/notifications/models/notification_model.dart';
 import 'package:mostro/features/notifications/widgets/notification_group_card.dart'
     show relativeTime;
+import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/src/rust/api/types.dart' show AnnouncementSeverity;
 
-/// Banner-style card for notifications that don't reference a trade
-/// (system items: backup reminders, announcements, etc.).
+/// Banner-style card for notifications that don't reference a trade:
+/// system items and project announcements (specs/006 §6.2).
 ///
-/// Amber-bordered per the redesign mock. Tapping it reads it; the screen
-/// deletes it with a swipe (issue #610).
+/// Tapping it reads it; the screen deletes it with a swipe (issue #610). An
+/// announcement is painted by its level (§3.4): `info` in the lime the
+/// action chips use, `warning` in the amber a plain system notice always
+/// had, `critical` in the dispute red — each with its own icon and label, so
+/// the distinction survives without colour. The publisher never chooses any
+/// of this. When the announcement carries a link, [onOpenLink] shows the one
+/// tappable thing beyond the card itself; the body is never a link.
 class SystemNotificationBanner extends StatelessWidget {
   const SystemNotificationBanner({
     super.key,
     required this.notification,
     this.onTap,
+    this.onOpenLink,
   });
 
   final NotificationModel notification;
   final VoidCallback? onTap;
 
+  /// Opens the announcement's link; null when there is none.
+  final VoidCallback? onOpenLink;
+
+  /// A card's corners (DS-CMP-8) and the tile inside it (guide §4).
+  static const _cardRadius = 18.0;
+  static const _tileRadius = 12.0;
+
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColors>();
-    final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
-    final amber = colors?.warningAmber ?? const Color(0xFFE89C3C);
-    final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
+    final book = OrderBookPalette.of(context);
+    final pal = ActivityPalette.of(context);
+    final l10n = AppLocalizations.of(context);
+    final tone = _tone(pal, notification.announcementSeverity);
+    final label = notification.announcementLevelLabel(l10n);
 
     return Material(
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.card),
+        borderRadius: BorderRadius.circular(_cardRadius),
         child: Container(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.sm + 2,
-          ),
+          padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: cardBg,
-            borderRadius: BorderRadius.circular(AppRadius.card),
-            border: Border.all(color: amber.withValues(alpha: 0.3), width: 1),
+            color: book.surface,
+            borderRadius: BorderRadius.circular(_cardRadius),
+            border: Border.all(color: tone.border),
           ),
           child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: amber.withValues(alpha: 0.15),
-                  borderRadius: BorderRadius.circular(AppRadius.chip),
+                  color: tone.bg,
+                  borderRadius: BorderRadius.circular(_tileRadius),
                 ),
-                child: Icon(
-                  Icons.warning_amber_rounded,
-                  color: amber,
-                  size: 18,
-                ),
+                child: Icon(tone.icon, color: tone.ink, size: 18),
               ),
-              const SizedBox(width: AppSpacing.md),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    if (label != null) ...[
+                      Text(
+                        label.toUpperCase(),
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.8,
+                          color: tone.ink,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                    ],
                     Row(
                       children: [
                         if (!notification.isRead)
                           Container(
                             width: 6,
                             height: 6,
-                            margin: const EdgeInsets.only(right: AppSpacing.sm),
+                            margin: const EdgeInsets.only(right: 8),
                             decoration: BoxDecoration(
-                              color:
-                                  colors?.mostroGreen ??
-                                  const Color(0xFF8CC63F),
+                              color: pal.chipActionDot,
                               shape: BoxShape.circle,
                             ),
                           ),
                         Flexible(
                           child: Text(
-                            notification.title,
-                            style: Theme.of(
-                              context,
-                            ).textTheme.bodyMedium!.copyWith(
-                              fontWeight: FontWeight.w600,
-                              color: Colors.white,
+                            notification.resolvedTitle(l10n),
+                            style: TextStyle(
                               fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: book.textPrimary,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -94,15 +112,54 @@ class SystemNotificationBanner extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${notification.message} '
-                      '· ${relativeTime(notification.timestamp, AppLocalizations.of(context))}',
-                      style: Theme.of(context).textTheme.bodySmall!.copyWith(
-                        color: textSec,
+                      '${notification.resolvedMessage(l10n)} '
+                      '· ${relativeTime(notification.timestamp, l10n)}',
+                      style: TextStyle(
                         fontSize: 11,
+                        height: 1.4,
+                        color: book.textSecondary,
                       ),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
+                      // An announcement body runs to 500 characters (§3.2):
+                      // the card shows it whole rather than hiding the one
+                      // sentence that mattered.
+                      maxLines: notification.isAnnouncement ? null : 2,
+                      overflow:
+                          notification.isAnnouncement
+                              ? TextOverflow.visible
+                              : TextOverflow.ellipsis,
                     ),
+                    if (onOpenLink != null) ...[
+                      const SizedBox(height: 8),
+                      InkWell(
+                        onTap: onOpenLink,
+                        borderRadius: BorderRadius.circular(_tileRadius),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 2,
+                            vertical: 4,
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.open_in_new_rounded,
+                                size: 14,
+                                color: tone.ink,
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                l10n.announcementOpenLink,
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w600,
+                                  color: tone.ink,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -112,4 +169,31 @@ class SystemNotificationBanner extends StatelessWidget {
       ),
     );
   }
+
+  /// The level's paint (§3.4), from the Activity chips so the card agrees
+  /// with the trade cards next to it. A plain system notice keeps the amber
+  /// it always had.
+  static ({Color bg, Color border, Color ink, IconData icon}) _tone(
+    ActivityPalette pal,
+    AnnouncementSeverity? severity,
+  ) => switch (severity) {
+    AnnouncementSeverity.info => (
+      bg: pal.chipActionBg,
+      border: pal.chipActionBorder,
+      ink: pal.chipActionInk,
+      icon: Icons.info_outline_rounded,
+    ),
+    AnnouncementSeverity.critical => (
+      bg: pal.chipDisputeBg,
+      border: pal.chipDisputeBorder,
+      ink: pal.chipDisputeInk,
+      icon: Icons.shield_outlined,
+    ),
+    AnnouncementSeverity.warning || null => (
+      bg: pal.chipWaitBg,
+      border: pal.chipWaitBorder,
+      ink: pal.chipWaitInk,
+      icon: Icons.warning_amber_rounded,
+    ),
+  };
 }

@@ -20,6 +20,7 @@ import 'package:mostro/features/settings/providers/escrow_mode_provider.dart';
 import 'package:mostro/features/settings/services/node_switch.dart';
 import 'package:mostro/features/trades/providers/trade_rows_provider.dart';
 import 'package:mostro/shared/widgets/redesign_app_bar.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Notifications screen — Route `/notifications`.
 ///
@@ -148,6 +149,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         child: SystemNotificationBanner(
           notification: notification,
           onTap: () => _handleTap(context, notification),
+          onOpenLink: switch (notification.announcementUrl) {
+            null => null,
+            final url => () => _openLink(context, notification, url),
+          },
         ),
       ),
     };
@@ -165,6 +170,12 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       children: [
         if (backupActive) ...[
           const _BackupReminderBanner(),
+          const SizedBox(height: AppSpacing.sm),
+        ],
+        // Security updates come before the trades that need action: the
+        // user reads them before continuing one (specs/006 §3.4).
+        for (final entry in sections.critical) ...[
+          entryCard(entry),
           const SizedBox(height: AppSpacing.sm),
         ],
         if (pinned) _SectionHeader(l10n.tradesGroupNeedsAction),
@@ -288,6 +299,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       );
     }
 
+    // An announcement opens nothing: the card is the whole message, and its
+    // link has its own button (specs/006 §6.2).
+    if (n.isAnnouncement) return;
+
     switch (n.type) {
       case NotificationType.ratingReceived:
         n.orderId != null
@@ -328,6 +343,36 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         n.orderId != null
             ? context.push(AppRoute.tradeDetailPath(n.orderId!))
             : noId();
+    }
+  }
+
+  /// The announcement's one link (specs/006 §6.2): opened externally, never
+  /// in the app. Reads the card too — the user is acting on it.
+  Future<void> _openLink(
+    BuildContext context,
+    NotificationModel n,
+    String url,
+  ) async {
+    if (!n.isRead) ref.read(notificationsProvider.notifier).markAsRead(n.id);
+    final messenger = ScaffoldMessenger.of(context);
+    final l10n = AppLocalizations.of(context);
+    var launched = false;
+    try {
+      launched = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+    } catch (_) {
+      // A platform without a browser throws instead of returning false.
+      launched = false;
+    }
+    if (!launched) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(l10n.unableToOpenNotification),
+          duration: const Duration(seconds: 2),
+        ),
+      );
     }
   }
 }
