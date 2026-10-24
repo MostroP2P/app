@@ -5,7 +5,10 @@ license = "AGPL-3.0-or-later"
 edition = "2021"
 
 [lib]
-crate-type = ["cdylib", "staticlib"]
+# `rlib` is for `src/bin/announce.rs`, the announcement validator
+# (docs/ANNOUNCEMENTS.md): a binary in the same crate links the library as an
+# rlib. FRB and cargokit take the cdylib / staticlib; wasm-pack builds `--lib`.
+crate-type = ["cdylib", "staticlib", "rlib"]
 
 # `frb_expand` is set by flutter_rust_bridge's macros during codegen expansion.
 # Declare it so `cargo clippy -- -D warnings` does not flag it as an unknown cfg.
