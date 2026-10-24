@@ -2,7 +2,8 @@
 
 **Feature Branch**: `006-announcement-channel`
 **Created**: 2026-08-26
-**Status**: In progress — steps 1 to 5 of §10 are built (the publisher tool is
+**Status**: Built — every step of §10 is in, the allowlist holds the project's three keys,
+and the channel goes live with the next release that carries them (the publisher tool is
 `rust/src/bin/announce.rs`, the procedure `docs/ANNOUNCEMENTS.md`): parsing and the allowlist in
 `rust/src/nostr/announcements.rs`, the reader and its cache in
 `rust/src/nostr/announcement_reader.rs`, the bridge and the Announcements toggle in
@@ -356,10 +357,12 @@ Three rules:
 3. **An entry that fails to decode is dropped with a `log::warn!`, and the rest still
    work.** A typo in one constant must not silence the channel.
 
-**The allowlist ships empty**, and an empty allowlist means no authors, which means §5.1
-opens no subscription. Every phase of §10 can therefore merge without the channel being
-live; turning it on is a one-line commit, reviewed on its own, with the npubs checked
-against a source outside this repo.
+**The allowlist shipped empty** through steps 1–5 of §10 — an empty allowlist means no
+authors, which means §5.1 opens no subscription, so every phase could merge without the
+channel being live. Step 6 filled it with the project's three keys (handed over by the
+maintainer, hex-pinned by `the_shipped_allowlist_is_the_project_keys`); changing it is a
+one-line commit, reviewed on its own, with the npubs checked against a source outside this
+repo.
 
 The list cannot be updated over the wire, on purpose: a remotely updatable allowlist is a
 channel for taking over the channel.
@@ -775,7 +778,7 @@ PR per step, per the workflow in CLAUDE.md.
 | 3 | ~~The bridge surface + the Announcements toggle (§6.1, §7), then `./scripts/frb-generate.sh`~~ — **done** | The off switch before the surface |
 | 4 | ~~Rendering into the existing notification surface, seven locales of chrome (§6.2)~~ — **done** | Last, when there is something to show |
 | 5 | ~~`rust/src/bin/announce.rs` + the publishing doc (§8)~~ — **done** | With or just after step 1, sharing its validator |
-| 6 | **Add the real npubs** — one line, its own PR, npubs checked against a source outside this repo | The only commit that makes the channel live |
+| 6 | ~~**Add the real npubs** — one line, its own PR, npubs checked against a source outside this repo~~ — **done** (three keys, §4.1) | The only commit that makes the channel live |
 | 7 | **Land MostroP2P/protocol#56** — the `38387` registration (§3) | A number reserved only in this repo is not reserved; it should land before the reader ships, and it depends on nothing here |
 
 Steps 1–5 can all merge without the channel existing in production. That is the point.
