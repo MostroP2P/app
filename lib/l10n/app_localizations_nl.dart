@@ -1379,6 +1379,17 @@ class AppLocalizationsNl extends AppLocalizations {
       'Acties van de solver en uitkomsten van disputen';
 
   @override
+  String get notifAnnouncementsTitle => 'Aankondigingen';
+
+  @override
+  String get notifAnnouncementsSubtitle =>
+      'Versies, storingen en relaywijzigingen, ondertekend door het Mostro-project';
+
+  @override
+  String get announcementsGroupSubtitle =>
+      'Aankondigingen worden van de relays gelezen en nooit beantwoord: er wordt niets over jou verstuurd.';
+
+  @override
   String get searchCurrenciesHint => 'Valuta zoeken…';
 
   @override

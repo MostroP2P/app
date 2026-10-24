@@ -85,6 +85,13 @@ pub mod settings_keys {
     /// unix seconds of the `403`; each entry clears per §7.1.
     pub const PUSH_NODE_REFUSALS: &str = "push_node_refusals";
 
+    // ── Announcements (specs/006-announcement-channel §7) ────────────────────
+
+    /// The Announcements toggle, `"true"` / `"false"`; absent reads as
+    /// enabled. Device-scoped, like the push toggle: it says whether this
+    /// install opens the announcement subscription, not anything about a user.
+    pub const ANNOUNCEMENTS_ENABLED: &str = "announcements_enabled";
+
     /// User-added Mostro nodes, JSON array of `crate::api::nodes::CustomNode`.
     /// The trusted registry is compiled in (`crate::config::TRUSTED_MOSTRO_NODES`);
     /// only user additions are persisted.

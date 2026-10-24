@@ -2,9 +2,10 @@
 
 **Feature Branch**: `006-announcement-channel`
 **Created**: 2026-08-26
-**Status**: In progress — steps 1 and 2 of §10 are built: parsing and the allowlist in
+**Status**: In progress — steps 1 to 3 of §10 are built: parsing and the allowlist in
 `rust/src/nostr/announcements.rs`, the reader and its cache in
-`rust/src/nostr/announcement_reader.rs`
+`rust/src/nostr/announcement_reader.rs`, the bridge and the Announcements toggle in
+`rust/src/api/announcements.rs` and `lib/features/settings/providers/announcements_provider.dart`
 **Input**: Give the project one authenticated way to reach people already running the
 app — "update to 2.1", "the node is down for maintenance", "this relay is gone" —
 without a backend, an account, an email address, or a push token.
@@ -556,6 +557,24 @@ translate."
 Adding `rust/src/api/announcements.rs` means `./scripts/frb-generate.sh` must run, and the
 generated `lib/src/rust/` is never hand-edited.
 
+**What the bridge settled** (step 3 of §10):
+
+- The bridge type is `AnnouncementInfo` (`rust/src/api/types.rs`), to keep clear of the
+  reader's `Announcement`. Its `revision` is `<created_at>:<event id>` — the pair §5.3
+  orders by — so Dart tells a correction from a redelivery by string equality alone.
+- `get_announcements()` returns the cache **whole**: `critical` first, then newest first,
+  dismissed rows included with their `read` and `dismissed` flags. Dart decides what a
+  dismissed row means by its level (§3.4), so Rust must not filter it out.
+- `on_announcements_changed()` emits that same whole list after every pass that may have
+  changed it — a sweep (every `Online` and every resume), an arrival that won at its
+  address, a flag. A lagging subscriber skips to the newest snapshot, since each one is
+  complete.
+- `dismiss_announcement` also marks the row read: a dismissed notice never counts as
+  unread, whichever level keeps it listed. A flag for an address the cache no longer
+  holds is dropped silently, not an error — the card was drawn before the row expired.
+- Read and dismissed belong to the revision: a correction clears both (§5.3), and the
+  bridge test `a_correction_clears_a_dismissal_too` pins it.
+
 ### 6.2 Rendering
 
 Each announcement becomes a `NotificationModel`:
@@ -611,6 +630,16 @@ Turning it back on reopens the subscription. The gap is not backfilled beyond wh
 filter asks for on the next open — `since = now - 30 days` is the same window a fresh
 install gets, so an announcement published while the switch was off is picked up if it is
 still fresh, and is not if it is not.
+
+**How it is built.** The value is the `settings` key `announcements_enabled`
+(`"true"` / `"false"`, absent reads as on), device-scoped like the push toggle. The reader
+mirrors it into a process flag at every subscribe and at every tap: off closes the
+`announcements` subscription through `live_subs` and the relay pump discards, per event,
+whatever still arrives behind the close — the pump task itself stays, gated, and the next
+on re-issues the filter through the same pump. **Off leaves the cache alone**: what it holds
+is the last thing the project said, it stays shown, and the clock still sweeps it (§5.4).
+Hiding it would make the switch mean two things. The OS notification permission does not
+gate the toggle either: an announcement posts no system notification.
 
 **Default: on.** A judgement call, stated plainly: the channel is low-frequency and
 product-related, and nothing here posts a system notification, so nothing escapes the app
@@ -704,7 +733,7 @@ PR per step, per the workflow in CLAUDE.md.
 | 0 | ~~Fix the app-version source (§4.3)~~ — **done in this PR** | Version targeting is unusable while the version is not the shipped one, so it could not be left as a follow-up |
 | 1 | §3 parsing and validation + the §4.1 allowlist, as pure Rust functions — no relay, no DB, no UI | Everything rests on it, and it is the cheapest thing to get wrong quietly. Ships with the allowlist **empty**, which is inert by construction |
 | 2 | Fetch, verify, freshness, expiry, the `announcements` table and the schema bump (§4.2, §5) | Testable without a screen |
-| 3 | The bridge surface + the Announcements toggle (§6.1, §7), then `./scripts/frb-generate.sh` | The off switch before the surface |
+| 3 | ~~The bridge surface + the Announcements toggle (§6.1, §7), then `./scripts/frb-generate.sh`~~ — **done** | The off switch before the surface |
 | 4 | Rendering into the existing notification surface, seven locales of chrome (§6.2) | Last, when there is something to show |
 | 5 | `rust/src/bin/announce.rs` + the publishing doc (§8) | With or just after step 1, sharing its validator |
 | 6 | **Add the real npubs** — one line, its own PR, npubs checked against a source outside this repo | The only commit that makes the channel live |

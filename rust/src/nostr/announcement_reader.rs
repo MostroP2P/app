@@ -19,7 +19,7 @@ use nostr_sdk::prelude::*;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 
-use crate::db::Storage;
+use crate::db::{settings_keys, Storage};
 use crate::nostr::announcements::{
     self, admit, Announcement, AnnouncementError, Severity, KIND_ANNOUNCEMENT,
 };
@@ -99,6 +99,17 @@ pub enum Ingested {
 /// two allowlisted keys can pick the same `d` (§5.3).
 pub fn address_of(author: &PublicKey, identifier: &str) -> String {
     format!("{KIND_ANNOUNCEMENT}:{}:{identifier}", author.to_hex())
+}
+
+/// The revision of an announcement as Dart sees it: `created_at` and the
+/// event id, the pair [`replaceable_rank`] orders by. Two revisions at one
+/// address are the same text only when this is equal.
+pub fn revision_of(announcement: &Announcement) -> String {
+    format!(
+        "{}:{}",
+        announcement.created_at.as_secs(),
+        announcement.event_id.to_hex()
+    )
 }
 
 /// §5.2 steps 1–6, at `now`, for an app at `version`. Step 7 — winning at
@@ -308,6 +319,38 @@ async fn sweep<S: Storage>(
     Ok(kept)
 }
 
+/// Record what the user did with the announcement at `address` (§6.1): a
+/// `read` and a `dismissed` flag, each left alone when `None`. The flags
+/// belong to the cached revision — a correction arriving later starts
+/// unread again. Returns `false` when the address is not cached: nothing
+/// may refer to an address the cache no longer holds, and a flag for one
+/// that just expired is not an error.
+pub async fn set_flags<S: Storage>(
+    db: &S,
+    address: &str,
+    read: Option<bool>,
+    dismissed: Option<bool>,
+) -> anyhow::Result<bool> {
+    let _section = exclusive().await;
+    let Some(row) = db
+        .list_announcements()
+        .await?
+        .into_iter()
+        .find(|row| row.address == address)
+    else {
+        return Ok(false);
+    };
+    let updated = StoredAnnouncement {
+        read: read.unwrap_or(row.read),
+        dismissed: dismissed.unwrap_or(row.dismissed),
+        ..row.clone()
+    };
+    if updated != row {
+        db.save_announcement(&updated).await?;
+    }
+    Ok(true)
+}
+
 /// A cached row through the door again, from its signed event.
 fn recheck(
     row: &StoredAnnouncement,
@@ -335,19 +378,102 @@ impl Drop for LoopGuard {
     }
 }
 
-/// Bring the channel up to date: re-check the cache against the clock, then
-/// start the relay loop or, when it already runs, move its filter's window
-/// to now. Called on every `Online` and every resume, like the order book;
-/// with an empty allowlist it does nothing at all.
+/// The Announcements toggle (§7), mirrored from the settings table by
+/// [`subscribe_announcements`] and [`set_enabled`], so the relay pump can
+/// check it per event without a database read. Off means the subscription
+/// is closed and whatever still arrives behind it is discarded.
+static ENABLED: AtomicBool = AtomicBool::new(true);
+
+/// What a stored toggle value means: absent reads as enabled (§7, default on).
+pub fn enabled_from_setting(value: Option<&str>) -> bool {
+    value != Some("false")
+}
+
+/// Whether the channel is on, as of the last subscribe or toggle.
+pub fn is_enabled() -> bool {
+    ENABLED.load(Ordering::Acquire)
+}
+
+/// What a read of the stored toggle means. A read that failed is not consent:
+/// the value may well be `"false"`, so the channel stays off until a later
+/// `Online` or resume reads it (every refresh reads it again).
+fn enabled_from_read(read: anyhow::Result<Option<String>>) -> bool {
+    match read {
+        Ok(value) => enabled_from_setting(value.as_deref()),
+        Err(e) => {
+            log::warn!("[announcements] reading the toggle failed: {e}; staying off");
+            false
+        }
+    }
+}
+
+async fn load_enabled<S: Storage>(db: &S) -> bool {
+    enabled_from_read(db.get_setting(settings_keys::ANNOUNCEMENTS_ENABLED).await)
+}
+
+/// One toggle change or refresh at a time. A refresh (`Online`, resume) reads
+/// the setting, then awaits the cache sweep before it stores what it read; a
+/// tap in between would be undone — the subscription reopened with the
+/// persisted switch off — if the two could interleave.
+static TRANSITION: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
+
+/// Apply the toggle, already persisted by the caller: on reopens the
+/// subscription through [`subscribe_announcements`], off closes it at the
+/// tap — nothing waits for the next background transition (§7).
+pub async fn set_enabled(enabled: bool) {
+    let _transition = TRANSITION.lock().await;
+    ENABLED.store(enabled, Ordering::Release);
+    if enabled {
+        refresh_subscription().await;
+    } else {
+        close_subscription().await;
+    }
+}
+
+/// Close the relay subscription, if one was ever opened. The pump task
+/// stays: it is gated by [`ENABLED`], and a later on re-issues the filter.
+async fn close_subscription() {
+    if !LOOP_ACTIVE.load(Ordering::Acquire) {
+        return;
+    }
+    if let Ok(pool) = crate::api::nostr::get_pool() {
+        crate::nostr::live_subs::live_subs()
+            .close(&pool.client(), &SubscriptionId::new(SUBSCRIPTION_ID))
+            .await;
+        log::info!("[announcements] subscription closed: toggle off");
+    }
+}
+
+/// Bring the channel up to date: re-check the cache against the clock, hand
+/// Dart what is left, then start the relay loop or, when it already runs,
+/// move its filter's window to now. Called on every `Online` and every
+/// resume, like the order book; with an empty allowlist, or the toggle off,
+/// nothing is subscribed — the cache is still swept, since what it holds is
+/// the last thing the project said and the expiry rule holds offline (§5.4).
 pub async fn subscribe_announcements() {
+    let _transition = TRANSITION.lock().await;
+    refresh_subscription().await;
+}
+
+/// [`subscribe_announcements`] with [`TRANSITION`] already held.
+async fn refresh_subscription() {
     let authors = announcements::allowed_authors();
     let version = announcements::app_version();
+    let mut enabled = true;
     // Even with no key left to subscribe to: a release that retires the last
     // one must still sweep what that key left in the cache.
     if let Some(db) = crate::db::app_db::db() {
-        if let Err(e) = restore(db, &authors, Timestamp::now(), &version).await {
-            log::warn!("[announcements] re-checking the cache failed: {e}");
+        enabled = load_enabled(db).await;
+        match restore(db, &authors, Timestamp::now(), &version).await {
+            Ok(current) => crate::api::announcements::emit(&current),
+            Err(e) => log::warn!("[announcements] re-checking the cache failed: {e}"),
         }
+    }
+    ENABLED.store(enabled, Ordering::Release);
+    if !enabled {
+        close_subscription().await;
+        log::debug!("[announcements] toggle off: no subscription");
+        return;
     }
     let Some(filter) = announcement_filter(&authors, Timestamp::now()) else {
         log::debug!("[announcements] allowlist empty: no subscription");
@@ -407,10 +533,20 @@ async fn run_subscription(authors: Vec<PublicKey>, filter: Filter, version: Vers
         if subscription_id != id {
             continue;
         }
+        // Checked per event, after the subscription was closed: an event
+        // queued behind the close is discarded, as the toggle promises (§7).
+        if !is_enabled() {
+            log::debug!("[announcements] {} discarded: toggle off", event.id);
+            continue;
+        }
         let Some(db) = crate::db::app_db::db() else {
             continue;
         };
         match ingest(db, &event, &authors, Timestamp::now(), &version).await {
+            Ok(outcome @ (Ingested::New | Ingested::Superseded)) => {
+                log::info!("[announcements] {}: {outcome:?}", event.id);
+                crate::api::announcements::publish_current().await;
+            }
             Ok(outcome) => log::debug!("[announcements] {}: {outcome:?}", event.id),
             Err(e) => log::warn!("[announcements] storing {} failed: {e}", event.id),
         }
@@ -980,6 +1116,82 @@ mod tests {
             .collect();
         assert_eq!(order, vec!["security", "outage", "release"]);
         assert_eq!(current[0].announcement.body.severity, Severity::Critical);
+    }
+
+    // ── Read and dismissed (§6.1) ───────────────────────────────────────
+
+    #[tokio::test]
+    async fn flags_are_recorded_on_the_cached_row() {
+        // Arrange
+        let db = store().await;
+        let keys = Keys::generate();
+        let allow = [keys.public_key()];
+        let event = draft("flags").sign(&keys);
+        ingest_now(&db, &event, &allow).await;
+        let address = address_of(&keys.public_key(), "flags");
+
+        // Act
+        let read = set_flags(&db, &address, Some(true), None).await.unwrap();
+        let dismissed = set_flags(&db, &address, None, Some(true)).await.unwrap();
+
+        // Assert: both persisted, each leaving the other alone.
+        assert!(read && dismissed);
+        let current = restore(&db, &allow, now(), &app()).await.unwrap();
+        assert!(current[0].read);
+        assert!(current[0].dismissed);
+    }
+
+    #[tokio::test]
+    async fn a_flag_for_an_address_not_cached_is_dropped() {
+        let db = store().await;
+
+        let recorded = set_flags(&db, "38387:aa:gone", Some(true), None)
+            .await
+            .unwrap();
+
+        assert!(!recorded);
+        assert!(db.list_announcements().await.unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn a_correction_clears_a_dismissal_too() {
+        // Arrange: dismissed, then a newer revision at the same address.
+        let db = store().await;
+        let keys = Keys::generate();
+        let allow = [keys.public_key()];
+        ingest_now(&db, &draft("c").sign(&keys), &allow).await;
+        let address = address_of(&keys.public_key(), "c");
+        set_flags(&db, &address, Some(true), Some(true))
+            .await
+            .unwrap();
+
+        // Act
+        let outcome = ingest_now(&db, &draft("c").at(NOW + 60).sign(&keys), &allow).await;
+
+        // Assert: the correction is a new notice, not a dismissed one.
+        assert_eq!(outcome, Ingested::Superseded);
+        let current = restore(&db, &allow, now(), &app()).await.unwrap();
+        assert!(!current[0].read);
+        assert!(!current[0].dismissed);
+    }
+
+    // ── The toggle (§7) ─────────────────────────────────────────────────
+
+    #[test]
+    fn the_toggle_reads_absent_as_on() {
+        assert!(enabled_from_setting(None));
+        assert!(enabled_from_setting(Some("true")));
+        assert!(enabled_from_setting(Some("anything else")));
+        assert!(!enabled_from_setting(Some("false")));
+    }
+
+    /// A read that failed may be hiding a `"false"`: it is not consent.
+    #[test]
+    fn a_failed_toggle_read_keeps_the_channel_off() {
+        assert!(enabled_from_read(Ok(None)));
+        assert!(enabled_from_read(Ok(Some("true".into()))));
+        assert!(!enabled_from_read(Ok(Some("false".into()))));
+        assert!(!enabled_from_read(Err(anyhow::anyhow!("db locked"))));
     }
 
     /// Announcements are addressed to the install: a new identity keeps them

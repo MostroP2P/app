@@ -7,6 +7,7 @@ import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/order_book_palette.dart';
 import 'package:mostro/core/settings_palette.dart';
 import 'package:mostro/features/settings/models/push_status_line.dart';
+import 'package:mostro/features/settings/providers/announcements_provider.dart';
 import 'package:mostro/features/settings/providers/notification_permission_provider.dart';
 import 'package:mostro/features/settings/providers/notification_prefs_provider.dart';
 import 'package:mostro/features/settings/providers/push_settings_provider.dart';
@@ -28,6 +29,12 @@ import 'package:mostro/shared/widgets/redesign_app_bar.dart';
 ///
 /// The event rows gate the in-app cards, not the push: a push carries no
 /// type to filter on (docs/PUSH_NOTIFICATIONS.md §9.1).
+///
+/// A third card holds the Announcements toggle (specs/006 §7): the project's
+/// signed notices, read from the relays. Off closes that subscription at the
+/// tap, which is why its value lives in Rust rather than in `shared_preferences`
+/// like the four rows above it — and why the OS permission does not gate it:
+/// an announcement posts no system notification.
 class NotificationSettingsScreen extends ConsumerWidget {
   const NotificationSettingsScreen({super.key});
 
@@ -124,6 +131,19 @@ class NotificationSettingsScreen extends ConsumerWidget {
               ],
             ),
           ),
+          const SizedBox(height: settingsGroupGap),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(2, 0, 2, 14),
+            child: Text(
+              l10n.announcementsGroupSubtitle,
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.5,
+                color: book.textSecondary,
+              ),
+            ),
+          ),
+          const SettingsGroup(rows: [_AnnouncementsRow()]),
           const SizedBox(height: settingsGroupGap),
           SettingsFootnote(
             icon: Icons.lock_outline,
@@ -357,10 +377,97 @@ class _EventRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final l10n = AppLocalizations.of(context);
-    final book = OrderBookPalette.of(context);
-    final (title, description) = _copy(l10n, event);
+    final (title, description) = _copy(AppLocalizations.of(context), event);
+    return _ToggleRow(
+      icon: icon,
+      title: title,
+      description: description,
+      value: value,
+      onChanged: enabled ? (next) => _set(context, ref, next) : null,
+    );
+  }
 
+  Future<void> _set(BuildContext context, WidgetRef ref, bool next) async {
+    final ok = await ref
+        .read(notificationPrefsProvider.notifier)
+        .setEvent(event, next);
+    if (!ok && context.mounted) _saveFailed(context);
+  }
+
+  static (String, String) _copy(
+    AppLocalizations l10n,
+    NotificationEvent event,
+  ) => switch (event) {
+    NotificationEvent.tradeUpdates => (
+      l10n.notifTradeUpdatesTitle,
+      l10n.notifTradeUpdatesSubtitle,
+    ),
+    NotificationEvent.newMessages => (
+      l10n.notifNewMessagesTitle,
+      l10n.notifNewMessagesSubtitle,
+    ),
+    NotificationEvent.paymentAlerts => (
+      l10n.notifPaymentAlertsTitle,
+      l10n.notifPaymentAlertsSubtitle,
+    ),
+    NotificationEvent.disputeUpdates => (
+      l10n.notifDisputeUpdatesTitle,
+      l10n.notifDisputeUpdatesSubtitle,
+    ),
+  };
+}
+
+/// The Announcements toggle (specs/006 §7), persisted by Rust: off closes
+/// the relay subscription at the tap. Never gated by the OS permission.
+class _AnnouncementsRow extends ConsumerWidget {
+  const _AnnouncementsRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final l10n = AppLocalizations.of(context);
+    return _ToggleRow(
+      icon: Icons.campaign_outlined,
+      title: l10n.notifAnnouncementsTitle,
+      description: l10n.notifAnnouncementsSubtitle,
+      value: ref.watch(announcementsEnabledProvider),
+      onChanged: (next) => _set(context, ref, next),
+    );
+  }
+
+  Future<void> _set(BuildContext context, WidgetRef ref, bool next) async {
+    final ok = await ref.read(announcementsEnabledProvider.notifier).set(next);
+    if (!ok && context.mounted) _saveFailed(context);
+  }
+}
+
+void _saveFailed(BuildContext context) {
+  ScaffoldMessenger.of(context).showSnackBar(
+    SnackBar(
+      content: Text(AppLocalizations.of(context).notificationPrefSaveFailed),
+    ),
+  );
+}
+
+/// One row of a settings group: a glyph, a 13/600 title over an 11/400
+/// description, and a toggle. [onChanged] null disables the toggle.
+class _ToggleRow extends StatelessWidget {
+  const _ToggleRow({
+    required this.icon,
+    required this.title,
+    required this.description,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final book = OrderBookPalette.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
       child: Row(
@@ -402,49 +509,12 @@ class _EventRow extends ConsumerWidget {
           MostroToggle(
             value: value,
             semanticLabel: title,
-            onChanged: enabled ? (next) => _set(context, ref, next) : null,
+            onChanged: onChanged,
           ),
         ],
       ),
     );
   }
-
-  Future<void> _set(BuildContext context, WidgetRef ref, bool next) async {
-    final ok = await ref
-        .read(notificationPrefsProvider.notifier)
-        .setEvent(event, next);
-    if (!ok && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            AppLocalizations.of(context).notificationPrefSaveFailed,
-          ),
-        ),
-      );
-    }
-  }
-
-  static (String, String) _copy(
-    AppLocalizations l10n,
-    NotificationEvent event,
-  ) => switch (event) {
-    NotificationEvent.tradeUpdates => (
-      l10n.notifTradeUpdatesTitle,
-      l10n.notifTradeUpdatesSubtitle,
-    ),
-    NotificationEvent.newMessages => (
-      l10n.notifNewMessagesTitle,
-      l10n.notifNewMessagesSubtitle,
-    ),
-    NotificationEvent.paymentAlerts => (
-      l10n.notifPaymentAlertsTitle,
-      l10n.notifPaymentAlertsSubtitle,
-    ),
-    NotificationEvent.disputeUpdates => (
-      l10n.notifDisputeUpdatesTitle,
-      l10n.notifDisputeUpdatesSubtitle,
-    ),
-  };
 }
 
 // ── Permission banners ────────────────────────────────────────────────────────

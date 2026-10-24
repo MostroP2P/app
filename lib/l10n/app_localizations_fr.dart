@@ -1377,6 +1377,17 @@ class AppLocalizationsFr extends AppLocalizations {
       'Actions des médiateurs et résolutions de litiges';
 
   @override
+  String get notifAnnouncementsTitle => 'Annonces';
+
+  @override
+  String get notifAnnouncementsSubtitle =>
+      'Versions, pannes et changements de relais, signés par le projet Mostro';
+
+  @override
+  String get announcementsGroupSubtitle =>
+      'Les annonces sont lues depuis les relais et jamais répondues : rien vous concernant n\'est envoyé.';
+
+  @override
   String get searchCurrenciesHint => 'Rechercher des devises…';
 
   @override
