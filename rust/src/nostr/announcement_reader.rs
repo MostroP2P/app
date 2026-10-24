@@ -394,23 +394,37 @@ pub fn is_enabled() -> bool {
     ENABLED.load(Ordering::Acquire)
 }
 
-async fn load_enabled<S: Storage>(db: &S) -> bool {
-    enabled_from_setting(
-        db.get_setting(settings_keys::ANNOUNCEMENTS_ENABLED)
-            .await
-            .ok()
-            .flatten()
-            .as_deref(),
-    )
+/// What a read of the stored toggle means. A read that failed is not consent:
+/// the value may well be `"false"`, so the channel stays off until a later
+/// `Online` or resume reads it (every refresh reads it again).
+fn enabled_from_read(read: anyhow::Result<Option<String>>) -> bool {
+    match read {
+        Ok(value) => enabled_from_setting(value.as_deref()),
+        Err(e) => {
+            log::warn!("[announcements] reading the toggle failed: {e}; staying off");
+            false
+        }
+    }
 }
+
+async fn load_enabled<S: Storage>(db: &S) -> bool {
+    enabled_from_read(db.get_setting(settings_keys::ANNOUNCEMENTS_ENABLED).await)
+}
+
+/// One toggle change or refresh at a time. A refresh (`Online`, resume) reads
+/// the setting, then awaits the cache sweep before it stores what it read; a
+/// tap in between would be undone — the subscription reopened with the
+/// persisted switch off — if the two could interleave.
+static TRANSITION: tokio::sync::Mutex<()> = tokio::sync::Mutex::const_new(());
 
 /// Apply the toggle, already persisted by the caller: on reopens the
 /// subscription through [`subscribe_announcements`], off closes it at the
 /// tap — nothing waits for the next background transition (§7).
 pub async fn set_enabled(enabled: bool) {
+    let _transition = TRANSITION.lock().await;
     ENABLED.store(enabled, Ordering::Release);
     if enabled {
-        subscribe_announcements().await;
+        refresh_subscription().await;
     } else {
         close_subscription().await;
     }
@@ -437,6 +451,12 @@ async fn close_subscription() {
 /// nothing is subscribed — the cache is still swept, since what it holds is
 /// the last thing the project said and the expiry rule holds offline (§5.4).
 pub async fn subscribe_announcements() {
+    let _transition = TRANSITION.lock().await;
+    refresh_subscription().await;
+}
+
+/// [`subscribe_announcements`] with [`TRANSITION`] already held.
+async fn refresh_subscription() {
     let authors = announcements::allowed_authors();
     let version = announcements::app_version();
     let mut enabled = true;
@@ -1141,7 +1161,9 @@ mod tests {
         let allow = [keys.public_key()];
         ingest_now(&db, &draft("c").sign(&keys), &allow).await;
         let address = address_of(&keys.public_key(), "c");
-        set_flags(&db, &address, Some(true), Some(true)).await.unwrap();
+        set_flags(&db, &address, Some(true), Some(true))
+            .await
+            .unwrap();
 
         // Act
         let outcome = ingest_now(&db, &draft("c").at(NOW + 60).sign(&keys), &allow).await;
@@ -1161,6 +1183,15 @@ mod tests {
         assert!(enabled_from_setting(Some("true")));
         assert!(enabled_from_setting(Some("anything else")));
         assert!(!enabled_from_setting(Some("false")));
+    }
+
+    /// A read that failed may be hiding a `"false"`: it is not consent.
+    #[test]
+    fn a_failed_toggle_read_keeps_the_channel_off() {
+        assert!(enabled_from_read(Ok(None)));
+        assert!(enabled_from_read(Ok(Some("true".into()))));
+        assert!(!enabled_from_read(Ok(Some("false".into()))));
+        assert!(!enabled_from_read(Err(anyhow::anyhow!("db locked"))));
     }
 
     /// Announcements are addressed to the install: a new identity keeps them

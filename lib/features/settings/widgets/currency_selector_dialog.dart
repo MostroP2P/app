@@ -22,10 +22,10 @@ class _FiatEntry {
   final String flag;
 
   factory _FiatEntry.fromJson(Map<String, dynamic> json) => _FiatEntry(
-    code: (json['code'] as String?) ?? '',
-    name: (json['name'] as String?) ?? '',
-    flag: (json['flag'] as String?) ?? '',
-  );
+        code: (json['code'] as String?) ?? '',
+        name: (json['name'] as String?) ?? '',
+        flag: (json['flag'] as String?) ?? '',
+      );
 }
 
 // ── Widget ────────────────────────────────────────────────────────────────────
@@ -63,12 +63,11 @@ class _CurrencySelectorDialogState
     try {
       final raw = await rootBundle.loadString('assets/data/fiat.json');
       final List<dynamic> parsed = json.decode(raw) as List<dynamic>;
-      final entries =
-          parsed
-              .cast<Map<String, dynamic>>()
-              .map(_FiatEntry.fromJson)
-              .where((e) => e.code.isNotEmpty)
-              .toList();
+      final entries = parsed
+          .cast<Map<String, dynamic>>()
+          .map(_FiatEntry.fromJson)
+          .where((e) => e.code.isNotEmpty)
+          .toList();
       if (mounted) {
         setState(() {
           _allEntries = entries;
@@ -85,11 +84,10 @@ class _CurrencySelectorDialogState
   void _onSearch() {
     final query = _searchController.text.toLowerCase();
     setState(() {
-      _filtered =
-          _allEntries.where((e) {
-            return e.code.toLowerCase().contains(query) ||
-                e.name.toLowerCase().contains(query);
-          }).toList();
+      _filtered = _allEntries.where((e) {
+        return e.code.toLowerCase().contains(query) ||
+            e.name.toLowerCase().contains(query);
+      }).toList();
     });
   }
 
@@ -101,8 +99,7 @@ class _CurrencySelectorDialogState
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<AppColors>();
-    if (colors == null)
-      throw StateError('AppColors theme extension must be registered');
+    if (colors == null) throw StateError('AppColors theme extension must be registered');
     final l10n = AppLocalizations.of(context);
 
     return Scaffold(
@@ -126,33 +123,32 @@ class _CurrencySelectorDialogState
             ),
           ),
           Expanded(
-            child:
-                _loading
-                    ? const Center(child: CircularProgressIndicator())
-                    : _filtered.isEmpty
+            child: _loading
+                ? const Center(child: CircularProgressIndicator())
+                : _filtered.isEmpty
                     ? Center(
-                      child: Text(
-                        l10n.noCurrenciesFoundMessage,
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                    )
+                        child: Text(
+                          l10n.noCurrenciesFoundMessage,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                      )
                     : ListView.builder(
-                      itemCount: _filtered.length,
-                      itemBuilder: (context, index) {
-                        final entry = _filtered[index];
-                        return ListTile(
-                          leading: Text(
-                            entry.flag,
-                            style: const TextStyle(fontSize: 24),
-                          ),
-                          title: Text(
-                            '${entry.code} — ${entry.name}',
-                            style: Theme.of(context).textTheme.bodyLarge,
-                          ),
-                          onTap: () => _select(entry),
-                        );
-                      },
-                    ),
+                        itemCount: _filtered.length,
+                        itemBuilder: (context, index) {
+                          final entry = _filtered[index];
+                          return ListTile(
+                            leading: Text(
+                              entry.flag,
+                              style: const TextStyle(fontSize: 24),
+                            ),
+                            title: Text(
+                              '${entry.code} — ${entry.name}',
+                              style: Theme.of(context).textTheme.bodyLarge,
+                            ),
+                            onTap: () => _select(entry),
+                          );
+                        },
+                      ),
           ),
         ],
       ),

@@ -36,14 +36,19 @@ class AnnouncementsEnabledNotifier extends StateNotifier<bool> {
 
   final AnnouncementsBridge _bridge;
 
-  /// The user flipped the toggle before [_load] answered: the load read the
-  /// setting before that write, so its value is older than the screen's.
-  bool _touched = false;
+  /// Taps so far. A load that answers after one read the setting before its
+  /// write, so its value is older than the screen's; a failed write reloads
+  /// only when no newer tap has replaced it.
+  int _taps = 0;
+
+  /// Writes go one after another: two quick taps otherwise race to the
+  /// store, and the older one can land last.
+  Future<void> _writes = Future.value();
 
   Future<void> _load() async {
     try {
       final enabled = await _bridge.enabled();
-      if (mounted && !_touched) state = enabled;
+      if (mounted && _taps == 0) state = enabled;
     } catch (e) {
       debugPrint('[announcements] reading the toggle failed: $e');
     }
@@ -51,19 +56,39 @@ class AnnouncementsEnabledNotifier extends StateNotifier<bool> {
 
   /// Applies the change to the UI first and persists after, so the toggle
   /// answers the tap; a failed write is reported by returning false and the
-  /// state rolling back.
-  Future<bool> set(bool value) async {
+  /// toggle going back to what Rust holds.
+  Future<bool> set(bool value) {
+    final tap = ++_taps;
     final before = state;
-    _touched = true;
     state = value;
+    final write = _writes.then((_) => _write(value, tap, before));
+    _writes = write.then((_) {});
+    return write;
+  }
+
+  Future<bool> _write(bool value, int tap, bool before) async {
     try {
       await _bridge.setEnabled(value);
       return true;
     } catch (e) {
       debugPrint('[announcements] saving the toggle failed: $e');
-      if (mounted) state = before;
+      if (mounted && tap == _taps) await _reload(tap, before);
       return false;
     }
+  }
+
+  /// After a refused write the screen shows a value Rust never took. What it
+  /// showed before the tap may be stale too — the load can still be in
+  /// flight — so Rust is asked again; a tap that lands meanwhile wins.
+  Future<void> _reload(int tap, bool before) async {
+    bool enabled;
+    try {
+      enabled = await _bridge.enabled();
+    } catch (e) {
+      debugPrint('[announcements] re-reading the toggle failed: $e');
+      enabled = before;
+    }
+    if (mounted && tap == _taps) state = enabled;
   }
 }
 

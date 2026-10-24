@@ -20,7 +20,6 @@ class NwcWalletState {
   }) : relayUrls = List.unmodifiable(relayUrls);
 
   final String walletPubkey;
-
   /// Immutable list of NWC relay URLs.
   final List<String> relayUrls;
   final String? walletName;
@@ -31,13 +30,15 @@ class NwcWalletState {
     List<String>? relayUrls,
     String? walletName,
     Object? balanceSats = _unset,
-  }) => NwcWalletState(
-    walletPubkey: walletPubkey ?? this.walletPubkey,
-    relayUrls: relayUrls ?? this.relayUrls,
-    walletName: walletName ?? this.walletName,
-    balanceSats:
-        identical(balanceSats, _unset) ? this.balanceSats : balanceSats as int?,
-  );
+  }) =>
+      NwcWalletState(
+        walletPubkey: walletPubkey ?? this.walletPubkey,
+        relayUrls: relayUrls ?? this.relayUrls,
+        walletName: walletName ?? this.walletName,
+        balanceSats: identical(balanceSats, _unset)
+            ? this.balanceSats
+            : balanceSats as int?,
+      );
 }
 
 // ── Notifier ───────────────────────────────────────────────────────────────────
@@ -74,9 +75,8 @@ class NwcNotifier extends StateNotifier<NwcWalletState?> {
 
 /// Wallet connection state. `null` when no wallet is connected.
 /// Override in `main()` via [ProviderScope] to inject [SharedPreferences].
-final nwcProvider = StateNotifierProvider<NwcNotifier, NwcWalletState?>(
-  (ref) => NwcNotifier(),
-);
+final nwcProvider =
+    StateNotifierProvider<NwcNotifier, NwcWalletState?>((ref) => NwcNotifier());
 
 /// Convenience: `true` when a wallet is connected.
 final isWalletConnectedProvider = Provider<bool>(
