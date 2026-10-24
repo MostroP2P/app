@@ -6,9 +6,16 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/install/providers/pwa_install_provider.dart';
+import 'package:mostro/features/order/widgets/currency_section.dart';
 import 'package:mostro/features/settings/providers/escrow_mode_provider.dart';
+import 'package:mostro/features/settings/providers/settings_provider.dart';
 import 'package:mostro/features/settings/screens/settings_screen.dart';
+import 'package:mostro/features/settings/widgets/settings_section.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/l10n/app_localizations_de.dart';
+import 'package:mostro/l10n/app_localizations_en.dart';
+import 'package:mostro/shared/utils/fiat_currencies.dart';
+import 'package:mostro/shared/widgets/mostro_modal.dart';
 import 'package:mostro/src/rust/api/types.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -40,11 +47,14 @@ Future<void> _pump(
   required String mode,
   List<String> mints = const [],
   FakePwaInstallBridge? page,
+  List<Override> overrides = const [],
+  Locale locale = const Locale('en'),
+  Size size = const Size(800, 4000),
 }) async {
   // The payment rows sit past the default 800px test viewport in a lazy
   // ListView. A tall surface makes both "present" and "absent" assertions
   // about the whole list rather than about what happened to be built.
-  tester.view.physicalSize = const Size(800, 4000);
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
 
@@ -58,6 +68,7 @@ Future<void> _pump(
         pwaInstallBridgeProvider.overrideWithValue(page),
         pwaInstallPlatformProvider.overrideWithValue(TargetPlatform.android),
       ],
+      ...overrides,
     ],
   );
 
@@ -66,7 +77,7 @@ Future<void> _pump(
       container: container,
       child: MaterialApp(
         theme: buildDarkTheme(),
-        locale: const Locale('en'),
+        locale: locale,
         localizationsDelegates: const [
           AppLocalizations.delegate,
           GlobalMaterialLocalizations.delegate,
@@ -207,6 +218,117 @@ void main() {
 
       // Assert
       expect(find.text('Install app'), findsNothing);
+    });
+  });
+
+  // The default currency is the device's: Settings offers the whole
+  // catalogue in the picker create order uses, never the node's list.
+  group('SettingsScreen — default currency', () {
+    final en = AppLocalizationsEn();
+    const catalogue = [
+      FiatCurrency(code: 'ARS', name: 'Argentine Peso', flag: '🇦🇷'),
+      FiatCurrency(code: 'EUR', name: 'Euro', flag: '🇪🇺'),
+      FiatCurrency(code: 'USD', name: 'US Dollar', flag: '🇺🇸'),
+    ];
+
+    List<Override> currencyOverrides({String? selected}) => [
+      fiatCurrenciesProvider.overrideWith((ref) async => catalogue),
+      // The active node takes USD alone: Settings must not narrow to it.
+      acceptedFiatCodesProvider.overrideWith((ref) => const ['USD']),
+      settingsProvider.overrideWith(
+        (ref) => SettingsNotifier()..setDefaultFiatCode(selected),
+      ),
+    ];
+
+    Future<void> openPicker(WidgetTester tester, String rowLabel) async {
+      await tester.tap(find.text(rowLabel));
+      await tester.pumpAndSettle();
+    }
+
+    ListTile option(WidgetTester tester, String code) => tester.widget(
+      find.ancestor(of: find.text(code), matching: find.byType(ListTile)),
+    );
+
+    testWidgets('with no default, the row says it is not set', (
+      tester,
+    ) async {
+      await _pump(tester, mode: 'lightning', overrides: currencyOverrides());
+
+      final row = find.ancestor(
+        of: find.text(en.fiatCurrencySettingTitle),
+        matching: find.byType(SettingsRow),
+      );
+      // Not a choice the picker offers: no default means create order
+      // opens on USD, not that every currency is picked.
+      expect(
+        find.descendant(of: row, matching: find.text('Not set')),
+        findsOneWidget,
+      );
+      expect(find.text('All currencies'), findsNothing);
+    });
+
+    testWidgets('opens the shared picker with every currency', (
+      tester,
+    ) async {
+      await _pump(tester, mode: 'lightning', overrides: currencyOverrides());
+      await openPicker(tester, en.fiatCurrencySettingTitle);
+
+      expect(find.byType(MostroDialog), findsOneWidget);
+      expect(find.text(en.selectCurrencyDialogTitle), findsOneWidget);
+      for (final c in catalogue) {
+        expect(find.text(c.code), findsOneWidget);
+      }
+    });
+
+    testWidgets('marks the current default', (tester) async {
+      await _pump(
+        tester,
+        mode: 'lightning',
+        overrides: currencyOverrides(selected: 'EUR'),
+      );
+      await openPicker(tester, en.fiatCurrencySettingTitle);
+
+      expect(option(tester, 'EUR').selected, isTrue);
+      expect(option(tester, 'ARS').selected, isFalse);
+    });
+
+    testWidgets('picking a currency saves it and closes the picker', (
+      tester,
+    ) async {
+      await _pump(tester, mode: 'lightning', overrides: currencyOverrides());
+      await openPicker(tester, en.fiatCurrencySettingTitle);
+
+      await tester.tap(find.text('ARS'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(MostroDialog), findsNothing);
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(SettingsScreen)),
+      );
+      expect(container.read(settingsProvider).defaultFiatCode, 'ARS');
+      expect(find.text('ARS'), findsOneWidget);
+    });
+
+    // DS-A11Y-4: the picker at 320 dp, 2× text, German.
+    testWidgets('fits 320 dp at 2× text in German', (tester) async {
+      tester.platformDispatcher.textScaleFactorTestValue = 2.0;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await _pump(
+        tester,
+        mode: 'lightning',
+        overrides: currencyOverrides(),
+        locale: const Locale('de'),
+        size: const Size(320, 760),
+      );
+      final de = AppLocalizationsDe();
+      await tester.scrollUntilVisible(
+        find.text(de.fiatCurrencySettingTitle),
+        200,
+      );
+      await openPicker(tester, de.fiatCurrencySettingTitle);
+
+      expect(find.text(de.selectCurrencyDialogTitle), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
   });
 }

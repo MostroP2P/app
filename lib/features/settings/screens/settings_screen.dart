@@ -20,12 +20,13 @@ import 'package:mostro/features/settings/providers/notification_prefs_provider.d
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
 import 'package:mostro/features/settings/providers/relays_provider.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
-import 'package:mostro/features/settings/widgets/currency_selector_dialog.dart';
 import 'package:mostro/features/settings/widgets/escrow_mode_dev_card.dart';
 import 'package:mostro/features/settings/widgets/language_selector.dart';
 import 'package:mostro/features/settings/widgets/mostro_node_selector.dart';
 import 'package:mostro/features/settings/widgets/settings_section.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/utils/fiat_currencies.dart';
+import 'package:mostro/shared/widgets/currency_picker_dialog.dart';
 import 'package:mostro/shared/widgets/mostro_modal.dart';
 import 'package:mostro/shared/widgets/redesign_app_bar.dart';
 import 'package:mostro/src/rust/api/types.dart' show MostroNodeEntry;
@@ -83,8 +84,17 @@ class SettingsScreen extends ConsumerWidget {
               SettingsRow(
                 icon: Icons.monetization_on_outlined,
                 label: l10n.fiatCurrencySettingTitle,
-                value: settings.defaultFiatCode ?? l10n.allCurrencies,
-                onTap: () => showCurrencySelector(context),
+                value: settings.defaultFiatCode ?? l10n.fiatCurrencyUnset,
+                onTap:
+                    () => showCurrencyPickerDialog(
+                      context,
+                      // The default is the device's, not the node's: every
+                      // currency, whichever node is active.
+                      currencies: fiatCurrenciesProvider,
+                      selected: settings.defaultFiatCode,
+                      onSelect:
+                          ref.read(settingsProvider.notifier).setDefaultFiatCode,
+                    ),
               ),
               _notificationsRow(context, ref, l10n),
               // Web only, while the browser can install the app: for whoever

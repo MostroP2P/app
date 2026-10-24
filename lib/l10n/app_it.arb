@@ -114,7 +114,7 @@
   "languageSettingTitle": "Lingua",
   "appearanceSettingTitle": "Aspetto",
   "appearanceDialogTitle": "Aspetto",
-  "allCurrencies": "Tutte le valute",
+  "fiatCurrencyUnset": "Non impostata",
   "lightningAddressSettingTitle": "Indirizzo Lightning",
   "nwcWalletSettingTitle": "Portafoglio NWC",
   "relaysSettingTitle": "Relay",

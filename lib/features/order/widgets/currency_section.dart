@@ -10,10 +10,7 @@ import 'package:mostro/features/order/models/create_order_rules.dart';
 import 'package:mostro/features/settings/providers/node_stats_provider.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
-import 'package:mostro/shared/widgets/mostro_modal.dart';
-
-/// The picker's boxed search field (DS-CMP-11).
-const _kSearchFieldRadius = 14.0;
+import 'package:mostro/shared/widgets/currency_picker_dialog.dart';
 
 /// Provider for the currently selected fiat code in the create-order form.
 final selectedFiatCodeProvider = StateProvider<String>((_) => 'USD');
@@ -73,16 +70,16 @@ final offeredFiatCurrenciesProvider =
 /// Opens the searchable currency picker and writes the choice to
 /// [selectedFiatCodeProvider].
 void showCurrencyPicker(BuildContext context, WidgetRef ref) {
-  showMostroDialog<void>(
-    context: context,
-    builder: (dialogContext) => _CurrencyPickerDialog(
-      selected: ref.read(selectedFiatCodeProvider),
-      onSelect: (code) {
-        ref.read(selectedFiatCodeProvider.notifier).state = code;
-        ref.read(fiatPickedByUserProvider.notifier).state = true;
-        Navigator.pop(dialogContext);
-      },
-    ),
+  showCurrencyPickerDialog(
+    context,
+    currencies: offeredFiatCurrenciesProvider,
+    selected: ref.read(selectedFiatCodeProvider),
+    onSelect: (code) {
+      ref.read(selectedFiatCodeProvider.notifier).state = code;
+      ref.read(fiatPickedByUserProvider.notifier).state = true;
+    },
+    searchAutomationId: AutomationIds.orderCreateCurrencySearch,
+    optionAutomationId: AutomationIds.orderCreateCurrencyOption,
   );
 }
 
@@ -212,123 +209,6 @@ class _EditableValue extends StatelessWidget {
           ),
           child: Padding(padding: padding, child: child),
         ),
-      ),
-    );
-  }
-}
-
-/// Watches the offered list rather than snapshotting it, so a picker opened
-/// while `assets/data/fiat.json` or the node's info event is still loading
-/// fills in once it lands.
-class _CurrencyPickerDialog extends ConsumerStatefulWidget {
-  const _CurrencyPickerDialog({
-    required this.selected,
-    required this.onSelect,
-  });
-
-  final String selected;
-  final ValueChanged<String> onSelect;
-
-  @override
-  ConsumerState<_CurrencyPickerDialog> createState() =>
-      _CurrencyPickerDialogState();
-}
-
-class _CurrencyPickerDialogState extends ConsumerState<_CurrencyPickerDialog> {
-  String _query = '';
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = OrderBookPalette.of(context);
-    final currencies = ref.watch(offeredFiatCurrenciesProvider);
-    final loaded = currencies.valueOrNull ?? const <FiatCurrency>[];
-    final filtered = loaded.where((c) {
-      if (_query.isEmpty) return true;
-      final q = _query.toLowerCase();
-      return c.code.toLowerCase().contains(q) ||
-          c.name.toLowerCase().contains(q);
-    }).toList();
-    final border = OutlineInputBorder(
-      borderRadius: BorderRadius.circular(_kSearchFieldRadius),
-      borderSide: BorderSide(color: palette.border),
-    );
-    // The field opens focused, so the focus has to show (DS-COL-7).
-    final focusBorder = border.copyWith(
-      borderSide: BorderSide(color: palette.limeText),
-    );
-
-    return MostroDialog(
-      title: AppLocalizations.of(context).selectCurrencyDialogTitle,
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            autofocus: true,
-            autocorrect: false,
-            enableSuggestions: false,
-            style: TextStyle(fontSize: 14, color: palette.textPrimary),
-            decoration: InputDecoration(
-              isDense: true,
-              filled: true,
-              fillColor: palette.inset,
-              border: border,
-              enabledBorder: border,
-              focusedBorder: focusBorder,
-              hintText: AppLocalizations.of(context).searchCurrenciesHint,
-              hintStyle: TextStyle(fontSize: 13, color: palette.textFaint),
-              prefixIcon: Icon(
-                Icons.search,
-                size: 16,
-                color: palette.textTertiary,
-              ),
-            ),
-            onChanged: (v) => setState(() => _query = v),
-          ).withAutomationId(AutomationIds.orderCreateCurrencySearch),
-          const SizedBox(height: AppSpacing.md),
-          SizedBox(
-            height: 300,
-            child: currencies.isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : filtered.isEmpty
-                    ? Center(
-                        child: Text(
-                          AppLocalizations.of(context).noCurrenciesFoundMessage,
-                          style: TextStyle(color: palette.textTertiary),
-                        ),
-                      )
-                    : ListView.builder(
-                        itemCount: filtered.length,
-                        itemBuilder: (_, i) {
-                          final c = filtered[i];
-                          return ListTile(
-                            contentPadding: EdgeInsets.zero,
-                            leading: Text(
-                              c.flag,
-                              style: const TextStyle(fontSize: 19),
-                            ),
-                            title: Text(c.code),
-                            // A code the node accepts but the catalogue
-                            // does not name has no subtitle.
-                            subtitle:
-                                c.name.isEmpty
-                                    ? null
-                                    : Text(
-                                      c.name,
-                                      style: TextStyle(
-                                        color: palette.textTertiary,
-                                        fontSize: 12,
-                                      ),
-                                    ),
-                            selected: c.code == widget.selected,
-                            selectedColor: palette.limeText,
-                            onTap: () => widget.onSelect(c.code),
-                          ).withAutomationId(
-                            AutomationIds.orderCreateCurrencyOption(c.code),
-                          );
-                        },
-                      ),
-          ),
-        ],
       ),
     );
   }
