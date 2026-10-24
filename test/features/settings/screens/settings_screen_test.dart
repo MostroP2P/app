@@ -10,6 +10,7 @@ import 'package:mostro/features/order/widgets/currency_section.dart';
 import 'package:mostro/features/settings/providers/escrow_mode_provider.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
 import 'package:mostro/features/settings/screens/settings_screen.dart';
+import 'package:mostro/features/settings/widgets/settings_section.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/l10n/app_localizations_de.dart';
 import 'package:mostro/l10n/app_localizations_en.dart';
@@ -247,6 +248,24 @@ void main() {
     ListTile option(WidgetTester tester, String code) => tester.widget(
       find.ancestor(of: find.text(code), matching: find.byType(ListTile)),
     );
+
+    testWidgets('with no default, the row says it is not set', (
+      tester,
+    ) async {
+      await _pump(tester, mode: 'lightning', overrides: currencyOverrides());
+
+      final row = find.ancestor(
+        of: find.text(en.fiatCurrencySettingTitle),
+        matching: find.byType(SettingsRow),
+      );
+      // Not a choice the picker offers: no default means create order
+      // opens on USD, not that every currency is picked.
+      expect(
+        find.descendant(of: row, matching: find.text('Not set')),
+        findsOneWidget,
+      );
+      expect(find.text('All currencies'), findsNothing);
+    });
 
     testWidgets('opens the shared picker with every currency', (
       tester,
