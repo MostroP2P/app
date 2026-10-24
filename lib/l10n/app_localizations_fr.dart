@@ -5041,4 +5041,12 @@ class AppLocalizationsFr extends AppLocalizations {
   String otherNodeCardSwitchPrompt(String nodeName) {
     return 'Voulez-vous passer au nœud $nodeName ?';
   }
+
+  @override
+  String get stablecoinsGroupHeader => 'Stablecoins';
+
+  @override
+  String marketPriceNotQuotedByNode(String code) {
+    return 'Ce nœud ne cote pas $code au prix du marché. Indiquez un montant fixe en sats.';
+  }
 }

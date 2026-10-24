@@ -1346,5 +1346,7 @@
   "payoutOutcomeMaybePaid": "Pagado a este o a otro de los listados aquí",
   "otherNodeCardLine": "Operación en el nodo: {nodeName}",
   "otherNodeCardDialogTitle": "Operación en otro nodo",
-  "otherNodeCardSwitchPrompt": "¿Quieres cambiar al nodo {nodeName}?"
+  "otherNodeCardSwitchPrompt": "¿Quieres cambiar al nodo {nodeName}?",
+  "stablecoinsGroupHeader": "Stablecoins",
+  "marketPriceNotQuotedByNode": "Este nodo no cotiza {code} a precio de mercado. Indica un monto fijo en sats."
 }

@@ -43,7 +43,8 @@ const WARM_UP_CONNECT_WAIT_SECS: u64 = 5;
 /// Open orders of one fiat currency on one node.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct FiatOrderCount {
-    /// ISO 4217 code as published in the `f` tag, upper-cased.
+    /// The currency code as published in the `f` tag, upper-cased: ISO 4217
+    /// or a stablecoin code.
     pub fiat_code: String,
     pub count: u32,
 }

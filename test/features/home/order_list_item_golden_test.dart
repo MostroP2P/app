@@ -1,9 +1,11 @@
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/features/home/providers/order_reason_provider.dart';
 import 'package:mostro/features/home/widgets/order_list_item.dart';
 
+import '../../support/catalogue_fixtures.dart';
 import '../../support/fake_orders.dart';
 import '../../support/golden_harness.dart';
 
@@ -12,6 +14,10 @@ import '../../support/golden_harness.dart';
 /// shows its premium, and the market card is the best-premium one, so one
 /// golden pair covers both the highlight border and the plain hairline.
 Widget _gallery() {
+  return ProviderScope(overrides: [catalogueOverride()], child: _cards());
+}
+
+Widget _cards() {
   return Padding(
     key: const ValueKey('order-gallery'),
     padding: const EdgeInsets.all(12),

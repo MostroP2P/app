@@ -4,9 +4,11 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/order/widgets/order_detail_cards.dart';
+import 'package:mostro/shared/utils/fiat_currencies.dart';
 
 /// The family `pubspec.yaml` registers for the bundled flags (DS-TYP-8).
 const _flags = 'NotoFlags';
@@ -72,8 +74,18 @@ void main() {
         tester,
       ) async {
         await tester.pumpWidget(
-          _app(theme(), const OrderCurrencyChip(flag: _argentina, code: 'ARS')),
+          ProviderScope(
+            overrides: [
+              fiatCurrenciesProvider.overrideWith(
+                (ref) async => const [
+                  FiatCurrency(code: 'ARS', name: 'Peso', flag: _argentina),
+                ],
+              ),
+            ],
+            child: _app(theme(), const OrderCurrencyChip(code: 'ARS')),
+          ),
         );
+        await tester.pumpAndSettle();
         expect(_fallbackOf(tester, _argentina), contains(_flags));
       });
 
@@ -100,16 +112,17 @@ void main() {
 
     test('maps every symbol a currency or a trusted node shows', () {
       // The engine falls back per code point: one the font lacks is a box on
-      // Linux, even next to flags it has. Currencies come from fiat.json and
-      // node regions from rust/src/config.rs (the default node's is a globe).
+      // Linux, even next to flags it has. Currencies come from fiat.json (a
+      // stablecoin has no flag: DS-TYP-9) and node regions from
+      // rust/src/config.rs (the default node's is a globe).
       final cmap = _cmap(
         File('assets/fonts/noto_flags/NotoFlags.ttf').readAsBytesSync(),
       );
-      final currencies = (jsonDecode(
-                File('assets/data/fiat.json').readAsStringSync(),
-              )
-              as List<dynamic>)
-          .map((c) => (c as Map<String, dynamic>)['flag'] as String);
+      final currencies =
+          (jsonDecode(File('assets/data/fiat.json').readAsStringSync())
+                  as List<dynamic>)
+              .map((c) => (c as Map<String, dynamic>)['flag'] as String?)
+              .nonNulls;
       final regions = RegExp(r'region: "([^"]+)"')
           .allMatches(File('rust/src/config.rs').readAsStringSync())
           .map((m) => m[1]!);

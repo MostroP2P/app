@@ -17,7 +17,6 @@ import 'package:mostro/features/home/widgets/order_sort_sheet.dart';
 import 'package:mostro/features/home/widgets/side_swipe.dart';
 import 'package:mostro/features/install/widgets/pwa_install_card.dart';
 import 'package:mostro/l10n/app_localizations.dart';
-import 'package:mostro/shared/utils/fiat_currencies.dart';
 import 'package:mostro/shared/widgets/add_order_button.dart';
 import 'package:mostro/shared/widgets/bottom_nav_bar.dart';
 import 'package:mostro/shared/widgets/order_filter.dart';
@@ -76,7 +75,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final filteredOrders = ref.watch(filteredOrdersProvider);
     // Highlight chips computed once per visible list (not per card).
     final orderReasons = ref.watch(orderReasonsProvider);
-    final flags = ref.watch(currencyFlagsProvider);
     final orderType = ref.watch(homeOrderTypeProvider);
     final sort = ref.watch(orderSortProvider);
     final activeFilters = ref.watch(
@@ -110,7 +108,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ? const OrderListEmpty()
                   : OrderBookList(
                     orders: filteredOrders,
-                    currencyFlags: flags,
                     reasons: orderReasons,
                     columns: columns,
                     onOrderTap: _openOrder,

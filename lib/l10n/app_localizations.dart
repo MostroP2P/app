@@ -8183,6 +8183,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Do you want to switch to node {nodeName}?'**
   String otherNodeCardSwitchPrompt(String nodeName);
+
+  /// Group header above the stablecoins in the currency pickers (create order, default currency, order book filter)
+  ///
+  /// In en, this message translates to:
+  /// **'Stablecoins'**
+  String get stablecoinsGroupHeader;
+
+  /// Under the Market | Fixed control when the node's rates event does not quote the selected stablecoin, so Market is locked
+  ///
+  /// In en, this message translates to:
+  /// **'This node doesn\'t quote {code} at market price. Set a fixed amount in sats.'**
+  String marketPriceNotQuotedByNode(String code);
 }
 
 class _AppLocalizationsDelegate

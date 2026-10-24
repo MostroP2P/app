@@ -94,7 +94,7 @@ void main() {
   testWidgets('the read-only chip is neutral and has no chevron', (
     tester,
   ) async {
-    await _pump(tester, const OrderCurrencyChip(flag: '🇦🇷', code: 'ARS'));
+    await _pump(tester, const OrderCurrencyChip(code: 'ARS'));
     final book = OrderBookPalette.of(
       tester.element(find.byType(OrderCurrencyChip)),
     );

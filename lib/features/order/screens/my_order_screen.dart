@@ -22,7 +22,6 @@ import 'package:mostro/features/trades/widgets/bond_claim_banner.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/mascot/mascot_cues.dart';
 import 'package:mostro/shared/widgets/mostro_modal.dart';
-import 'package:mostro/shared/utils/fiat_currencies.dart';
 
 /// Detail screen for an order created by the current user (handoff 6a/6b).
 ///
@@ -182,7 +181,6 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
             ? OrderStatus.expired
             : resolved;
     final isSelling = order.kind == 'sell';
-    final flags = ref.watch(currencyFlagsProvider);
 
     return Scaffold(
       backgroundColor: book.bg,
@@ -199,7 +197,7 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
           24,
         ),
         children: [
-          _AmountBlock(order: order, flag: flags[order.fiatCode] ?? ''),
+          _AmountBlock(order: order),
           const SizedBox(height: orderDetailBlockGap),
           MyOrderStatusBlock(
             order: order,
@@ -277,10 +275,9 @@ class _MyOrderScreenState extends ConsumerState<MyOrderScreen> {
 /// Side chip and currency chip over the amount, then the price line. The
 /// currency lives in the chip and is not repeated beside the figure.
 class _AmountBlock extends StatelessWidget {
-  const _AmountBlock({required this.order, required this.flag});
+  const _AmountBlock({required this.order});
 
   final OrderItem order;
-  final String flag;
 
   @override
   Widget build(BuildContext context) {
@@ -315,7 +312,7 @@ class _AmountBlock extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 8),
-              OrderCurrencyChip(flag: flag, code: order.fiatCode),
+              OrderCurrencyChip(code: order.fiatCode),
             ],
           ),
           const SizedBox(height: 10),

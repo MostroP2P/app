@@ -26,7 +26,8 @@ Future<void> setLanguage({required String locale}) =>
 
 /// Set or clear the default fiat currency code.
 ///
-/// **Errors**: `InvalidFiatCode` if `code` is Some but not exactly 3 uppercase letters (ISO 4217).
+/// **Errors**: `InvalidFiatCode` if `code` is Some but not 3 to 5 uppercase letters (an ISO 4217
+/// fiat or a stablecoin code).
 Future<void> setDefaultFiatCode({String? code}) =>
     RustLib.instance.api.crateApiSettingsSetDefaultFiatCode(code: code);
 

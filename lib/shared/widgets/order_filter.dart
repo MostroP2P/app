@@ -4,8 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
-import 'package:mostro/shared/widgets/mostro_modal.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
+import 'package:mostro/shared/widgets/currency_group_header.dart';
+import 'package:mostro/shared/widgets/mostro_modal.dart';
 
 /// Commonly traded currencies shown first in the filter. The full list
 /// comes from the fiatCurrenciesProvider (assets/data/fiat.json).
@@ -25,8 +26,8 @@ class _OrderFilterDialog extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final colors = theme.extension<AppColors>();
-    final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
+    final book = OrderBookPalette.of(context);
+    final green = book.limeText;
 
     final filters = ref.watch(orderFiltersProvider);
     final notifier = ref.read(orderFiltersProvider.notifier);
@@ -40,6 +41,31 @@ class _OrderFilterDialog extends ConsumerWidget {
       allCurrencies.isNotEmpty ? allCurrencies : _topCurrencies,
       selectedCurrencies,
     );
+    // The stablecoins under their own header, after the fiats (#884).
+    final pegs = ref.watch(stablecoinPegsProvider);
+    final fiats = currencies.where((c) => !pegs.containsKey(c)).toList();
+    final stablecoins = currencies.where(pegs.containsKey).toList();
+
+    Widget currencyChip(String code) {
+      final selected = selectedCurrencies.contains(code);
+      return FilterChip(
+        label: Text(code),
+        selected: selected,
+        selectedColor: green.withValues(alpha: 0.2),
+        checkmarkColor: green,
+        onSelected: (on) {
+          final current = ref.read(orderFiltersProvider);
+          notifier.set(
+            current.copyWith(
+              currencies:
+                  on
+                      ? [...current.currencies, code]
+                      : current.currencies.where((c) => c != code).toList(),
+            ),
+          );
+        },
+      );
+    }
     final methods = _withSelectedMethods(
       ref.watch(bookPaymentMethodsProvider),
       selectedMethods,
@@ -60,30 +86,18 @@ class _OrderFilterDialog extends ConsumerWidget {
           Wrap(
             spacing: AppSpacing.sm,
             runSpacing: AppSpacing.xs,
-            children:
-                currencies.map((code) {
-                  final selected = selectedCurrencies.contains(code);
-                  return FilterChip(
-                    label: Text(code),
-                    selected: selected,
-                    selectedColor: green.withValues(alpha: 0.2),
-                    checkmarkColor: green,
-                    onSelected: (on) {
-                      final current = ref.read(orderFiltersProvider);
-                      notifier.set(
-                        current.copyWith(
-                          currencies:
-                              on
-                                  ? [...current.currencies, code]
-                                  : current.currencies
-                                      .where((c) => c != code)
-                                      .toList(),
-                        ),
-                      );
-                    },
-                  );
-                }).toList(),
+            children: fiats.map(currencyChip).toList(),
           ),
+          if (stablecoins.isNotEmpty) ...[
+            const StablecoinsGroupHeader(
+              padding: EdgeInsets.only(top: 8, bottom: 4),
+            ),
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.xs,
+              children: stablecoins.map(currencyChip).toList(),
+            ),
+          ],
           const SizedBox(height: AppSpacing.lg),
 
           // Payment method chips

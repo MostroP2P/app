@@ -1,5 +1,6 @@
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
@@ -8,6 +9,7 @@ import 'package:mostro/features/home/widgets/order_book_list.dart';
 import 'package:mostro/features/home/widgets/order_list_item.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 
+import '../../support/catalogue_fixtures.dart';
 import '../../support/fake_orders.dart';
 
 /// Newest first, which is the order `filteredOrdersProvider` produces.
@@ -21,17 +23,19 @@ Future<void> _pump(
   required int columns,
 }) async {
   await tester.pumpWidget(
-    MaterialApp(
-      theme: buildDarkTheme(),
-      localizationsDelegates: AppLocalizations.localizationsDelegates,
-      supportedLocales: AppLocalizations.supportedLocales,
-      home: Scaffold(
-        body: OrderBookList(
-          orders: orders,
-          currencyFlags: const {'USD': '🇺🇸'},
-          reasons: const {},
-          columns: columns,
-          onOrderTap: (_) {},
+    ProviderScope(
+      overrides: [catalogueOverride()],
+      child: MaterialApp(
+        theme: buildDarkTheme(),
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        home: Scaffold(
+          body: OrderBookList(
+            orders: orders,
+            reasons: const {},
+            columns: columns,
+            onOrderTap: (_) {},
+          ),
         ),
       ),
     ),
@@ -144,17 +148,19 @@ void main() {
       await withClock(Clock.fixed(kFakeNow), () async {
         final taps = <String>[];
         Future<void> pumpBook(List<int> book) => tester.pumpWidget(
-          MaterialApp(
-            theme: buildDarkTheme(),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            home: Scaffold(
-              body: OrderBookList(
-                orders: _book(book),
-                currencyFlags: const {'USD': '🇺🇸'},
-                reasons: const {},
-                columns: 2,
-                onOrderTap: taps.add,
+          ProviderScope(
+            overrides: [catalogueOverride()],
+            child: MaterialApp(
+              theme: buildDarkTheme(),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              supportedLocales: AppLocalizations.supportedLocales,
+              home: Scaffold(
+                body: OrderBookList(
+                  orders: _book(book),
+                  reasons: const {},
+                  columns: 2,
+                  onOrderTap: taps.add,
+                ),
               ),
             ),
           ),
@@ -204,24 +210,26 @@ void main() {
 
         await withClock(Clock.fixed(kFakeNow), () async {
           await tester.pumpWidget(
-            MaterialApp(
-              theme: buildDarkTheme(),
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
-              supportedLocales: AppLocalizations.supportedLocales,
-              builder:
-                  (context, child) => MediaQuery(
-                    data: MediaQuery.of(
-                      context,
-                    ).copyWith(textScaler: const TextScaler.linear(2)),
-                    child: child!,
+            ProviderScope(
+              overrides: [catalogueOverride()],
+              child: MaterialApp(
+                theme: buildDarkTheme(),
+                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                supportedLocales: AppLocalizations.supportedLocales,
+                builder:
+                    (context, child) => MediaQuery(
+                      data: MediaQuery.of(
+                        context,
+                      ).copyWith(textScaler: const TextScaler.linear(2)),
+                      child: child!,
+                    ),
+                home: Scaffold(
+                  body: OrderBookList(
+                    orders: orders,
+                    reasons: const {'order-1': OrderReason.mostReputable},
+                    columns: columns,
+                    onOrderTap: (_) {},
                   ),
-              home: Scaffold(
-                body: OrderBookList(
-                  orders: orders,
-                  currencyFlags: const {'USD': '🇺🇸'},
-                  reasons: const {'order-1': OrderReason.mostReputable},
-                  columns: columns,
-                  onOrderTap: (_) {},
                 ),
               ),
             ),

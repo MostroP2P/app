@@ -9,6 +9,7 @@ import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/order_detail_palette.dart';
 import 'package:mostro/features/order/models/order_detail_rules.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/currency_mark.dart';
 import 'package:mostro/shared/widgets/mostro_modal.dart';
 import 'package:mostro/shared/widgets/redesign_app_bar.dart';
 
@@ -57,18 +58,19 @@ class OrderDetailCard extends StatelessWidget {
 
 // ── Currency chip ─────────────────────────────────────────────────────────────
 
-/// Flag + code, identical to the order-book card's chip.
+/// Mark + code, identical to the order-book card's chip. The mark is the
+/// flag, or a stablecoin's coin (DS-TYP-9); a code the catalogue lacks shows
+/// the code alone.
 class OrderCurrencyChip extends StatelessWidget {
-  const OrderCurrencyChip({super.key, required this.flag, required this.code});
+  const OrderCurrencyChip({super.key, required this.code});
 
-  final String flag;
   final String code;
 
   @override
   Widget build(BuildContext context) {
     final book = OrderBookPalette.of(context);
     return Container(
-      padding: const EdgeInsets.fromLTRB(7, 4, 9, 4),
+      padding: const EdgeInsets.fromLTRB(8, 4, 8, 4),
       decoration: BoxDecoration(
         color: book.currencyChipFill,
         borderRadius: BorderRadius.circular(8),
@@ -76,10 +78,7 @@ class OrderCurrencyChip extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (flag.isNotEmpty) ...[
-            Text(flag, style: const TextStyle(fontSize: 13)),
-            const SizedBox(width: 6),
-          ],
+          CurrencyMarkGap(code: code, size: 13, gap: 6),
           Text(
             code,
             style: TextStyle(

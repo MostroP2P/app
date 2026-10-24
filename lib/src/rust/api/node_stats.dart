@@ -63,7 +63,8 @@ Future<List<MostroNodeStats>> fetchMostroNodeStats({
 
 /// Open orders of one fiat currency on one node.
 class FiatOrderCount {
-  /// ISO 4217 code as published in the `f` tag, upper-cased.
+  /// The currency code as published in the `f` tag, upper-cased: ISO 4217
+  /// or a stablecoin code.
   final String fiatCode;
   final int count;
 
