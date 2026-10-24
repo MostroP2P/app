@@ -84,7 +84,7 @@ class SettingsScreen extends ConsumerWidget {
               SettingsRow(
                 icon: Icons.monetization_on_outlined,
                 label: l10n.fiatCurrencySettingTitle,
-                value: settings.defaultFiatCode ?? l10n.allCurrencies,
+                value: settings.defaultFiatCode ?? l10n.fiatCurrencyUnset,
                 onTap:
                     () => showCurrencyPickerDialog(
                       context,
