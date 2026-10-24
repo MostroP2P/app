@@ -172,6 +172,12 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           const _BackupReminderBanner(),
           const SizedBox(height: AppSpacing.sm),
         ],
+        // Security updates come before the trades that need action: the
+        // user reads them before continuing one (specs/006 §3.4).
+        for (final entry in sections.critical) ...[
+          entryCard(entry),
+          const SizedBox(height: AppSpacing.sm),
+        ],
         if (pinned) _SectionHeader(l10n.tradesGroupNeedsAction),
         for (final entry in sections.needsAction) ...[
           entryCard(entry),

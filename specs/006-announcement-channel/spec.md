@@ -624,8 +624,9 @@ no new navigation and no new screen.**
   keeps it; "Clear all" keeps every `critical`, read, and dismisses the rest. The screen's
   tap opens nothing for an announcement — the link is a button of its own on the card,
   opened with `url_launcher` externally.
-- `sectionNotices` sorts a `critical` announcement above the rest of the timeline, and
-  `unreadCriticalAnnouncementProvider` turns the bell's dot red with its own semantic label.
+- `sectionNotices` lists `critical` announcements in a section of their own, rendered above
+  the trades that need action and the timeline, and `unreadCriticalAnnouncementProvider`
+  turns the bell's dot red with its own semantic label.
 
 ### 6.3 Nothing interrupts
 

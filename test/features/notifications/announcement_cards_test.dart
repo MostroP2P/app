@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -17,6 +19,7 @@ import 'package:mostro/l10n/app_localizations_en.dart';
 import 'package:mostro/l10n/app_localizations_es.dart';
 import 'package:mostro/shared/widgets/notification_bell.dart';
 import 'package:mostro/src/rust/api/types.dart';
+import 'package:sembast/sembast_memory.dart';
 
 /// Project announcements in the notification surface
 /// (specs/006-announcement-channel §3.4, §6.2): the card picks its locale,
@@ -58,6 +61,21 @@ class _RecordingFlags extends AnnouncementFlags {
 
   @override
   Future<void> dismiss(String address) async => dismissals.add(address);
+}
+
+/// A store whose read can be held open: the initial load still in flight
+/// when Rust's first snapshot arrives.
+class _HeldStore extends SembastNotificationsStore {
+  _HeldStore({required super.factory, required super.path});
+
+  Completer<void>? hold;
+
+  @override
+  Future<List<NotificationModel>> loadAll() async {
+    final gate = hold;
+    if (gate != null) await gate.future;
+    return super.loadAll();
+  }
 }
 
 NotificationModel _card(NotificationsNotifier notifier, String id) =>
@@ -295,7 +313,7 @@ void main() {
   });
 
   group('sectionNotices', () {
-    test('a critical announcement sorts above a newer notice', () {
+    test('a critical announcement sits above a newer notice', () {
       final critical = NotificationModel.announcement(
         _info(d: 'c', severity: AnnouncementSeverity.critical, createdAt: 100),
       );
@@ -308,11 +326,64 @@ void main() {
         critical,
       ], needsAction: (_) => false);
 
+      expect(sections.critical.map((e) => e.notification.id), ['38387:ab:c']);
       expect(
         sections.recent.map((e) => (e as NoticeSystemEntry).notification.id),
-        ['38387:ab:c', '38387:ab:i'],
+        ['38387:ab:i'],
       );
     });
+
+    test('a critical announcement sits above a trade that needs action', () {
+      // Arrange: a trade whose next step is the user's, and an older critical.
+      final trade = NotificationModel.tradeStatus(
+        orderId: 'o1',
+        status: 'active',
+        at: DateTime.utc(2030, 1, 1),
+      );
+      final critical = NotificationModel.announcement(
+        _info(d: 'c', severity: AnnouncementSeverity.critical, createdAt: 100),
+      );
+
+      // Act
+      final sections = sectionNotices([
+        trade,
+        critical,
+      ], needsAction: (id) => id == 'o1');
+
+      // Assert: the trade is pinned, and the critical is in its own section
+      // above it — not sorted into `recent` under the pinned trade.
+      expect(sections.critical.map((e) => e.notification.id), ['38387:ab:c']);
+      expect(sections.needsAction.map((e) => e.orderId), ['o1']);
+      expect(sections.recent, isEmpty);
+    });
+  });
+
+  group('hydration', () {
+    test(
+      'a card Rust no longer lists is not brought back by a load in flight',
+      () async {
+        // Arrange: a persisted card from a previous run, and a load that is
+        // still reading when Rust's first snapshot (now empty) arrives.
+        final store = _HeldStore(
+          factory: newDatabaseFactoryMemory(),
+          path: 'announce-${DateTime.now().microsecondsSinceEpoch}.db',
+        );
+        await store.save(NotificationModel.announcement(_info(d: 'old')));
+        final notifier = NotificationsNotifier(store: store);
+        store.hold = Completer<void>();
+        final load = notifier.loadInitialData();
+        await Future<void>.delayed(Duration.zero);
+
+        // Act
+        await notifier.reconcileAnnouncements(announcementCards(const []));
+        store.hold!.complete();
+        await load;
+
+        // Assert: neither on screen nor in the store.
+        expect(notifier.state, isEmpty);
+        expect(await store.loadAll(), isEmpty);
+      },
+    );
   });
 
   group('SystemNotificationBanner', () {

@@ -361,6 +361,27 @@ class NotificationsNotifier extends StateNotifier<List<NotificationModel>> {
   /// load returns predates the wipe and is discarded.
   bool _wipedDuringLoad = false;
 
+  /// The addresses of Rust's last announcement snapshot, `null` until one
+  /// arrives. Rust is the authority on which announcements exist, and its
+  /// first snapshot can land before the initial load answers: a card that
+  /// expired while the app was closed must not come back from the store.
+  Set<String>? _announced;
+
+  bool _announcementGone(NotificationModel n) =>
+      n.isAnnouncement && !(_announced?.contains(n.id) ?? true);
+
+  /// Persisted announcement cards Rust no longer lists, found by a load. A
+  /// failed delete is logged: the next load or snapshot drops them again.
+  Future<void> _dropGoneAnnouncements(List<String> ids) async {
+    for (final id in ids) {
+      try {
+        await store?.deleteRecord(id);
+      } catch (e) {
+        debugPrint('NotificationsNotifier: failed to drop announcement: $e');
+      }
+    }
+  }
+
   /// Load persisted notifications into state. Called once on construction
   /// when a [store] is provided, and again on every resume (the resync
   /// hydration, lib/core/lifecycle/resume_resync.dart).
@@ -377,9 +398,14 @@ class NotificationsNotifier extends StateNotifier<List<NotificationModel>> {
     try {
       final loaded = await store!.loadAll();
       if (!mounted || _wipedDuringLoad) return;
+      final gone = [
+        for (final n in loaded)
+          if (_announcementGone(n)) n.id,
+      ];
       final byId = {
         for (final n in loaded)
-          if (!_deletedDuringLoad.contains(n.id)) n.id: n,
+          if (!_deletedDuringLoad.contains(n.id) && !gone.contains(n.id))
+            n.id: n,
       };
       for (final n in state) {
         byId[n.id] = n;
@@ -387,6 +413,7 @@ class NotificationsNotifier extends StateNotifier<List<NotificationModel>> {
       state =
           byId.values.toList()
             ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+      await _dropGoneAnnouncements(gone);
     } catch (e) {
       debugPrint('NotificationsNotifier: failed to load from Sembast: $e');
     } finally {
@@ -568,6 +595,7 @@ class NotificationsNotifier extends StateNotifier<List<NotificationModel>> {
       _mutate(() async {
         final byId = {for (final n in state) n.id: n};
         final wantedIds = {for (final c in wanted) c.id};
+        _announced = wantedIds;
         final gone = [
           for (final n in state)
             if (n.isAnnouncement && !wantedIds.contains(n.id)) n.id,
