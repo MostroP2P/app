@@ -1245,8 +1245,8 @@ async fn persist_dispute_origin(order_id: &str) {
     }
 }
 
-/// Drop the persisted dispute keys (solver pubkey, origin marker, chat key
-/// share) for `order_id`.
+/// Drop the persisted dispute keys (solver pubkey and assignment time, node,
+/// origin marker, chat key share) for `order_id`.
 ///
 /// The stored solver is what rehydration reads as "this order has a live
 /// dispute", so it must not outlive the dispute: left behind, every restart
@@ -1265,13 +1265,7 @@ async fn clear_dispute_keys(order_id: &str) {
     let Some(db) = crate::db::app_db::db() else {
         return;
     };
-    for key in [
-        crate::db::settings_keys::dispute_admin(order_id),
-        crate::db::settings_keys::dispute_admin_at(order_id),
-        crate::db::settings_keys::dispute_node(order_id),
-        crate::db::settings_keys::dispute_mine(order_id),
-        crate::db::settings_keys::dispute_key_shared(order_id),
-    ] {
+    for key in crate::db::settings_keys::dispute_keys(order_id) {
         if let Err(e) = db.delete_setting(&key).await {
             crate::api::logging::blog_warn("disputes", format!("could not clear {key}: {e}"));
         }
@@ -1521,15 +1515,14 @@ async fn rehydrate_disputes_from_storage() {
     }
 }
 
-/// `true` when either persisted dispute key still exists for `order_id`.
+/// `true` when any persisted dispute key still exists for `order_id` — every
+/// key [`clear_dispute_keys`] deletes, not only the solver's: a clear that
+/// stopped after it leaves the rest, and nothing else sweeps them (#439).
 /// Reads only, so a reconnect pass over many finished trades does not turn
 /// into a write per trade; a read error counts as present so the key gets a
 /// clearing attempt rather than being silently kept.
 async fn has_dispute_keys(db: &impl Storage, order_id: &str) -> bool {
-    for key in [
-        crate::db::settings_keys::dispute_admin(order_id),
-        crate::db::settings_keys::dispute_mine(order_id),
-    ] {
+    for key in crate::db::settings_keys::dispute_keys(order_id) {
         match db.get_setting(&key).await {
             Ok(Some(_)) | Err(_) => return true,
             Ok(None) => {}
