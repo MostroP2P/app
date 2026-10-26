@@ -3449,6 +3449,54 @@ mod tests {
         );
     }
 
+    /// A clear that stopped after the solver key — a failed delete, a process
+    /// killed between two, or another pass halfway through the same order —
+    /// leaves the rest behind. The next pass must still see them, or they
+    /// stay for good (#439: a concurrent rehydration in another test left
+    /// exactly that to the one above).
+    #[tokio::test]
+    async fn a_finished_order_s_keys_left_by_a_partial_clear_are_swept() {
+        // Arrange
+        let path = std::env::temp_dir().join(format!(
+            "mostro_dispute_partial_clear_{}.db",
+            std::process::id()
+        ));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let Some(db) = crate::db::app_db::db() else {
+            panic!("no store: rehydration cannot be exercised");
+        };
+        let solver = "0000000000000000000000000000000000000000000000000000000000000033";
+        let order_id = format!("partial-{}", uuid::Uuid::new_v4());
+        db.save_trade(&persisted_trade(&order_id, OrderStatus::SettledByAdmin))
+            .await
+            .unwrap();
+        let left_behind = [
+            (
+                crate::db::settings_keys::dispute_admin_at(&order_id),
+                format!("1700000000:{solver}"),
+            ),
+            (
+                crate::db::settings_keys::dispute_node(&order_id),
+                "aa".repeat(32),
+            ),
+            (
+                crate::db::settings_keys::dispute_key_shared(&order_id),
+                solver.to_string(),
+            ),
+        ];
+        for (key, value) in &left_behind {
+            db.set_setting(key, value).await.unwrap();
+        }
+
+        // Act
+        rehydrate_disputes_from_storage().await;
+
+        // Assert
+        for (key, _) in &left_behind {
+            assert_eq!(db.get_setting(key).await.unwrap(), None, "{key} stayed");
+        }
+    }
+
     /// #811: a dispute's chat with the solver stays on the trade's node.
     /// On another node's trade nothing is sent and the caller is told why.
     #[tokio::test]
