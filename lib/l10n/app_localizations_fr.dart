@@ -416,7 +416,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get appearanceDialogTitle => 'Apparence';
 
   @override
-  String get allCurrencies => 'Toutes les devises';
+  String get fiatCurrencyUnset => 'Non configurée';
 
   @override
   String get lightningAddressSettingTitle => 'Adresse Lightning';

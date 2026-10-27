@@ -786,11 +786,11 @@ abstract class AppLocalizations {
   /// **'Appearance'**
   String get appearanceDialogTitle;
 
-  /// Option label meaning no currency filter is applied
+  /// Settings value when no default fiat currency is chosen
   ///
   /// In en, this message translates to:
-  /// **'All currencies'**
-  String get allCurrencies;
+  /// **'Not set'**
+  String get fiatCurrencyUnset;
 
   /// Settings list item title for the user's Lightning address
   ///
