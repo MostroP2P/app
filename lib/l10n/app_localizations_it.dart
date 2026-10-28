@@ -2453,7 +2453,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String tradeBodyActiveBuyerBtcPegged(String method) {
-    return 'Invialo su $method, all\'indirizzo ricevuto in chat, con una commissione che confermi in poche ore: il venditore rilascia solo dopo la conferma. Poi incolla l\'ID della transazione in chat (è la tua prova in una disputa) e segnalalo qui sotto.';
+    return 'Invialo su $method, all\'indirizzo ricevuto in chat, con una commissione sufficiente a confermare presto: il venditore rilascia solo dopo la conferma. Poi incolla l\'ID della transazione in chat (è la tua prova in una disputa) e segnalalo qui sotto.';
   }
 
   @override

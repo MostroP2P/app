@@ -4122,10 +4122,10 @@ abstract class AppLocalizations {
   /// **'The buyer marked the payment as sent. Before releasing, check that it reached your {method} address, with the transaction ID from the chat.'**
   String tradeBodyFiatSentSellerStablecoin(String method);
 
-  /// Step body for the buyer of an active trade in bitcoin on another network (BTC on-chain or RBTC): pay a fee that confirms within the escrow deadline, then paste the transaction ID (app#907); {method} is the payment method
+  /// Step body for the buyer of an active trade in bitcoin on another network (BTC on-chain or RBTC): pay a fee high enough to confirm well before the escrow deadline, worded for any chain, then paste the transaction ID (app#907); {method} is the payment method
   ///
   /// In en, this message translates to:
-  /// **'Send it on {method}, to the address they shared in the chat, with a fee that confirms within a few hours: the seller releases only once it has confirmed. Then paste the transaction ID in the chat (it is your proof in a dispute) and mark it below.'**
+  /// **'Send it on {method}, to the address they shared in the chat, with a fee high enough to confirm soon: the seller releases only once it has confirmed. Then paste the transaction ID in the chat (it is your proof in a dispute) and mark it below.'**
   String tradeBodyActiveBuyerBtcPegged(String method);
 
   /// Step body for the buyer of an active L-BTC trade: Liquid transactions are confidential, so share the unblinded link that shows the amount (app#907); {method} is the payment method

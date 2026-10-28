@@ -3120,9 +3120,9 @@
       }
     }
   },
-  "tradeBodyActiveBuyerBtcPegged": "Send it on {method}, to the address they shared in the chat, with a fee that confirms within a few hours: the seller releases only once it has confirmed. Then paste the transaction ID in the chat (it is your proof in a dispute) and mark it below.",
+  "tradeBodyActiveBuyerBtcPegged": "Send it on {method}, to the address they shared in the chat, with a fee high enough to confirm soon: the seller releases only once it has confirmed. Then paste the transaction ID in the chat (it is your proof in a dispute) and mark it below.",
   "@tradeBodyActiveBuyerBtcPegged": {
-    "description": "Step body for the buyer of an active trade in bitcoin on another network (BTC on-chain or RBTC): pay a fee that confirms within the escrow deadline, then paste the transaction ID (app#907); {method} is the payment method",
+    "description": "Step body for the buyer of an active trade in bitcoin on another network (BTC on-chain or RBTC): pay a fee high enough to confirm well before the escrow deadline, worded for any chain, then paste the transaction ID (app#907); {method} is the payment method",
     "placeholders": {
       "method": {
         "type": "String"
