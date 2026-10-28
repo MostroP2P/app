@@ -1,6 +1,7 @@
 import 'package:uuid/uuid.dart';
 
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/utils/btc_pegged.dart';
 import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/src/rust/api/types.dart'
     show AnnouncementInfo, AnnouncementSeverity;
@@ -575,6 +576,15 @@ class NotificationModel {
         : l10n.bondSlashedMessageTimeout(amount, id);
   }
 
+  /// The stored fiat amount as it reads beside [code]: as stored for fiat,
+  /// and in the asset's unit for a BTC-pegged code, whose amount is sats
+  /// (#907).
+  static String _detailFiatAmount(String stored, String code, String locale) {
+    final sats = num.tryParse(stored);
+    if (!isBtcPeggedCode(code) || sats == null) return stored;
+    return formatBtcPeggedAmount(sats, locale);
+  }
+
   /// Detail rows for display, built from the stable stored keys and localized at
   /// render time (see [resolvedTitle]).
   Map<String, String> resolvedDetail(AppLocalizations l10n) {
@@ -594,7 +604,8 @@ class NotificationModel {
               ? l10n.bondSlashedCauseDispute
               : l10n.bondSlashedCauseTimeout,
       if (fiatCode != null && fiatAmount != null)
-        l10n.bondSlashedDetailFiat: '$fiatAmount $fiatCode',
+        l10n.bondSlashedDetailFiat:
+            '${_detailFiatAmount(fiatAmount, fiatCode, l10n.localeName)} $fiatCode',
       if (paymentMethod != null && paymentMethod.isNotEmpty)
         l10n.bondSlashedDetailPaymentMethod: paymentMethod,
     };

@@ -179,6 +179,7 @@ String? chatContextLine(TradeRow? trade, AppLocalizations l10n, String locale) {
     amount: trade.fiatAmount,
     min: trade.fiatAmountMin,
     max: trade.fiatAmountMax,
+    code: trade.fiatCode,
     locale: locale,
   );
   final closed = isTradeFinished(trade.status);

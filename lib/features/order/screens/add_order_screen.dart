@@ -28,6 +28,7 @@ import 'package:mostro/features/trades/providers/trades_providers.dart'
     show refreshTrades;
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/mascot/mascot_cues.dart';
+import 'package:mostro/shared/utils/btc_pegged.dart';
 import 'package:mostro/shared/utils/order_amount_limits.dart';
 import 'package:mostro/shared/widgets/pill_segmented.dart';
 import 'package:mostro/src/rust/api/orders.dart' as rust_orders;
@@ -283,7 +284,8 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
     // whole valid range is under one fiat unit, leaving no enterable whole
     // number to name.
     final limits = fiatRangeError.limits;
-    return limits.isDisplayable
+    // A BTC-pegged code is typed in sats (#907), so its bounds are the sats.
+    return limits.isDisplayable && !isBtcPeggedCode(fiatCode)
         ? l10n.orderAmountOutOfRangeFiat(
             limits.minFiat,
             limits.maxFiat,
@@ -336,10 +338,14 @@ class _AddOrderScreenState extends ConsumerState<AddOrderScreen> {
   }) {
     if (!_amountsValid(isRange, amounts)) return null;
     final fiat = NumberFormat('#,##0.##', locale);
+    // A BTC-pegged code is entered in sats and read in the asset's unit:
+    // 100000 RBTC sats preview as `0.001 RBTC` (#907).
+    String fmt(String? v) => isBtcPeggedCode(fiatCode)
+        ? formatBtcPeggedAmount(double.parse(v!), locale)
+        : fiat.format(double.parse(v!));
     final amountText = isRange
-        ? '${fiat.format(double.parse(amounts[0]!))} – '
-            '${fiat.format(double.parse(amounts[1]!))} $fiatCode'
-        : '${fiat.format(double.parse(amounts[0]!))} $fiatCode';
+        ? '${fmt(amounts[0])} – ${fmt(amounts[1])} $fiatCode'
+        : '${fmt(amounts[0])} $fiatCode';
     final amount = markPreview(amountText, PreviewRole.amount);
     final active = expirationHours == null
         ? ''
