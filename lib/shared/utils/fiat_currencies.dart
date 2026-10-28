@@ -3,14 +3,17 @@ import 'dart:convert';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-/// The one list of currencies the app knows, fiat and stablecoin alike.
+/// The one list of currencies the app knows: fiat, stablecoins and bitcoin
+/// on other networks alike.
 const fiatCatalogueAsset = 'assets/data/fiat.json';
 
 /// A currency entry loaded from [fiatCatalogueAsset].
 ///
-/// A fiat has a [flag]. A stablecoin has none: it carries the fiat it is
-/// pegged 1:1 to in [peg] (`USDT` → `USD`), which is what the node prices it
-/// from and what its mark shows (DS-TYP-9).
+/// A fiat has a [flag]. A pegged code has none: it carries what it is pegged
+/// 1:1 to in [peg], which is what the node prices it from and what its mark
+/// shows (DS-TYP-9). That is a fiat for a stablecoin (`USDT` → `USD`), or
+/// `BTC` for bitcoin on another network (`RBTC` → `BTC`, #907), whose amounts
+/// count sats.
 class FiatCurrency {
   const FiatCurrency({
     required this.code,
@@ -25,11 +28,22 @@ class FiatCurrency {
   /// Flag emoji; empty for a stablecoin or a code the catalogue lacks.
   final String flag;
 
-  /// The fiat a stablecoin is pegged to, null for a fiat.
+  /// What a pegged code is pegged to, null for a fiat.
   final String? peg;
 
-  bool get isStablecoin => peg != null;
+  /// Pegged to anything: drives the Market lock, which applies to every code
+  /// a node may or may not quote.
+  bool get isPegged => peg != null;
+
+  /// Pegged to bitcoin itself: on-chain BTC, L-BTC or RBTC (#907).
+  bool get isBtcPegged => peg == btcPeg;
+
+  /// Pegged to a fiat.
+  bool get isStablecoin => isPegged && !isBtcPegged;
 }
+
+/// The [FiatCurrency.peg] of bitcoin on another network.
+const btcPeg = 'BTC';
 
 /// Parses the catalogue's JSON. The one parser: every loader reads the same
 /// entries, so a field added here is never read in one place and dropped in
@@ -48,8 +62,8 @@ List<FiatCurrency> parseFiatCatalogue(String jsonStr) {
   ];
 }
 
-/// A row of a currency picker: a currency, or the header that opens the
-/// stablecoins group.
+/// A row of a currency picker: a currency, or the header that opens one of
+/// the pegged groups.
 sealed class CurrencyPickerRow {
   const CurrencyPickerRow();
 }
@@ -64,19 +78,32 @@ class StablecoinsHeaderRow extends CurrencyPickerRow {
   const StablecoinsHeaderRow();
 }
 
+class BitcoinNetworksHeaderRow extends CurrencyPickerRow {
+  const BitcoinNetworksHeaderRow();
+}
+
 /// The rows every currency picker shows for [currencies]: the fiats in their
-/// order, then, only when there is at least one, the stablecoins under their
-/// own header (issue #884).
+/// order, then, each only when it has at least one entry, the stablecoins
+/// under their own header (issue #884) and bitcoin on other networks under
+/// theirs (#907).
 List<CurrencyPickerRow> currencyPickerRows(Iterable<FiatCurrency> currencies) {
   final fiats = <CurrencyPickerRow>[];
   final coins = <CurrencyPickerRow>[];
+  final networks = <CurrencyPickerRow>[];
   for (final c in currencies) {
-    (c.isStablecoin ? coins : fiats).add(CurrencyRow(c));
+    (c.isBtcPegged
+            ? networks
+            : c.isStablecoin
+            ? coins
+            : fiats)
+        .add(CurrencyRow(c));
   }
   return [
     ...fiats,
     if (coins.isNotEmpty) const StablecoinsHeaderRow(),
     ...coins,
+    if (networks.isNotEmpty) const BitcoinNetworksHeaderRow(),
+    ...networks,
   ];
 }
 
@@ -87,7 +114,7 @@ final fiatCurrenciesProvider = FutureProvider<List<FiatCurrency>>((ref) async {
 });
 
 /// Currency code → flag emoji map, derived from the loaded catalogue. A
-/// stablecoin has no entry here: its mark comes from [stablecoinPegsProvider].
+/// pegged code has no entry here: its mark comes from [currencyPegsProvider].
 final currencyFlagsProvider = Provider<Map<String, String>>((ref) {
   final currencies = ref.watch(fiatCurrenciesProvider);
   return currencies.maybeWhen(
@@ -100,15 +127,31 @@ final currencyFlagsProvider = Provider<Map<String, String>>((ref) {
   );
 });
 
-/// Stablecoin code → the fiat it is pegged to, derived from the loaded
-/// catalogue.
-final stablecoinPegsProvider = Provider<Map<String, String>>((ref) {
+/// Pegged code → what it is pegged to, stablecoins and bitcoin on other
+/// networks alike, derived from the loaded catalogue. Their mark is drawn
+/// from it (DS-TYP-9).
+final currencyPegsProvider = Provider<Map<String, String>>((ref) {
   final currencies = ref.watch(fiatCurrenciesProvider);
   return currencies.maybeWhen(
     data:
         (list) => {
           for (final c in list)
             if (c.peg != null) c.code: c.peg!,
+        },
+    orElse: () => {},
+  );
+});
+
+/// Stablecoin code → the fiat it is pegged to, derived from the loaded
+/// catalogue. Bitcoin on other networks is not in it (#907): it is grouped,
+/// unit-counted and explained apart.
+final stablecoinPegsProvider = Provider<Map<String, String>>((ref) {
+  final currencies = ref.watch(fiatCurrenciesProvider);
+  return currencies.maybeWhen(
+    data:
+        (list) => {
+          for (final c in list)
+            if (c.isStablecoin) c.code: c.peg!,
         },
     orElse: () => {},
   );

@@ -129,6 +129,11 @@ class _CurrencySelectorDialogState
                             padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
                           );
                         }
+                        if (row is BitcoinNetworksHeaderRow) {
+                          return const BitcoinNetworksGroupHeader(
+                            padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
+                          );
+                        }
                         final entry = (row as CurrencyRow).currency;
                         return ListTile(
                           leading: CurrencyMark(code: entry.code, size: 22),

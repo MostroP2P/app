@@ -50,7 +50,7 @@ void main() {
       expect(find.byType(StablecoinCoin), findsNothing);
     });
 
-    for (final coin in _catalogue.where((c) => c.isStablecoin)) {
+    for (final coin in _catalogue.where((c) => c.isPegged)) {
       testWidgets('draws ${coin.code} as a coin, never as text', (
         tester,
       ) async {
@@ -106,5 +106,10 @@ void main() {
       expect(pegSign('EUR'), '€');
       expect(pegSign('ARS'), 'A');
     });
+  });
+
+  test('a coin pegged to bitcoin carries the bitcoin sign (#907)', () {
+    expect(pegSign('BTC'), '₿');
+    expect(pegSign('USD'), r'$');
   });
 }

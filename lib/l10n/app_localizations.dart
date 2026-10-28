@@ -8322,6 +8322,12 @@ abstract class AppLocalizations {
   /// **'Stablecoins'**
   String get stablecoinsGroupHeader;
 
+  /// Group header above bitcoin on other networks (BTC, LBTC, RBTC: order currencies pegged 1:1 to bitcoin, amounts in sats) in the currency pickers, after the stablecoins (app#907)
+  ///
+  /// In en, this message translates to:
+  /// **'Bitcoin on other networks'**
+  String get bitcoinNetworksGroupHeader;
+
   /// Under the Market | Fixed control when the node's rates event does not quote the selected stablecoin, so Market is locked
   ///
   /// In en, this message translates to:

@@ -5,7 +5,8 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
 
 /// The symbol shown beside a currency code: its flag for a fiat, a neutral
-/// coin for a stablecoin (DS-TYP-9). Nothing for a code the catalogue lacks.
+/// coin for a pegged code, stablecoin or bitcoin on another network
+/// (DS-TYP-9). Nothing for a code the catalogue lacks.
 ///
 /// [size] is the font size a flag is drawn at; the coin is sized to sit on
 /// the same line. The flag inherits the theme's flags fallback (DS-TYP-8);
@@ -20,7 +21,7 @@ class CurrencyMark extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final flag = ref.watch(currencyFlagsProvider)[code];
     if (flag != null) return Text(flag, style: TextStyle(fontSize: size));
-    final peg = ref.watch(stablecoinPegsProvider)[code];
+    final peg = ref.watch(currencyPegsProvider)[code];
     if (peg == null) return const SizedBox.shrink();
     return StablecoinCoin(peg: peg, size: size);
   }
@@ -44,7 +45,7 @@ class CurrencyMarkGap extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final hasMark =
         ref.watch(currencyFlagsProvider).containsKey(code) ||
-        ref.watch(stablecoinPegsProvider).containsKey(code);
+        ref.watch(currencyPegsProvider).containsKey(code);
     if (!hasMark) return const SizedBox.shrink();
     return Padding(
       padding: EdgeInsetsDirectional.only(end: gap),
@@ -53,8 +54,10 @@ class CurrencyMarkGap extends ConsumerWidget {
   }
 }
 
-/// The sign a peg's fiat is written with, inside the coin.
+/// The sign a peg is written with, inside the coin: its fiat's, or bitcoin's
+/// for bitcoin on another network (#907).
 String pegSign(String peg) => switch (peg.toUpperCase()) {
+  'BTC' => '₿',
   'USD' => r'$',
   'EUR' => '€',
   'GBP' => '£',
@@ -62,7 +65,7 @@ String pegSign(String peg) => switch (peg.toUpperCase()) {
   _ => peg.toUpperCase().substring(0, 1),
 };
 
-/// A ring carrying its peg's sign: the neutral mark of a stablecoin. No
+/// A ring carrying its peg's sign: the neutral mark of a pegged code. No
 /// issuer logo (a trademark), no emoji (an OS font).
 class StablecoinCoin extends StatelessWidget {
   const StablecoinCoin({super.key, required this.peg, required this.size});

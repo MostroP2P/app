@@ -10,7 +10,35 @@ class StablecoinsGroupHeader extends StatelessWidget {
   const StablecoinsGroupHeader({super.key, this.padding});
 
   /// Defaults to a 12 top inset and a 4 bottom one, which separate the group
-  /// from the last fiat row in a list.
+  /// from the rows above it in a list.
+  final EdgeInsetsGeometry? padding;
+
+  @override
+  Widget build(BuildContext context) => _CurrencyGroupHeader(
+    label: AppLocalizations.of(context).stablecoinsGroupHeader,
+    padding: padding,
+  );
+}
+
+/// The group header above bitcoin on other networks (BTC, LBTC, RBTC) in the
+/// same pickers, after the stablecoins (#907).
+class BitcoinNetworksGroupHeader extends StatelessWidget {
+  const BitcoinNetworksGroupHeader({super.key, this.padding});
+
+  /// As [StablecoinsGroupHeader.padding].
+  final EdgeInsetsGeometry? padding;
+
+  @override
+  Widget build(BuildContext context) => _CurrencyGroupHeader(
+    label: AppLocalizations.of(context).bitcoinNetworksGroupHeader,
+    padding: padding,
+  );
+}
+
+class _CurrencyGroupHeader extends StatelessWidget {
+  const _CurrencyGroupHeader({required this.label, this.padding});
+
+  final String label;
   final EdgeInsetsGeometry? padding;
 
   @override
@@ -19,7 +47,7 @@ class StablecoinsGroupHeader extends StatelessWidget {
     return Padding(
       padding: padding ?? const EdgeInsets.only(top: 12, bottom: 4),
       child: Text(
-        AppLocalizations.of(context).stablecoinsGroupHeader.toUpperCase(),
+        label.toUpperCase(),
         style: TextStyle(
           fontSize: 11,
           fontWeight: FontWeight.w600,

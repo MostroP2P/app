@@ -1370,5 +1370,6 @@
   "otherNodeCardDialogTitle": "Trade auf einem anderen Node",
   "otherNodeCardSwitchPrompt": "Möchtest du zum Node {nodeName} wechseln?",
   "stablecoinsGroupHeader": "Stablecoins",
+  "bitcoinNetworksGroupHeader": "Bitcoin in anderen Netzwerken",
   "marketPriceNotQuotedByNode": "Dieser Node bietet für {code} keinen Marktpreis an. Gib einen festen Betrag in Sats an."
 }

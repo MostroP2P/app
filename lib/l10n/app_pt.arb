@@ -1370,5 +1370,6 @@
   "otherNodeCardDialogTitle": "Operação em outro nó",
   "otherNodeCardSwitchPrompt": "Quer mudar para o nó {nodeName}?",
   "stablecoinsGroupHeader": "Stablecoins",
+  "bitcoinNetworksGroupHeader": "Bitcoin em outras redes",
   "marketPriceNotQuotedByNode": "Este nó não cota {code} a preço de mercado. Defina um valor fixo em sats."
 }

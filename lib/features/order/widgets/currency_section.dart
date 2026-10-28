@@ -303,6 +303,9 @@ class _CurrencyPickerDialogState extends ConsumerState<_CurrencyPickerDialog> {
                           if (row is StablecoinsHeaderRow) {
                             return const StablecoinsGroupHeader();
                           }
+                          if (row is BitcoinNetworksHeaderRow) {
+                            return const BitcoinNetworksGroupHeader();
+                          }
                           final c = (row as CurrencyRow).currency;
                           return ListTile(
                             contentPadding: EdgeInsets.zero,
