@@ -42,19 +42,23 @@ double wireFiatAmount(double fiat) => fiat.truncateToDouble();
 /// The sats amount the daemon will price [fiat] at, given [rate] (the price of
 /// one BTC in that fiat).
 ///
-/// Rounds to the nearest sat, because that is what the daemon does:
-/// `fiat_to_sats` in `mostro/src/util.rs` (MostroP2P/mostro#1090). Its range
-/// check uses it, so a rounding that differed would let the client accept an
-/// amount one sat below the node's minimum and still see it rejected. Pass
-/// [fiat] through [wireFiatAmount] first: this mirrors the daemon's
-/// arithmetic, not the wire's own truncation.
+/// Rounds to the nearest sat, as the daemon does since MostroP2P/mostro#1090
+/// (`fiat_to_sats` in `mostro/src/util.rs`); an older daemon truncates, which
+/// [fiatOutOfNodeRange] allows for. Pass [fiat] through [wireFiatAmount]
+/// first: this mirrors the daemon's arithmetic, not the wire's own
+/// truncation.
 ///
 /// Returns 0 for a conversion that is not a number, which every caller reads
 /// as below any minimum.
-int satsFromFiat(double fiat, double rate) {
+int satsFromFiat(double fiat, double rate) =>
+    _satsAt(fiat, rate, (v) => v.round());
+
+/// [fiat] at [rate] in sats, rounded by [rounder]: 0 when not a number,
+/// saturating at [_saturationCap].
+int _satsAt(double fiat, double rate, int Function(double) rounder) {
   final sats = fiat / rate * _satsPerBtc;
   if (sats.isNaN) return 0;
-  return _saturate(sats, (v) => v.round());
+  return _saturate(sats, rounder);
 }
 
 /// Whether [rate] can price an order: a real, positive price for one BTC.
@@ -103,7 +107,10 @@ FiatAmountLimits fiatAmountLimits({
 /// judge: no rate ([rate] null, non-finite or non-positive, i.e. the node
 /// publishes none), a node advertising only one bound, or an amount that is
 /// not a finite positive number. In those cases the daemon stays the only
-/// authority, exactly as it was before this check existed.
+/// authority, exactly as it was before this check existed. For the same
+/// reason it passes an amount that either conversion puts in range: a node
+/// before MostroP2P/mostro#1090 truncates where a newer one rounds, a sat
+/// apart at a bound, and the check cannot tell which it is talking to.
 ({int minSats, int maxSats, FiatAmountLimits limits})? fiatOutOfNodeRange(
   String fiatStr,
   int? minOrder,
@@ -118,8 +125,13 @@ FiatAmountLimits fiatAmountLimits({
   // check; the form rejects them outright, so there is nothing to warn about.
   if (fiat == null || !fiat.isFinite || fiat <= 0) return null;
 
-  final sats = satsFromFiat(wireFiatAmount(fiat), usableRate);
-  if (sats >= minOrder && sats <= maxOrder) return null;
+  final wireFiat = wireFiatAmount(fiat);
+  final rounded = satsFromFiat(wireFiat, usableRate);
+  final truncated = _satsAt(wireFiat, usableRate, (v) => v.truncate());
+  if ((rounded >= minOrder && rounded <= maxOrder) ||
+      (truncated >= minOrder && truncated <= maxOrder)) {
+    return null;
+  }
 
   return (
     minSats: minOrder,

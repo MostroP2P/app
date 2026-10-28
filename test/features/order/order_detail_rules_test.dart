@@ -72,6 +72,13 @@ void main() {
       // A premium of 100 % or more leaves no sats to estimate.
       expect(estimateSats(fiat: 1000, rate: 100, premium: 100), isNull);
     });
+
+    test('is null for an amount that is not positive', () {
+      // A decoded order is not checked: a negative amount under a premium
+      // above 100 % would multiply into a positive estimate.
+      expect(estimateSats(fiat: -1000, rate: 100000000, premium: 150), isNull);
+      expect(estimateSats(fiat: 0, rate: 100000000, premium: 0), isNull);
+    });
   });
 
   group('paymentMethodsSummary', () {

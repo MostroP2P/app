@@ -35,7 +35,8 @@ double orderLifeProgress({
 // ── Sats estimate ─────────────────────────────────────────────────────────────
 
 /// Whole sats [fiat] buys at [rate] (fiat per BTC) less [premium] percent,
-/// or null when there is no usable rate or nothing is left.
+/// or null when there is no usable rate, no positive amount or nothing is
+/// left.
 ///
 /// The daemon's own formula: `fiat / rate × 10⁸ × (1 − premium / 100)`,
 /// rounded to the nearest sat (`fiat_to_sats` in `mostro/src/util.rs`,
@@ -50,6 +51,7 @@ int? estimateSats({
   required double premium,
 }) {
   if (rate == null || !rate.isFinite || rate <= 0) return null;
+  if (!fiat.isFinite || fiat <= 0) return null;
   final sats = fiat / rate * 100000000 * (1 - premium / 100);
   if (!sats.isFinite || sats <= 0) return null;
   return sats.round();

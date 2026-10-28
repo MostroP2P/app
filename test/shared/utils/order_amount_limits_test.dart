@@ -191,6 +191,16 @@ void main() {
       expect(fiatOutOfNodeRange('2.9', 3334, 500000, 30000), isNull);
     });
 
+    /// 2 at 30000 is 6666.67 sats: 6666 on a node before
+    /// MostroP2P/mostro#1090, which truncates, and 6667 on a newer one, which
+    /// rounds. The check cannot tell which the node runs.
+    test('refuses only what both a truncating and a rounding node refuse', () {
+      expect(fiatOutOfNodeRange('2', 1000, 6666, 30000), isNull);
+      expect(fiatOutOfNodeRange('2', 6667, 10000, 30000), isNull);
+      expect(fiatOutOfNodeRange('2', 1000, 6665, 30000), isNotNull);
+      expect(fiatOutOfNodeRange('2', 6668, 10000, 30000), isNotNull);
+    });
+
     test('returns null for a non-finite amount, which the form rejects', () {
       for (final amount in ['Infinity', '-Infinity', 'NaN', '1e309']) {
         expect(
