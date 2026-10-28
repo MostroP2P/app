@@ -317,8 +317,11 @@ NewOrderParams {
   `max_order_amount` before anything is sent: directly for a fixed
   `amount_sats` (#282), and for a market-price order by converting every fiat
   amount the daemon will price — both ends of a range order — at the rate the
-  node publishes (`fetch_exchange_rate` in `nostr.md`), truncating as the
-  daemon does (#337). The fiat amount is first normalised to the whole unit the
+  node publishes (`fetch_exchange_rate` in `nostr.md`), rounding to the
+  nearest sat as the daemon does since MostroP2P/mostro#1090 (#337). An
+  older daemon truncates instead, a sat lower at most, so an amount is
+  refused only when both conversions put it out of range. The fiat amount is
+  first normalised to the whole unit the
   wire carries (`new_order` casts it to `i64`), so the check judges the amount
   the daemon actually receives rather than the decimal the user typed
 

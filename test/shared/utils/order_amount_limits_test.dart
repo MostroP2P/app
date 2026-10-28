@@ -8,9 +8,14 @@ void main() {
       expect(satsFromFiat(100, 50000), 200000);
     });
 
-    test('truncates, as the daemon does', () {
-      // 1 / 30000 * 1e8 = 3333.33…; the daemon casts to i64, so 3333.
+    test('rounds to the nearest sat, as the daemon does', () {
+      // mostrod rounds since MostroP2P/mostro#1090: 1 / 30000 * 1e8 =
+      // 3333.33… gives 3333, and 2 / 30000 * 1e8 = 6666.67 gives 6667.
       expect(satsFromFiat(1, 30000), 3333);
+      expect(satsFromFiat(2, 30000), 6667);
+      // At 10⁸ per BTC (a BTC-pegged code, #907) the float lands just under
+      // 29; truncating it gave 28.
+      expect(satsFromFiat(29, 100000000), 29);
     });
 
     test('saturates instead of overflowing on an absurd amount', () {
@@ -184,6 +189,16 @@ void main() {
     test('judges the truncated amount the wire carries, not the decimal', () {
       expect(fiatOutOfNodeRange('1.1', 3334, 500000, 30000), isNotNull);
       expect(fiatOutOfNodeRange('2.9', 3334, 500000, 30000), isNull);
+    });
+
+    /// 2 at 30000 is 6666.67 sats: 6666 on a node before
+    /// MostroP2P/mostro#1090, which truncates, and 6667 on a newer one, which
+    /// rounds. The check cannot tell which the node runs.
+    test('refuses only what both a truncating and a rounding node refuse', () {
+      expect(fiatOutOfNodeRange('2', 1000, 6666, 30000), isNull);
+      expect(fiatOutOfNodeRange('2', 6667, 10000, 30000), isNull);
+      expect(fiatOutOfNodeRange('2', 1000, 6665, 30000), isNotNull);
+      expect(fiatOutOfNodeRange('2', 6668, 10000, 30000), isNotNull);
     });
 
     test('returns null for a non-finite amount, which the form rejects', () {
