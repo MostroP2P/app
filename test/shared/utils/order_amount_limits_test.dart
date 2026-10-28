@@ -8,9 +8,14 @@ void main() {
       expect(satsFromFiat(100, 50000), 200000);
     });
 
-    test('truncates, as the daemon does', () {
-      // 1 / 30000 * 1e8 = 3333.33…; the daemon casts to i64, so 3333.
+    test('rounds to the nearest sat, as the daemon does', () {
+      // mostrod rounds since MostroP2P/mostro#1090: 1 / 30000 * 1e8 =
+      // 3333.33… gives 3333, and 2 / 30000 * 1e8 = 6666.67 gives 6667.
       expect(satsFromFiat(1, 30000), 3333);
+      expect(satsFromFiat(2, 30000), 6667);
+      // At 10⁸ per BTC (a BTC-pegged code, #907) the float lands just under
+      // 29; truncating it gave 28.
+      expect(satsFromFiat(29, 100000000), 29);
     });
 
     test('saturates instead of overflowing on an absurd amount', () {
