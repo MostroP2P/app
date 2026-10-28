@@ -30,6 +30,10 @@ pub const RATES_KIND: u16 = 30078;
 /// NIP-33 `d` tag identifying it.
 pub const RATES_D_TAG: &str = "mostro-rates";
 
+/// The rate a node publishes for a BTC-pegged code (`BTC`, `LBTC`, `RBTC`):
+/// 10⁸ units per BTC, a unit being a sat.
+pub const BTC_PEGGED_RATE: f64 = 100_000_000.0;
+
 /// Lifetime assumed for an event published without a NIP-40 `expiration` tag,
 /// and the ceiling clamped onto one that carries an implausibly distant value.
 ///
@@ -62,13 +66,20 @@ static SNAPSHOT: RwLock<Option<Snapshot>> = RwLock::new(None);
 /// nothing about the rest. `None` means nothing usable was found at all.
 ///
 /// Codes are upper-cased so a lookup never misses on capitalisation alone.
+///
+/// The inner `BTC` key means one of two things. A source's bitcoin-in-bitcoin
+/// self-rate (`1`) prices nothing and is dropped. On-chain bitcoin quoted as a
+/// BTC-pegged order currency, at [`BTC_PEGGED_RATE`], is a real quote and is
+/// kept (mostro `docs/PRICE_PROVIDERS.md` §11.9).
 pub fn parse_rates_content(content: &str) -> Option<HashMap<String, f64>> {
     let value: serde_json::Value = serde_json::from_str(content).ok()?;
     let table = value.get("BTC")?.as_object()?;
 
     let rates: HashMap<String, f64> = table
         .iter()
-        .filter(|(code, _)| code.as_str() != "BTC")
+        .filter(|(code, price)| {
+            !code.eq_ignore_ascii_case("BTC") || price.as_f64() == Some(BTC_PEGGED_RATE)
+        })
         .filter_map(|(code, price)| {
             let price = price.as_f64()?;
             (price.is_finite() && price > 0.0).then(|| (code.to_uppercase(), price))
