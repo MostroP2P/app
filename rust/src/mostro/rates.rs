@@ -208,6 +208,30 @@ mod tests {
     }
 
     #[test]
+    fn on_chain_btc_quoted_at_the_peg_is_kept() {
+        // A node that quotes bitcoin on other networks publishes on-chain BTC
+        // as the inner `BTC` entry at 10⁸ sats per BTC, next to LBTC and RBTC
+        // (#907). That is a quote, unlike a source's self-rate of 1.
+        for content in [
+            r#"{"BTC":{"BTC":100000000,"RBTC":100000000,"USD":50000.0}}"#,
+            r#"{"BTC":{"BTC":100000000.0,"RBTC":100000000.0,"USD":50000.0}}"#,
+        ] {
+            let rates = parse_rates_content(content).unwrap();
+
+            assert_eq!(rates.get("BTC"), Some(&100_000_000.0), "{content}");
+            assert_eq!(rates.get("RBTC"), Some(&100_000_000.0), "{content}");
+            assert_eq!(rates.get("USD"), Some(&50000.0), "{content}");
+        }
+    }
+
+    #[test]
+    fn an_inner_btc_that_is_neither_the_self_rate_nor_the_peg_is_dropped() {
+        let rates = parse_rates_content(r#"{"BTC":{"btc":2,"USD":50000.0}}"#).unwrap();
+
+        assert!(!rates.contains_key("BTC"));
+    }
+
+    #[test]
     fn codes_are_upper_cased() {
         let rates = parse_rates_content(r#"{"BTC":{"usd":50000.0}}"#).unwrap();
 
