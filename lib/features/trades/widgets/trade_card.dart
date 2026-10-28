@@ -305,7 +305,7 @@ class _AmountRow extends ConsumerWidget {
               maxLines: 1,
               style: TextStyle(
                 fontFamily: AppFonts.figures,
-                fontSize: 21,
+                fontSize: 19,
                 fontWeight: FontWeight.w600,
                 letterSpacing: -0.2,
                 color: book.textPrimary,
@@ -313,7 +313,7 @@ class _AmountRow extends ConsumerWidget {
             ),
           ),
         ),
-        const SizedBox(width: 7),
+        const SizedBox(width: 8),
         Text(
           row.fiatCode,
           style: TextStyle(fontSize: 12, color: book.textTertiary),

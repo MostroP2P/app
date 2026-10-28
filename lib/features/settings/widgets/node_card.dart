@@ -539,7 +539,7 @@ class _MetricsStrip extends StatelessWidget {
     final divider = Container(width: 1, color: dimmed(pal.colDivider, dim));
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 11),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
       decoration: BoxDecoration(
         color: dimmed(pal.inset, dim),
         borderRadius: BorderRadius.circular(12),
