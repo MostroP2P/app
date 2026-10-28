@@ -34,8 +34,13 @@ double orderLifeProgress({
 
 // ── Sats estimate ─────────────────────────────────────────────────────────────
 
-/// Whole sats [fiat] buys at [rate] (fiat per BTC) once [premium] percent is
-/// applied to the price, or null when there is no usable rate.
+/// Whole sats [fiat] buys at [rate] (fiat per BTC) less [premium] percent,
+/// or null when there is no usable rate or nothing is left.
+///
+/// The daemon's own formula: `fiat / rate × 10⁸ × (1 − premium / 100)`,
+/// rounded to the nearest sat (`fiat_to_sats` in `mostro/src/util.rs`,
+/// MostroP2P/mostro#1090). Dividing by a premium-adjusted price instead read
+/// 99,010 sats where the node priced 99,000, plain to see at 1:1 (#907).
 ///
 /// An estimate only: the daemon prices the order when it is taken, from its
 /// own rate at that moment.
@@ -45,9 +50,9 @@ int? estimateSats({
   required double premium,
 }) {
   if (rate == null || !rate.isFinite || rate <= 0) return null;
-  final price = rate * (1 + premium / 100);
-  if (!price.isFinite || price <= 0) return null;
-  return (fiat / price * 100000000).round();
+  final sats = fiat / rate * 100000000 * (1 - premium / 100);
+  if (!sats.isFinite || sats <= 0) return null;
+  return sats.round();
 }
 
 // ── Payment methods ───────────────────────────────────────────────────────────

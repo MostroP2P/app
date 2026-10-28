@@ -42,18 +42,19 @@ double wireFiatAmount(double fiat) => fiat.truncateToDouble();
 /// The sats amount the daemon will price [fiat] at, given [rate] (the price of
 /// one BTC in that fiat).
 ///
-/// Truncates rather than rounds, because that is what the daemon does:
-/// `(fiat_amount / price * 1E8) as i64` (`mostro/src/app/order.rs`). Rounding
-/// up would let the client accept an amount one sat below the node's minimum
-/// and still see it rejected. Pass [fiat] through [wireFiatAmount] first: this
-/// mirrors the daemon's arithmetic, not the wire's own truncation.
+/// Rounds to the nearest sat, because that is what the daemon does:
+/// `fiat_to_sats` in `mostro/src/util.rs` (MostroP2P/mostro#1090). Its range
+/// check uses it, so a rounding that differed would let the client accept an
+/// amount one sat below the node's minimum and still see it rejected. Pass
+/// [fiat] through [wireFiatAmount] first: this mirrors the daemon's
+/// arithmetic, not the wire's own truncation.
 ///
 /// Returns 0 for a conversion that is not a number, which every caller reads
 /// as below any minimum.
 int satsFromFiat(double fiat, double rate) {
   final sats = fiat / rate * _satsPerBtc;
   if (sats.isNaN) return 0;
-  return _saturate(sats, (v) => v.truncate());
+  return _saturate(sats, (v) => v.round());
 }
 
 /// Whether [rate] can price an order: a real, positive price for one BTC.
