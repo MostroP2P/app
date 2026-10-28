@@ -134,12 +134,17 @@ BondCancelCopy bondCancelCopy(TradeUpdateReason? reason) => switch (reason) {
 bool bondExplainerOpens({required bool? stored}) => stored ?? true;
 
 /// `2 060 ARS`: the fiat equivalent rounded to whole units in [locale]'s
-/// digit grouping, with the order's currency code.
+/// digit grouping, with the order's currency code. A BTC-pegged code's
+/// amount is sats, so it reads in the asset unit instead: `0.001 RBTC`
+/// (#907).
 String formatBondFiat(String locale, double amount, String fiatCode) {
-  final formatted = NumberFormat.decimalPatternDigits(
-    locale: locale,
-    decimalDigits: 0,
-  ).format(amount);
+  final formatted =
+      isBtcPeggedCode(fiatCode)
+          ? formatBtcPeggedAmount(amount, locale)
+          : NumberFormat.decimalPatternDigits(
+            locale: locale,
+            decimalDigits: 0,
+          ).format(amount);
   return '$formatted $fiatCode';
 }
 

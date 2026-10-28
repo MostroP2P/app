@@ -69,6 +69,19 @@ class AmountSection extends ConsumerWidget {
     // A BTC-pegged code is entered in sats, which are whole: they are what
     // goes on the wire as the order's amount (#907).
     final inSats = isBtcPeggedCode(ref.watch(selectedFiatCodeProvider));
+    // Moving between a fiat and a BTC-pegged code changes the unit of what is
+    // typed (whole units or sats): 12.5 USD would become 12 sats, 100000 sats
+    // 100,000 USD. Clear it rather than reread it in the new unit.
+    ref.listen<String>(selectedFiatCodeProvider, (previous, next) {
+      if (previous == null ||
+          isBtcPeggedCode(previous) == isBtcPeggedCode(next)) {
+        return;
+      }
+      amountController.clear();
+      minController.clear();
+      maxController.clear();
+      onChanged();
+    });
     final formatters = [
       ThousandsInputFormatter(
         groupSeparator: symbols.group,

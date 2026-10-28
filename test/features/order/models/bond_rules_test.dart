@@ -271,6 +271,10 @@ void main() {
     test('rounds to whole units with the locale grouping and the code', () {
       expect(formatBondFiat('en', 2060.4, 'ARS'), '2,060 ARS');
     });
+    test('reads a BTC-pegged amount, which is sats, in the asset unit', () {
+      // A claim on a 100,000-sat RBTC order (#907).
+      expect(formatBondFiat('en', 100000, 'RBTC'), '0.001 RBTC');
+    });
   });
 
   test('the taker of a sell order buys, of a buy order sells', () {

@@ -12,6 +12,7 @@ import 'package:mostro/features/chat/models/info_panel_rules.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
 import 'package:mostro/features/trades/providers/escrow_deadline_provider.dart';
+import 'package:mostro/features/trades/models/trades_list_rules.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/features/trades/widgets/trade_list_chip.dart';
 import 'package:mostro/l10n/app_localizations.dart';
@@ -160,8 +161,12 @@ class TradeStateHeader extends ConsumerWidget {
                       ),
                     ),
                     dot,
+                    // As the info panel of the same chat prints it: with the
+                    // locale's separators, and a BTC-pegged code's sats in
+                    // the asset unit (#907).
                     Text(
-                      '${order.displayAmount} ${order.fiatCode}',
+                      '${formatFiatAmount(amount: order.fiatAmount, min: order.fiatAmountMin, max: order.fiatAmountMax, code: order.fiatCode, locale: Localizations.localeOf(context).toString())} '
+                      '${order.fiatCode}',
                       style: textTheme.bodySmall?.copyWith(color: secondary),
                     ),
                   ],

@@ -13,8 +13,11 @@ import '../../../support/catalogue_fixtures.dart';
 import '../../../support/provider_harness.dart';
 
 /// Pump a single-amount [AmountSection] with [code] selected, and return its
-/// amount controller.
-Future<TextEditingController> _pump(WidgetTester tester, String code) async {
+/// amount controller and the container, to switch the currency.
+Future<(TextEditingController, ProviderContainer)> _pumpWithContainer(
+  WidgetTester tester,
+  String code,
+) async {
   tester.view.physicalSize = const Size(1200, 2000);
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
@@ -58,8 +61,11 @@ Future<TextEditingController> _pump(WidgetTester tester, String code) async {
     ),
   );
   await tester.pumpAndSettle();
-  return amount;
+  return (amount, container);
 }
+
+Future<TextEditingController> _pump(WidgetTester tester, String code) async =>
+    (await _pumpWithContainer(tester, code)).$1;
 
 void main() {
   group('AmountSection', () {
@@ -74,6 +80,36 @@ void main() {
       // `fa` for RBTC counts sats, and sats are whole.
       expect(amount.text, '100,000');
       expect(find.text('sats'), findsOneWidget);
+    });
+
+    testWidgets('switching between fiat and sats clears the amount', (
+      tester,
+    ) async {
+      // 12.5 USD must not become 12 sats of RBTC, nor 100000 RBTC sats
+      // 100,000 USD: the unit changes, so the typed amount goes.
+      final (amount, container) = await _pumpWithContainer(tester, 'USD');
+      await tester.enterText(find.byType(TextField).first, '12.5');
+      await tester.pump();
+
+      container.read(selectedFiatCodeProvider.notifier).state = 'RBTC';
+      await tester.pumpAndSettle();
+      expect(amount.text, isEmpty);
+
+      await tester.enterText(find.byType(TextField).first, '100000');
+      await tester.pump();
+      container.read(selectedFiatCodeProvider.notifier).state = 'USD';
+      await tester.pumpAndSettle();
+      expect(amount.text, isEmpty);
+    });
+
+    testWidgets('switching between two fiats keeps the amount', (tester) async {
+      final (amount, container) = await _pumpWithContainer(tester, 'USD');
+      await tester.enterText(find.byType(TextField).first, '25');
+      await tester.pump();
+
+      container.read(selectedFiatCodeProvider.notifier).state = 'EUR';
+      await tester.pumpAndSettle();
+      expect(amount.text, '25');
     });
 
     testWidgets('a fiat keeps its decimals and shows no sats unit', (
