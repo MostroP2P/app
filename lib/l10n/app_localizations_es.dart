@@ -2454,6 +2454,26 @@ class AppLocalizationsEs extends AppLocalizations {
   }
 
   @override
+  String tradeBodyActiveBuyerBtcPegged(String method) {
+    return 'Envíalo por $method, a la dirección que te pasó por el chat, con una comisión suficiente para que confirme pronto: el vendedor libera solo cuando esté confirmado. Luego pega el ID de la transacción en el chat (es tu prueba en una disputa) y márcalo abajo.';
+  }
+
+  @override
+  String tradeBodyActiveBuyerLiquid(String method) {
+    return 'Envíalo por $method, a la dirección que te pasó por el chat. Luego pega en el chat el enlace desbloqueado de la transacción: Liquid oculta el monto, y el enlace se lo muestra al vendedor y, en una disputa, al resolutor. Márcalo abajo.';
+  }
+
+  @override
+  String tradeBodyFiatSentSellerBtcPegged(String method) {
+    return 'El comprador marcó el pago como enviado. Libera solo cuando esté confirmado en $method: compruébalo con el ID de la transacción del chat.';
+  }
+
+  @override
+  String tradeBodyFiatSentSellerLiquid(String method) {
+    return 'El comprador marcó el pago como enviado. Libera solo cuando esté confirmado en $method: comprueba el monto con el enlace desbloqueado del chat.';
+  }
+
+  @override
   String get tradeReleaseIrreversible =>
       'Liberar los sats no se puede deshacer.';
 

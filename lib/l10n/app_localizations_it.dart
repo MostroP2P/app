@@ -2452,6 +2452,26 @@ class AppLocalizationsIt extends AppLocalizations {
   }
 
   @override
+  String tradeBodyActiveBuyerBtcPegged(String method) {
+    return 'Invialo su $method, all\'indirizzo ricevuto in chat, con una commissione sufficiente a confermare presto: il venditore rilascia solo dopo la conferma. Poi incolla l\'ID della transazione in chat (è la tua prova in una disputa) e segnalalo qui sotto.';
+  }
+
+  @override
+  String tradeBodyActiveBuyerLiquid(String method) {
+    return 'Invialo su $method, all\'indirizzo ricevuto in chat. Poi incolla in chat il link della transazione non oscurato: Liquid nasconde l\'importo, e il link lo mostra al venditore e, in una disputa, al mediatore. Segnalalo qui sotto.';
+  }
+
+  @override
+  String tradeBodyFiatSentSellerBtcPegged(String method) {
+    return 'L\'acquirente ha segnato il pagamento come inviato. Rilascia solo dopo la conferma su $method: verificala con l\'ID della transazione della chat.';
+  }
+
+  @override
+  String tradeBodyFiatSentSellerLiquid(String method) {
+    return 'L\'acquirente ha segnato il pagamento come inviato. Rilascia solo dopo la conferma su $method: verifica l\'importo con il link non oscurato della chat.';
+  }
+
+  @override
   String get tradeReleaseIrreversible =>
       'Il rilascio dei sats non si può annullare.';
 

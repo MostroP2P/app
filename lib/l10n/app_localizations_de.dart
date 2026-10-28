@@ -2462,6 +2462,26 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String tradeBodyActiveBuyerBtcPegged(String method) {
+    return 'Sende es über $method an die Adresse aus dem Chat, mit einer Gebühr, die für eine baldige Bestätigung reicht: Der Verkäufer gibt erst nach der Bestätigung frei. Füge danach die Transaktions-ID in den Chat ein (sie ist dein Nachweis im Streitfall) und bestätige es unten.';
+  }
+
+  @override
+  String tradeBodyActiveBuyerLiquid(String method) {
+    return 'Sende es über $method an die Adresse aus dem Chat. Füge danach den entblindeten Transaktionslink in den Chat ein: Liquid verbirgt den Betrag, und der Link zeigt ihn dem Verkäufer und im Streitfall dem Schlichter. Bestätige es unten.';
+  }
+
+  @override
+  String tradeBodyFiatSentSellerBtcPegged(String method) {
+    return 'Der Käufer hat die Zahlung als gesendet markiert. Gib erst frei, wenn sie auf $method bestätigt ist: Prüfe sie anhand der Transaktions-ID aus dem Chat.';
+  }
+
+  @override
+  String tradeBodyFiatSentSellerLiquid(String method) {
+    return 'Der Käufer hat die Zahlung als gesendet markiert. Gib erst frei, wenn sie auf $method bestätigt ist: Prüfe den Betrag anhand des entblindeten Links aus dem Chat.';
+  }
+
+  @override
   String get tradeReleaseIrreversible =>
       'Das Freigeben der Sats lässt sich nicht rückgängig machen.';
 

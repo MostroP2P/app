@@ -4122,6 +4122,30 @@ abstract class AppLocalizations {
   /// **'The buyer marked the payment as sent. Before releasing, check that it reached your {method} address, with the transaction ID from the chat.'**
   String tradeBodyFiatSentSellerStablecoin(String method);
 
+  /// Step body for the buyer of an active trade in bitcoin on another network (BTC on-chain or RBTC): pay a fee high enough to confirm well before the escrow deadline, worded for any chain, then paste the transaction ID (app#907); {method} is the payment method
+  ///
+  /// In en, this message translates to:
+  /// **'Send it on {method}, to the address they shared in the chat, with a fee high enough to confirm soon: the seller releases only once it has confirmed. Then paste the transaction ID in the chat (it is your proof in a dispute) and mark it below.'**
+  String tradeBodyActiveBuyerBtcPegged(String method);
+
+  /// Step body for the buyer of an active L-BTC trade: Liquid transactions are confidential, so share the unblinded link that shows the amount (app#907); {method} is the payment method
+  ///
+  /// In en, this message translates to:
+  /// **'Send it on {method}, to the address they shared in the chat. Then paste the unblinded transaction link in the chat: Liquid hides the amount, and the link shows it to the seller and, in a dispute, to the solver. Mark it below.'**
+  String tradeBodyActiveBuyerLiquid(String method);
+
+  /// Step body for the seller of a trade in bitcoin on another network once the buyer marked it sent: release only after the transfer confirms (app#907); {method} is the payment method
+  ///
+  /// In en, this message translates to:
+  /// **'The buyer marked the payment as sent. Release only once it has confirmed on {method}: check it with the transaction ID from the chat.'**
+  String tradeBodyFiatSentSellerBtcPegged(String method);
+
+  /// Step body for the seller of an L-BTC trade once the buyer marked it sent: release only after it confirms, checking the amount with the unblinded link (app#907); {method} is the payment method
+  ///
+  /// In en, this message translates to:
+  /// **'The buyer marked the payment as sent. Release only once it has confirmed on {method}: check the amount with the unblinded link from the chat.'**
+  String tradeBodyFiatSentSellerLiquid(String method);
+
   /// Warning inside the step block before releasing
   ///
   /// In en, this message translates to:

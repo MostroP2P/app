@@ -2437,6 +2437,26 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String tradeBodyActiveBuyerBtcPegged(String method) {
+    return 'Send it on $method, to the address they shared in the chat, with a fee high enough to confirm soon: the seller releases only once it has confirmed. Then paste the transaction ID in the chat (it is your proof in a dispute) and mark it below.';
+  }
+
+  @override
+  String tradeBodyActiveBuyerLiquid(String method) {
+    return 'Send it on $method, to the address they shared in the chat. Then paste the unblinded transaction link in the chat: Liquid hides the amount, and the link shows it to the seller and, in a dispute, to the solver. Mark it below.';
+  }
+
+  @override
+  String tradeBodyFiatSentSellerBtcPegged(String method) {
+    return 'The buyer marked the payment as sent. Release only once it has confirmed on $method: check it with the transaction ID from the chat.';
+  }
+
+  @override
+  String tradeBodyFiatSentSellerLiquid(String method) {
+    return 'The buyer marked the payment as sent. Release only once it has confirmed on $method: check the amount with the unblinded link from the chat.';
+  }
+
+  @override
   String get tradeReleaseIrreversible => 'Releasing the sats cannot be undone.';
 
   @override

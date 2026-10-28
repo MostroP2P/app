@@ -2466,6 +2466,26 @@ class AppLocalizationsPt extends AppLocalizations {
   }
 
   @override
+  String tradeBodyActiveBuyerBtcPegged(String method) {
+    return 'Envie por $method, para o endereço que o vendedor enviou no chat, com uma taxa suficiente para confirmar logo: o vendedor só libera depois da confirmação. Depois cole o ID da transação no chat (é sua prova em uma disputa) e marque abaixo.';
+  }
+
+  @override
+  String tradeBodyActiveBuyerLiquid(String method) {
+    return 'Envie por $method, para o endereço que o vendedor enviou no chat. Depois cole no chat o link da transação sem ocultação: a Liquid oculta o valor, e o link o mostra ao vendedor e, em uma disputa, ao mediador. Marque abaixo.';
+  }
+
+  @override
+  String tradeBodyFiatSentSellerBtcPegged(String method) {
+    return 'O comprador marcou o pagamento como enviado. Só libere depois da confirmação em $method: confira com o ID da transação do chat.';
+  }
+
+  @override
+  String tradeBodyFiatSentSellerLiquid(String method) {
+    return 'O comprador marcou o pagamento como enviado. Só libere depois da confirmação em $method: confira o valor com o link sem ocultação do chat.';
+  }
+
+  @override
   String get tradeReleaseIrreversible =>
       'A liberação dos sats não pode ser desfeita.';
 
