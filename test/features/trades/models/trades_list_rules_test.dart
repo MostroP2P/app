@@ -329,22 +329,69 @@ void main() {
   group('formatFiatAmount', () {
     test('whole, decimal and range amounts use the locale separators', () {
       expect(
-        formatFiatAmount(amount: 1250, min: null, max: null, locale: 'es'),
+        formatFiatAmount(
+          amount: 1250,
+          min: null,
+          max: null,
+          code: 'ARS',
+          locale: 'es',
+        ),
         '1.250',
       );
       expect(
-        formatFiatAmount(amount: 55.5, min: null, max: null, locale: 'en'),
+        formatFiatAmount(
+          amount: 55.5,
+          min: null,
+          max: null,
+          code: 'USD',
+          locale: 'en',
+        ),
         '55.50',
       );
       expect(
-        formatFiatAmount(amount: null, min: 100, max: 500, locale: 'es'),
+        formatFiatAmount(
+          amount: null,
+          min: 100,
+          max: 500,
+          code: 'ARS',
+          locale: 'es',
+        ),
         '100 – 500',
       );
       expect(
-        formatFiatAmount(amount: null, min: null, max: null, locale: 'es'),
+        formatFiatAmount(
+          amount: null,
+          min: null,
+          max: null,
+          code: 'ARS',
+          locale: 'es',
+        ),
         '—',
       );
       expect(formatSatsCount(6900, 'es'), '6.900');
+    });
+
+    test('a BTC-pegged code reads its sats in the asset unit (#907)', () {
+      expect(
+        formatFiatAmount(
+          amount: 100000,
+          min: null,
+          max: null,
+          code: 'RBTC',
+          locale: 'en',
+        ),
+        '0.001',
+      );
+      expect(
+        formatFiatAmount(
+          amount: null,
+          min: 50000,
+          max: 200000,
+          code: 'lbtc',
+          locale: 'es',
+        ),
+        '0,0005 – 0,002',
+      );
     });
   });
 }

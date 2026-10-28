@@ -524,6 +524,7 @@ class _MetricsStrip extends StatelessWidget {
               s?.maxOrderAmount,
               btcPrice,
               locale,
+              mine,
             );
     final rangeMetric = _Metric(
       figure: range ?? '—',

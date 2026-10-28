@@ -9,6 +9,7 @@ import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/home/providers/order_reason_provider.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/abbreviated_figure.dart';
+import 'package:mostro/shared/utils/btc_pegged.dart';
 import 'package:mostro/shared/utils/rating_format.dart';
 import 'package:mostro/shared/utils/reputation_age.dart';
 import 'package:mostro/shared/widgets/currency_mark.dart';
@@ -89,12 +90,29 @@ class OrderCardFormats {
     return abbreviateFigure(price, _locale);
   }
 
-  /// `832 – 5,000` for a range, `25` for a single amount.
-  String amount(OrderItem order) =>
-      order.isRange
-          ? '${fiat.format(order.fiatAmountMin!)} – '
-              '${fiat.format(order.fiatAmountMax!)}'
-          : fiat.format(order.fiatAmount!);
+  /// The premium a fixed-sats order in a BTC-pegged code stands for. Both
+  /// its figures are sats, so `amt = fa × (1 − p/100)` gives `p`, the same
+  /// formula the daemon prices a market order with (#907). Null for any other
+  /// order: there a price per BTC ([fixedPricePerBtc]) is the right figure,
+  /// while here it would always read about 10⁸ of the code.
+  double? impliedBtcPeggedPremium(OrderItem order) {
+    final fiatAmount = order.fiatAmount;
+    if (!order.hasFixedSats || !isBtcPeggedCode(order.fiatCode)) return null;
+    if (fiatAmount == null || fiatAmount <= 0) return null;
+    return (1 - order.amountSats!.toDouble() / fiatAmount) * 100;
+  }
+
+  /// `832 – 5,000` for a range, `25` for a single amount. A BTC-pegged code
+  /// counts its amount in sats, so it reads in the asset's unit: `0.001`.
+  String amount(OrderItem order) {
+    String fmt(double v) =>
+        isBtcPeggedCode(order.fiatCode)
+            ? formatBtcPeggedAmount(v, _locale)
+            : fiat.format(v);
+    return order.isRange
+        ? '${fmt(order.fiatAmountMin!)} – ${fmt(order.fiatAmountMax!)}'
+        : fmt(order.fiatAmount!);
+  }
 }
 
 /// Order-book card (order-book handoff, variant 4b).
@@ -373,7 +391,13 @@ class _AmountRow extends StatelessWidget {
     final String? figure;
     final String caption;
     final Color figureColor;
-    if (order.hasFixedSats) {
+    final impliedPremium = formats.impliedBtcPeggedPremium(order);
+    if (impliedPremium != null) {
+      // A BTC-pegged fixed-sats order: the swap's premium, not a price.
+      figure = formats.premiumPercent(impliedPremium);
+      caption = l10n.orderCardPremiumCaption;
+      figureColor = palette.textBody;
+    } else if (order.hasFixedSats) {
       final price = formats.fixedPricePerBtc(order);
       figure = price == null ? null : '$price ${order.fiatCode}/BTC';
       caption = l10n.orderCardPriceCaption;

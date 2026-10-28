@@ -262,11 +262,23 @@ void main() {
           BigInt.from(2000000),
           36000000, // 36 M ARS per BTC
           'es',
+          'ARS',
         ),
         '≈ 1.800 – 720.000',
       );
-      expect(fiatEquivalent(BigInt.one, BigInt.two, null, 'es'), isNull);
-      expect(fiatEquivalent(null, BigInt.two, 1, 'es'), isNull);
+      expect(fiatEquivalent(BigInt.one, BigInt.two, null, 'es', 'ARS'), isNull);
+      expect(fiatEquivalent(null, BigInt.two, 1, 'es', 'ARS'), isNull);
+      // A BTC-pegged default currency would only repeat the sats (#907).
+      expect(
+        fiatEquivalent(
+          BigInt.from(5000),
+          BigInt.from(2000000),
+          1e8,
+          'es',
+          'LBTC',
+        ),
+        isNull,
+      );
     });
   });
 

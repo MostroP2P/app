@@ -11,6 +11,7 @@ import 'package:mostro/features/order/widgets/hero_amount_card.dart';
 import 'package:mostro/features/order/widgets/order_detail_cards.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/providers/peer_nym_provider.dart';
+import 'package:mostro/shared/utils/btc_pegged.dart';
 import 'package:mostro/shared/utils/countdown.dart';
 import 'package:mostro/shared/widgets/countdown_urgency_announcer.dart';
 import 'package:mostro/src/rust/api/types.dart' show OrderKind, TradeInfo;
@@ -25,11 +26,16 @@ import 'package:mostro/src/rust/api/types.dart' show OrderKind, TradeInfo;
 String? formatInvoiceFiat(AppLocalizations l10n, TradeInfo trade) {
   final amount = trade.order.fiatAmount;
   if (amount == null || amount <= 0) return null;
-  final formatted = NumberFormat.decimalPatternDigits(
-    locale: l10n.localeName,
-    decimalDigits: amount == amount.truncateToDouble() ? 0 : 2,
-  ).format(amount);
-  return '$formatted ${trade.order.fiatCode}';
+  final code = trade.order.fiatCode;
+  // A BTC-pegged code counts its amount in sats (#907).
+  final formatted =
+      isBtcPeggedCode(code)
+          ? formatBtcPeggedAmount(amount, l10n.localeName)
+          : NumberFormat.decimalPatternDigits(
+            locale: l10n.localeName,
+            decimalDigits: amount == amount.truncateToDouble() ? 0 : 2,
+          ).format(amount);
+  return '$formatted $code';
 }
 
 /// The counterpart's pseudonym as a data row (DS-CMP-24), with their

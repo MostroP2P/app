@@ -5,6 +5,7 @@ library;
 
 import 'package:intl/intl.dart';
 
+import 'package:mostro/shared/utils/btc_pegged.dart';
 import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/src/rust/api/types.dart'
     show
@@ -19,7 +20,15 @@ import 'package:mostro/src/rust/api/types.dart'
 /// What the bond is worth in the order's fiat at [rate] (fiat per BTC), or
 /// null without a usable rate. For the hero's context line only — the
 /// daemon never charges fiat.
-double? bondFiatEquivalent({required int sats, required double? rate}) {
+///
+/// Null for a BTC-pegged [fiatCode] too: its amount is sats, so the
+/// "equivalent" would only repeat the bond's sats under the code (#907).
+double? bondFiatEquivalent({
+  required int sats,
+  required double? rate,
+  required String fiatCode,
+}) {
+  if (isBtcPeggedCode(fiatCode)) return null;
   if (rate == null || !rate.isFinite || rate <= 0 || sats <= 0) return null;
   return sats / 100000000 * rate;
 }

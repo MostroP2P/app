@@ -736,7 +736,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
     final amount =
         figures == null
             ? null
-            : '${formatFiatAmount(amount: figures.fiat, min: figures.min, max: figures.max, locale: locale)} ${figures.code}';
+            : '${formatFiatAmount(amount: figures.fiat, min: figures.min, max: figures.max, code: figures.code, locale: locale)} ${figures.code}';
     // The row's own role first: `isBuyer` defaults to buyer while the role
     // lookup runs, and would tell a seller "You buy".
     final isSelling = switch (trade?.role) {

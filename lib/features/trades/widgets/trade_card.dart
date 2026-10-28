@@ -299,6 +299,7 @@ class _AmountRow extends ConsumerWidget {
                 amount: row.fiatAmount,
                 min: row.fiatAmountMin,
                 max: row.fiatAmountMax,
+                code: row.fiatCode,
                 locale: locale,
               ),
               maxLines: 1,

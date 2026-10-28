@@ -215,16 +215,31 @@ void main() {
   group('bondFiatEquivalent', () {
     test('converts sats at a fiat-per-BTC rate', () {
       expect(
-        bondFiatEquivalent(sats: 1648, rate: 125000000),
+        bondFiatEquivalent(sats: 1648, rate: 125000000, fiatCode: 'ARS'),
         closeTo(2060, 0.01),
       );
     });
     test('is null without a usable rate or amount', () {
-      expect(bondFiatEquivalent(sats: 1648, rate: null), isNull);
-      expect(bondFiatEquivalent(sats: 1648, rate: 0), isNull);
-      expect(bondFiatEquivalent(sats: 1648, rate: double.nan), isNull);
-      expect(bondFiatEquivalent(sats: 0, rate: 1000), isNull);
+      expect(
+        bondFiatEquivalent(sats: 1648, rate: null, fiatCode: 'ARS'),
+        isNull,
+      );
+      expect(bondFiatEquivalent(sats: 1648, rate: 0, fiatCode: 'ARS'), isNull);
+      expect(
+        bondFiatEquivalent(sats: 1648, rate: double.nan, fiatCode: 'ARS'),
+        isNull,
+      );
+      expect(bondFiatEquivalent(sats: 0, rate: 1000, fiatCode: 'ARS'), isNull);
     });
+    test(
+      'is null for a BTC-pegged code, whose equivalent is the sats (#907)',
+      () {
+        expect(
+          bondFiatEquivalent(sats: 1648, rate: 100000000, fiatCode: 'RBTC'),
+          isNull,
+        );
+      },
+    );
   });
 
   group('bondWarnsTimeout', () {
