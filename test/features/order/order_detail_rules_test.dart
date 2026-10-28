@@ -55,8 +55,11 @@ void main() {
     test('divides fiat by the premium-adjusted price', () {
       // 1 000 ARS at 100 000 000 ARS/BTC, no premium → 1 000 sats.
       expect(estimateSats(fiat: 1000, rate: 100000000, premium: 0), 1000);
-      // +25 % premium → 800 sats.
-      expect(estimateSats(fiat: 1000, rate: 100000000, premium: 25), 800);
+      // +25 % premium takes 25 % off the sats, as mostrod prices it
+      // (`sats × (1 − premium/100)`) → 750 sats.
+      expect(estimateSats(fiat: 1000, rate: 100000000, premium: 25), 750);
+      // 100,000 sats of RBTC at +1 % are 99,000 Lightning sats (#907).
+      expect(estimateSats(fiat: 100000, rate: 100000000, premium: 1), 99000);
     });
 
     test('rounds to whole sats', () {
@@ -66,7 +69,15 @@ void main() {
     test('is null without a usable rate', () {
       expect(estimateSats(fiat: 1000, rate: null, premium: 0), isNull);
       expect(estimateSats(fiat: 1000, rate: 0, premium: 0), isNull);
-      expect(estimateSats(fiat: 1000, rate: 100, premium: -100), isNull);
+      // A premium of 100 % or more leaves no sats to estimate.
+      expect(estimateSats(fiat: 1000, rate: 100, premium: 100), isNull);
+    });
+
+    test('is null for an amount that is not positive', () {
+      // A decoded order is not checked: a negative amount under a premium
+      // above 100 % would multiply into a positive estimate.
+      expect(estimateSats(fiat: -1000, rate: 100000000, premium: 150), isNull);
+      expect(estimateSats(fiat: 0, rate: 100000000, premium: 0), isNull);
     });
   });
 
