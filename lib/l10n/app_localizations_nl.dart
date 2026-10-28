@@ -2456,6 +2456,26 @@ class AppLocalizationsNl extends AppLocalizations {
   }
 
   @override
+  String tradeBodyActiveBuyerBtcPegged(String method) {
+    return 'Stuur het via $method naar het adres uit de chat, met een fee die binnen een paar uur bevestigt: de verkoper geeft pas vrij na de bevestiging. Plak daarna de transactie-ID in de chat (dat is je bewijs bij een dispuut) en meld het hieronder.';
+  }
+
+  @override
+  String tradeBodyActiveBuyerLiquid(String method) {
+    return 'Stuur het via $method naar het adres uit de chat. Plak daarna de niet-geblindeerde transactielink in de chat: Liquid verbergt het bedrag, en de link toont het aan de verkoper en, bij een dispuut, aan de solver. Meld het hieronder.';
+  }
+
+  @override
+  String tradeBodyFiatSentSellerBtcPegged(String method) {
+    return 'De koper heeft de betaling als verstuurd gemeld. Geef pas vrij als die op $method is bevestigd: controleer het met de transactie-ID uit de chat.';
+  }
+
+  @override
+  String tradeBodyFiatSentSellerLiquid(String method) {
+    return 'De koper heeft de betaling als verstuurd gemeld. Geef pas vrij als die op $method is bevestigd: controleer het bedrag met de niet-geblindeerde link uit de chat.';
+  }
+
+  @override
   String get tradeReleaseIrreversible =>
       'De sats vrijgeven kan niet ongedaan worden gemaakt.';
 

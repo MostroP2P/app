@@ -467,6 +467,124 @@ void main() {
 
   // A coin sent on another network than the one agreed can be lost, and in
   // a dispute its transaction ID is the buyer's proof of the transfer (#884).
+  group('bitcoin on another network waits for confirmations (#907)', () {
+    Future<void> pumpNetworkTrade(
+      WidgetTester tester, {
+      required bool isBuyer,
+      required OrderStatus status,
+      required String fiatCode,
+      required String paymentMethod,
+    }) => _pumpTradeDetail(
+      tester,
+      orderId: 'order-net',
+      isBuyer: isBuyer,
+      status: status,
+      book: [
+        fakeOrder(
+          id: 'order-net',
+          fiatCode: fiatCode,
+          fiatAmount: 100000,
+          paymentMethod: paymentMethod,
+        ),
+      ],
+      extraOverrides: [catalogueOverride()],
+    );
+
+    testWidgets('the buyer pays a fee that confirms in time', (tester) async {
+      const method = 'RBTC (Rootstock)';
+      await pumpNetworkTrade(
+        tester,
+        isBuyer: true,
+        status: OrderStatus.active,
+        fiatCode: 'RBTC',
+        paymentMethod: method,
+      );
+
+      expect(
+        find.text(
+          _en.tradeBodyActiveBuyerBtcPegged(method),
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a Liquid buyer shares the unblinded link', (tester) async {
+      const method = 'LBTC (Liquid)';
+      await pumpNetworkTrade(
+        tester,
+        isBuyer: true,
+        status: OrderStatus.active,
+        fiatCode: 'LBTC',
+        paymentMethod: method,
+      );
+
+      expect(
+        find.text(_en.tradeBodyActiveBuyerLiquid(method), findRichText: true),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('the seller shares an address on the network', (tester) async {
+      const method = 'BTC (On-chain)';
+      await pumpNetworkTrade(
+        tester,
+        isBuyer: false,
+        status: OrderStatus.active,
+        fiatCode: 'BTC',
+        paymentMethod: method,
+      );
+
+      expect(
+        find.text(
+          _en.tradeBodyActiveSellerStablecoin(method),
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('the seller releases only once it confirmed', (tester) async {
+      const method = 'RBTC (Rootstock)';
+      await pumpNetworkTrade(
+        tester,
+        isBuyer: false,
+        status: OrderStatus.fiatSent,
+        fiatCode: 'RBTC',
+        paymentMethod: method,
+      );
+
+      expect(
+        find.text(
+          _en.tradeBodyFiatSentSellerBtcPegged(method),
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a Liquid seller checks the amount by the unblinded link', (
+      tester,
+    ) async {
+      const method = 'LBTC (Liquid)';
+      await pumpNetworkTrade(
+        tester,
+        isBuyer: false,
+        status: OrderStatus.fiatSent,
+        fiatCode: 'LBTC',
+        paymentMethod: method,
+      );
+
+      expect(
+        find.text(
+          _en.tradeBodyFiatSentSellerLiquid(method),
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+    });
+  });
+
   group('a stablecoin trade names the network and the transaction ID', () {
     const method = 'USDT (Tron)';
 
