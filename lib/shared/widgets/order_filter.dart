@@ -41,10 +41,14 @@ class _OrderFilterDialog extends ConsumerWidget {
       allCurrencies.isNotEmpty ? allCurrencies : _topCurrencies,
       selectedCurrencies,
     );
-    // The stablecoins under their own header, after the fiats (#884).
-    final pegs = ref.watch(stablecoinPegsProvider);
+    // The stablecoins under their own header, after the fiats (#884), and
+    // bitcoin on other networks under theirs, last (#907).
+    final pegs = ref.watch(currencyPegsProvider);
+    bool isNetwork(String c) => pegs[c] == btcPeg;
     final fiats = currencies.where((c) => !pegs.containsKey(c)).toList();
-    final stablecoins = currencies.where(pegs.containsKey).toList();
+    final stablecoins =
+        currencies.where((c) => pegs.containsKey(c) && !isNetwork(c)).toList();
+    final networks = currencies.where(isNetwork).toList();
 
     Widget currencyChip(String code) {
       final selected = selectedCurrencies.contains(code);
@@ -96,6 +100,16 @@ class _OrderFilterDialog extends ConsumerWidget {
               spacing: AppSpacing.sm,
               runSpacing: AppSpacing.xs,
               children: stablecoins.map(currencyChip).toList(),
+            ),
+          ],
+          if (networks.isNotEmpty) ...[
+            const BitcoinNetworksGroupHeader(
+              padding: EdgeInsets.only(top: 8, bottom: 4),
+            ),
+            Wrap(
+              spacing: AppSpacing.sm,
+              runSpacing: AppSpacing.xs,
+              children: networks.map(currencyChip).toList(),
             ),
           ],
           const SizedBox(height: AppSpacing.lg),

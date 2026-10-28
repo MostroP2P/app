@@ -45,21 +45,22 @@ final isRangeOrderProvider = StateProvider<bool>((_) => false);
 
 /// The selected currency's code while Market is locked, null otherwise.
 ///
-/// Market is locked for a stablecoin the active node's rates event does not
-/// quote (`ExchangeRateLookup.notQuoted`): such a node refuses every market
-/// order in the coin (mostrod `docs/PRICE_PROVIDERS.md` §11.8). A fiat is
+/// Market is locked for a pegged code (a stablecoin, or bitcoin on another
+/// network) the active node's rates event does not quote
+/// (`ExchangeRateLookup.notQuoted`): such a node refuses every market order
+/// in it (mostrod `docs/PRICE_PROVIDERS.md` §11.8, §11.9). A fiat is
 /// never locked, and a node that publishes no rates event locks nothing:
 /// the pre-check keeps failing open there (#337), the daemon decides.
 final marketLockedCodeProvider = Provider.autoDispose<String?>((ref) {
   final currency = ref.watch(selectedFiatCurrencyProvider);
-  if (currency == null || !currency.isStablecoin) return null;
+  if (currency == null || !currency.isPegged) return null;
   final lookup = ref.watch(exchangeRateLookupProvider(currency.code));
   return lookup.valueOrNull is ExchangeRateLookup_NotQuoted
       ? currency.code
       : null;
 });
 
-/// Whether the selected stablecoin's quote is still on its way: the active
+/// Whether the selected pegged code's quote is still on its way: the active
 /// node's lookup has answered nothing yet, so Market may be about to lock.
 /// The screen holds Publish on a market order until it knows, or the order
 /// would reach a node that refuses it. A fiat is never pending: it is never
@@ -71,7 +72,7 @@ final marketLockedCodeProvider = Provider.autoDispose<String?>((ref) {
 /// its state type, and its answer, until it lands.
 final marketQuotePendingProvider = Provider.autoDispose<bool>((ref) {
   final currency = ref.watch(selectedFiatCurrencyProvider);
-  if (currency == null || !currency.isStablecoin) return false;
+  if (currency == null || !currency.isPegged) return false;
   final lookup = ref.watch(exchangeRateLookupProvider(currency.code));
   return lookup is AsyncLoading;
 });

@@ -1370,5 +1370,6 @@
   "otherNodeCardDialogTitle": "Transaction sur un autre nœud",
   "otherNodeCardSwitchPrompt": "Voulez-vous passer au nœud {nodeName} ?",
   "stablecoinsGroupHeader": "Stablecoins",
+  "bitcoinNetworksGroupHeader": "Bitcoin sur d'autres réseaux",
   "marketPriceNotQuotedByNode": "Ce nœud ne cote pas {code} au prix du marché. Indiquez un montant fixe en sats."
 }

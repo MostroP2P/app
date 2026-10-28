@@ -112,6 +112,19 @@ void main() {
       }
     });
 
+    test('bitcoin on other networks names its one network (#907)', () {
+      // The code already names the network, so each has one method, written
+      // `<CODE> (<Network>)` as the protocol book's page asks.
+      const methods = {
+        'BTC': ['BTC (On-chain)'],
+        'LBTC': ['LBTC (Liquid)'],
+        'RBTC': ['RBTC (Rootstock)'],
+      };
+      methods.forEach((code, expected) {
+        expect((shipped[code] as List).cast<String>(), expected, reason: code);
+      });
+    });
+
     test('each coin is offered on the networks of #884', () {
       // The order is the picker's, not part of the contract.
       const networks = {

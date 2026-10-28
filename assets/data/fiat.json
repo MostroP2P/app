@@ -813,5 +813,20 @@
     "code": "USDT",
     "name": "Tether USD",
     "peg": "USD"
+  },
+  {
+    "code": "BTC",
+    "name": "Bitcoin (on-chain)",
+    "peg": "BTC"
+  },
+  {
+    "code": "LBTC",
+    "name": "L-BTC (Liquid)",
+    "peg": "BTC"
+  },
+  {
+    "code": "RBTC",
+    "name": "RBTC (Rootstock)",
+    "peg": "BTC"
   }
 ]

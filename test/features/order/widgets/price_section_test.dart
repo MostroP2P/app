@@ -14,6 +14,7 @@ import 'package:mostro/features/order/widgets/price_section.dart';
 import 'package:mostro/features/settings/providers/mostro_nodes_provider.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
+
 import '../../../support/catalogue_fixtures.dart';
 import '../../../support/provider_harness.dart';
 
@@ -304,6 +305,33 @@ void main() {
         handle.dispose();
       },
     );
+
+    testWidgets('bitcoin on another network is locked like a coin (#907)', (
+      tester,
+    ) async {
+      final container = await _pump(
+        tester,
+        premium: 0.0,
+        overrides: [
+          catalogueOverride([
+            ...kTestCatalogue,
+            const FiatCurrency(code: 'RBTC', name: 'RBTC', peg: 'BTC'),
+          ]),
+          selectedFiatCodeProvider.overrideWith((ref) => 'RBTC'),
+          exchangeRateLookupProvider.overrideWith(
+            (ref, _) async => const ExchangeRateLookup.notQuoted(),
+          ),
+        ],
+      );
+
+      expect(container.read(isMarketPriceProvider), isFalse);
+      expect(
+        find.text(
+          "This node doesn't quote RBTC at market price. Set a fixed amount in sats.",
+        ),
+        findsOneWidget,
+      );
+    });
 
     testWidgets('a node that publishes no rates event leaves Market as today', (
       tester,

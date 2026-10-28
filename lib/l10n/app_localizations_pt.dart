@@ -5126,6 +5126,9 @@ class AppLocalizationsPt extends AppLocalizations {
   String get stablecoinsGroupHeader => 'Stablecoins';
 
   @override
+  String get bitcoinNetworksGroupHeader => 'Bitcoin em outras redes';
+
+  @override
   String marketPriceNotQuotedByNode(String code) {
     return 'Este nó não cota $code a preço de mercado. Defina um valor fixo em sats.';
   }

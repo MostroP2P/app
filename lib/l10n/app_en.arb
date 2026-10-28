@@ -5301,6 +5301,10 @@
   "@stablecoinsGroupHeader": {
     "description": "Group header above the stablecoins in the currency pickers (create order, default currency, order book filter)"
   },
+  "bitcoinNetworksGroupHeader": "Bitcoin on other networks",
+  "@bitcoinNetworksGroupHeader": {
+    "description": "Group header above bitcoin on other networks (BTC, LBTC, RBTC: order currencies pegged 1:1 to bitcoin, amounts in sats) in the currency pickers, after the stablecoins (app#907)"
+  },
   "marketPriceNotQuotedByNode": "This node doesn't quote {code} at market price. Set a fixed amount in sats.",
   "@marketPriceNotQuotedByNode": {
     "description": "Under the Market | Fixed control when the node's rates event does not quote the selected stablecoin, so Market is locked",
