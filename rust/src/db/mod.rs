@@ -198,6 +198,20 @@ pub mod settings_keys {
         format!("{DISPUTE_KEY_SHARED_PREFIX}{order_id}")
     }
 
+    /// Every persisted key of `order_id`'s dispute: what
+    /// `api::disputes::clear_dispute_keys` deletes, and what rehydration
+    /// looks for on a finished order. One list, so a key added to it is both
+    /// cleared and swept.
+    pub fn dispute_keys(order_id: &str) -> [String; 5] {
+        [
+            dispute_admin(order_id),
+            dispute_admin_at(order_id),
+            dispute_node(order_id),
+            dispute_mine(order_id),
+            dispute_key_shared(order_id),
+        ]
+    }
+
     /// Per-order status replay cursor — the `created_at` (unix seconds,
     /// decimal string) of the newest daemon message whose status write was
     /// applied, clamped to the local clock. Full key is
