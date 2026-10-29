@@ -4,6 +4,36 @@ All notable changes to Mostro are documented here, newest first. This file is
 written by the release workflow (docs/RELEASING.md) — do not edit it by hand.
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [2.1.2] - 2026-10-28
+
+### ✨ Features
+
+- **trades:** ask for confirmations on bitcoin networks ([#912](https://github.com/MostroP2P/app/pull/912)) by @grunch
+- **currency:** add BTC, LBTC and RBTC to the catalogue ([#911](https://github.com/MostroP2P/app/pull/911)) by @grunch
+- **order:** show and enter BTC-pegged amounts right ([#910](https://github.com/MostroP2P/app/pull/910)) by @grunch
+- **stablecoins:** phase 3 — the trade names the network and the transaction ID ([#905](https://github.com/MostroP2P/app/pull/905)) by @grunch
+- **stablecoins:** phase 2 — payment methods name the network ([#904](https://github.com/MostroP2P/app/pull/904)) by @grunch
+- **stablecoins:** phase 1 — catalogue, coin mark, default currency and the Market lock ([#894](https://github.com/MostroP2P/app/pull/894)) by @grunch
+
+### 🐛 Bug Fixes
+
+- **order:** convert fiat to sats as mostrod does ([#909](https://github.com/MostroP2P/app/pull/909)) by @grunch
+- **rates:** keep on-chain BTC quoted at the peg ([#908](https://github.com/MostroP2P/app/pull/908)) by @grunch
+- **zapstore:** stop listing NIP-17 ([#898](https://github.com/MostroP2P/app/pull/898)) by @grunch
+
+### 📚 Documentation
+
+- **stablecoins:** NoRates also means an expired or unreadable rates event ([#903](https://github.com/MostroP2P/app/pull/903)) by @grunch
+
+### 👷 Build & CI
+
+- publish every release on Zapstore ([#906](https://github.com/MostroP2P/app/pull/906)) by @grunch
+- cache wasm-pack's downloads in the web build ([#899](https://github.com/MostroP2P/app/pull/899)) by @grunch
+
+### 🧹 Chores
+
+- **zapstore:** publish the store images as JPEG ([#902](https://github.com/MostroP2P/app/pull/902)) by @grunch
+
 ## [2.1.1] - 2026-10-26
 
 ### ✨ Features
