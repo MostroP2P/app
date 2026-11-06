@@ -3168,9 +3168,13 @@ async fn wipe_never_active_trade(
 /// `Canceled` arm. A wipe that fails reports `false`, so the caller's usual
 /// status write still lands and the row reads `Canceled` instead of a stale
 /// `pending`.
+///
+/// The wipe announces what [`public_end_status`] reads in the event:
+/// `expires_at` is the order's own, from the same event.
 async fn wipe_on_public_cancel(
     order_id: &str,
     wire: &OrderStatus,
+    expires_at: Option<i64>,
     revision_at: Option<i64>,
 ) -> bool {
     if !matches!(
@@ -3218,7 +3222,7 @@ async fn wipe_on_public_cancel(
             // those are history, not news.
             emit_trade_update_at(
                 order_id,
-                OrderStatus::Canceled,
+                public_end_status(wire, &local.status, expires_at, revision_at),
                 None,
                 revision_at.unwrap_or_else(crate::rt::unix_now),
             );
@@ -3231,6 +3235,31 @@ async fn wipe_on_public_cancel(
             );
             false
         }
+    }
+}
+
+/// What the public end of a never-active trade announces (#917). mostrod
+/// publishes an expired order as `canceled` (nip33.rs `create_status_tags`)
+/// and sends its maker no message, so a `canceled` for an order still in the
+/// book (`local`), dated at or after the order's `expires_at`, is that
+/// expiry: the node's expiry job ends an order only once its take window
+/// closed. Without either time it reads as the cancel it says, and so does
+/// anything else that ends the order.
+fn public_end_status(
+    wire: &OrderStatus,
+    local: &OrderStatus,
+    expires_at: Option<i64>,
+    revision_at: Option<i64>,
+) -> OrderStatus {
+    let in_book = matches!(local, OrderStatus::Pending | OrderStatus::WaitingTakerBond);
+    let window_closed = matches!(
+        (expires_at, revision_at),
+        (Some(expires_at), Some(at)) if expires_at > 0 && at >= expires_at
+    );
+    match wire {
+        OrderStatus::Expired => OrderStatus::Expired,
+        OrderStatus::Canceled if in_book && window_closed => OrderStatus::Expired,
+        _ => OrderStatus::Canceled,
     }
 }
 
@@ -7266,7 +7295,13 @@ async fn resync_republished_maker_order(
     if let Some(db) = crate::db::app_db::db() {
         write_maker_step_end(db, order_id).await;
     }
-    emit_trade_update_at(order_id, OrderStatus::Pending, None, event_ts);
+    // The maker's last card said the order was in a trade (#917).
+    emit_trade_update_at(
+        order_id,
+        OrderStatus::Pending,
+        Some(crate::api::types::TradeUpdateReason::TakerLeft),
+        event_ts,
+    );
     true
 }
 
@@ -8330,7 +8365,7 @@ async fn apply_peer_reveal(
 /// completion only from this event.
 async fn apply_single_order_update(mut order: OrderInfo, revision_at: Option<i64>) {
     order_book().note_wire_order(&order);
-    if wipe_on_public_cancel(&order.id, &order.status, revision_at).await {
+    if wipe_on_public_cancel(&order.id, &order.status, order.expires_at, revision_at).await {
         return;
     }
     if is_hard_terminal(&order.status) {
@@ -9793,7 +9828,11 @@ where
                 // there: what was decided above is a snapshot, and a take may
                 // have begun.
                 if end_maker_waiting_step(db, &oid, cursor_before).await {
-                    emit_trade_update(&oid, crate::api::types::OrderStatus::Pending);
+                    emit_trade_update_with(
+                        &oid,
+                        crate::api::types::OrderStatus::Pending,
+                        Some(crate::api::types::TradeUpdateReason::TakerLeft),
+                    );
                     log::info!(
                         "[orders] sweep: resynced republished maker order={oid} to pending"
                     );
@@ -10717,7 +10756,7 @@ async fn classify_ingested_order(
     // sync or to hold the entry at (`wipe_on_public_cancel`; one more
     // indexed row lookup, for `canceled` events only).
     if info.status != crate::api::types::OrderStatus::Pending
-        && !wipe_on_public_cancel(&info.id, &info.status, revision_at).await
+        && !wipe_on_public_cancel(&info.id, &info.status, info.expires_at, revision_at).await
     {
         let local = local_trade_status(&info.id).await;
         let applies = wire_status_applies(local.as_ref(), &info.status);
