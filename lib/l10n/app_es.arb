@@ -1364,6 +1364,8 @@
   "tradeCardPayoutFailedMessage": "Mostro no pudo enviar tus sats a la dirección o factura que diste. Abre la operación para ver cuál falló y agrega una nueva factura si todavía hace falta.",
   "tradeCardOrderPublishedTitle": "Orden publicada",
   "tradeCardOrderPublishedMessage": "Tu orden ya está en el libro y otros usuarios pueden tomarla.",
+  "tradeCardTakerLeftTitle": "Orden de nuevo en el libro",
+  "tradeCardTakerLeftMessage": "La contraparte no continuó la operación. Tu orden volvió al libro y otros usuarios pueden tomarla.",
   "payoutInvoiceLabel": "Factura",
   "payoutInvoiceCopied": "Factura copiada",
   "payoutWillGoToLabel": "Los sats irán a",

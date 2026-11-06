@@ -480,10 +480,15 @@ class NotificationModel {
   /// bucket never is, told apart by the reason.
   bool get _orderPublished => detail?[_tradeReasonKey] == 'orderPublished';
 
+  /// The taker of the user's order walked away and the node put it back in
+  /// the book (#917): another `pending` told apart by the reason.
+  bool get _takerLeft => detail?[_tradeReasonKey] == 'takerLeft';
+
   String _tradeTitle(AppLocalizations l10n) =>
       _cancelRequestTitle(l10n) ??
       (_payoutFailed ? l10n.tradeCardPayoutFailedTitle : null) ??
       (_orderPublished ? l10n.tradeCardOrderPublishedTitle : null) ??
+      (_takerLeft ? l10n.tradeCardTakerLeftTitle : null) ??
       switch (detail?[_tradeStatusKey]) {
         'waitingBuyerInvoice' => l10n.tradeCardWaitingBuyerInvoiceTitle,
         'waitingPayment' => l10n.tradeCardWaitingPaymentTitle,
@@ -506,6 +511,7 @@ class NotificationModel {
       _cancelRequestMessage(l10n) ??
       (_payoutFailed ? l10n.tradeCardPayoutFailedMessage : null) ??
       (_orderPublished ? l10n.tradeCardOrderPublishedMessage : null) ??
+      (_takerLeft ? l10n.tradeCardTakerLeftMessage : null) ??
       switch (detail?[_tradeStatusKey]) {
         'waitingBuyerInvoice' => l10n.tradeCardWaitingBuyerInvoiceMessage,
         'waitingPayment' => l10n.tradeCardWaitingPaymentMessage,
