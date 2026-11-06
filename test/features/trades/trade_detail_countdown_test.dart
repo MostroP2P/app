@@ -124,8 +124,9 @@ void main() {
       tester,
     ) async {
       await withClock(Clock.fixed(_now), () async {
-        // What a maker gets: the reply that opened the step was consumed by
-        // the take, so nothing recorded when it started.
+        // A step whose start was never recorded (a replay that missed the
+        // message that opened it): without a start there is no deadline to
+        // count to, so no band is drawn.
         await _pumpWaiting(
           tester,
           status: step.status,

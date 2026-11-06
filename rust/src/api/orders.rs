@@ -4898,6 +4898,22 @@ async fn dispatch_mostro_message(
                     return;
                 }
                 record_status_event(&order_id, event_ts).await;
+                // These two open a step mostrod times, exactly like
+                // AddInvoice / PayInvoice, and a maker gets no other message
+                // saying when it began. Left unrecorded, the trade detail
+                // has no deadline to count to (#582).
+                if matches!(
+                    kind.action,
+                    Action::WaitingSellerToPay | Action::WaitingBuyerInvoice
+                ) {
+                    crate::api::invoice::record_invoice_step_start(
+                        &order_id,
+                        &format!("{status:?}"),
+                        event_ts,
+                        trade_index,
+                    )
+                    .await;
+                }
                 // The bond, if any: a first trade-flow message means it
                 // locked; a terminal outcome without a slash notice means
                 // it was released (docs/ANTI_ABUSE_BOND.md §2.4, §6.1).

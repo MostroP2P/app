@@ -109,8 +109,10 @@ final invoiceStepStartLookupProvider = Provider<Future<int?> Function(String)>(
 /// by the waiting `take_order` before any status cursor is written. A
 /// taker's trade starts when they take, so its `started_at` stands in, with
 /// the same node window — never the fixed `timeout_at`, which assumes 900 s.
-/// A maker's `started_at` is when the order was created, so without a
-/// recorded step start their deadline is unknown and no band is drawn.
+/// A maker's `started_at` is when the order was created, so they rely on the
+/// step start recorded from the daemon's `waiting-seller-to-pay` /
+/// `waiting-buyer-invoice` message; without one their deadline is unknown and
+/// no band is drawn.
 final invoiceDeadlineProvider = FutureProvider.autoDispose.family<int?, String>(
   (ref, orderId) async {
     // Both dependencies are watched before the first await. Watched after
