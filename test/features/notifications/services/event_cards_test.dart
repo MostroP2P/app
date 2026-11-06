@@ -160,6 +160,34 @@ void main() {
       );
     });
 
+    test('a taker walking away raises a card', () async {
+      // The maker's last card said the order was in a trade. The taker
+      // cancelled or let the window lapse, and the node put the order back
+      // in the book (#917): the `pending` is news this time.
+      await cards.onTradeUpdate(
+        update(
+          OrderStatus.pending,
+          reason: TradeUpdateReason.takerLeft,
+          at: 1757860000,
+        ),
+      );
+
+      final card = stateOf(notifier).single;
+      expect(card.id, 'trade-order-1-pending-takerLeft');
+      expect(card.tradeStatus, 'pending');
+      expect(card.tradeReason, 'takerLeft');
+    });
+
+    test('a taker walking away answers to the trade updates toggle', () async {
+      disabled = {NotificationEvent.tradeUpdates};
+
+      await cards.onTradeUpdate(
+        update(OrderStatus.pending, reason: TradeUpdateReason.takerLeft),
+      );
+
+      expect(stateOf(notifier), isEmpty);
+    });
+
     test('the publication answers to the trade updates toggle', () async {
       disabled = {NotificationEvent.tradeUpdates};
 
