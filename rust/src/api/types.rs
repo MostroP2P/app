@@ -766,6 +766,13 @@ pub enum TradeUpdateReason {
     /// which raises no card on its own (the book's bucket carries it too),
     /// so the card can tell the publication apart.
     OrderPublished,
+    /// The taker of this client's order walked away: they cancelled, or let
+    /// the waiting window lapse, and the node put the order back in the book
+    /// (mostrod republishes it as `pending` and sends the maker `new-order`).
+    /// Rides on `Pending`, which raises no card on its own, so the card can
+    /// tell the maker their trade is over and the order is takeable again
+    /// (#917).
+    TakerLeft,
 }
 
 /// An image or file sent in a chat (#589), as read from v1's JSON message.

@@ -8,304 +8,225 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'types.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `default_expiration_hours`, `default_expiration_seconds`
+            // These functions are ignored because they are not marked as `pub`: `default_expiration_hours`, `default_expiration_seconds`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AppState`, `MostroNodeInfo`, `QueuedMessageStatus`, `TradeHistoryEntry`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
-/// The `bond_claims` key for a node / order pair.
-Future<String> bondClaimKey({
-  required String nodePubkey,
-  required String orderId,
-}) => RustLib.instance.api.crateApiTypesBondClaimKey(
-  nodePubkey: nodePubkey,
-  orderId: orderId,
-);
 
-/// A project announcement the reader admitted (§5.2), with every locale: Rust
+            /// The `bond_claims` key for a node / order pair.
+Future<String>  bondClaimKey({required String nodePubkey , required String orderId }) => RustLib.instance.api.crateApiTypesBondClaimKey(nodePubkey: nodePubkey, orderId: orderId);
+
+            /// A project announcement the reader admitted (§5.2), with every locale: Rust
 /// does not translate, Dart picks the copy for the locale on screen.
-class AnnouncementInfo {
-  /// `38387:<author hex>:<d>` — the announcement's identity across
-  /// revisions, and the id of its notification card.
-  final String address;
+class AnnouncementInfo  {
+                /// `38387:<author hex>:<d>` — the announcement's identity across
+/// revisions, and the id of its notification card.
+final String address;
+/// `<created_at>:<event id>`: changes with every correction published
+/// under the same address, which is what makes it unread again (§5.3).
+final String revision;
+/// Unix seconds, the event's `created_at`.
+final PlatformInt64 createdAt;
+/// Unix seconds, the NIP-40 `expiration`: the announcement is gone once
+/// it passes, online or not (§5.5).
+final PlatformInt64 expiration;
+final AnnouncementSeverity severity;
+/// Every supported locale, in the app's order.
+final List<AnnouncementText> texts;
+/// The one action link, `https` only, as parsed.
+final String? url;
+final bool read;
+/// Swiped away. A `Critical` stays listed, read, until it expires; the
+/// other levels leave the list (§3.4).
+final bool dismissed;
 
-  /// `<created_at>:<event id>`: changes with every correction published
-  /// under the same address, which is what makes it unread again (§5.3).
-  final String revision;
+                const AnnouncementInfo({required this.address ,required this.revision ,required this.createdAt ,required this.expiration ,required this.severity ,required this.texts ,this.url ,required this.read ,required this.dismissed ,});
 
-  /// Unix seconds, the event's `created_at`.
-  final PlatformInt64 createdAt;
+                
+                
 
-  /// Unix seconds, the NIP-40 `expiration`: the announcement is gone once
-  /// it passes, online or not (§5.5).
-  final PlatformInt64 expiration;
-  final AnnouncementSeverity severity;
+                
+        @override
+        int get hashCode => address.hashCode^revision.hashCode^createdAt.hashCode^expiration.hashCode^severity.hashCode^texts.hashCode^url.hashCode^read.hashCode^dismissed.hashCode;
+        
 
-  /// Every supported locale, in the app's order.
-  final List<AnnouncementText> texts;
-
-  /// The one action link, `https` only, as parsed.
-  final String? url;
-  final bool read;
-
-  /// Swiped away. A `Critical` stays listed, read, until it expires; the
-  /// other levels leave the list (§3.4).
-  final bool dismissed;
-
-  const AnnouncementInfo({
-    required this.address,
-    required this.revision,
-    required this.createdAt,
-    required this.expiration,
-    required this.severity,
-    required this.texts,
-    this.url,
-    required this.read,
-    required this.dismissed,
-  });
-
-  @override
-  int get hashCode =>
-      address.hashCode ^
-      revision.hashCode ^
-      createdAt.hashCode ^
-      expiration.hashCode ^
-      severity.hashCode ^
-      texts.hashCode ^
-      url.hashCode ^
-      read.hashCode ^
-      dismissed.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is AnnouncementInfo &&
-          runtimeType == other.runtimeType &&
-          address == other.address &&
-          revision == other.revision &&
-          createdAt == other.createdAt &&
-          expiration == other.expiration &&
-          severity == other.severity &&
-          texts == other.texts &&
-          url == other.url &&
-          read == other.read &&
-          dismissed == other.dismissed;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is AnnouncementInfo &&
+                runtimeType == other.runtimeType
+                && address == other.address&& revision == other.revision&& createdAt == other.createdAt&& expiration == other.expiration&& severity == other.severity&& texts == other.texts&& url == other.url&& read == other.read&& dismissed == other.dismissed;
+        
+            }
 
 /// How loudly an announcement is painted (specs/006-announcement-channel
 /// §3.4). The publisher declares a level, never a colour; Dart maps it onto
 /// the palette. A level this build does not know arrives as `Warning`.
 enum AnnouncementSeverity {
-  /// Releases, new features, events.
-  info,
-
-  /// Outages, a relay being retired, anything with a deadline.
-  warning,
-
-  /// A security issue the user must act on now.
-  critical,
-}
+                    /// Releases, new features, events.
+info,
+/// Outages, a relay being retired, anything with a deadline.
+warning,
+/// A security issue the user must act on now.
+critical,
+                    ;
+                    
+                }
 
 /// One locale's copy of an announcement, plain text (§3.2).
-class AnnouncementText {
-  /// `en`, `es`, … — one of the app's locales.
-  final String locale;
-  final String title;
-  final String body;
+class AnnouncementText  {
+                /// `en`, `es`, … — one of the app's locales.
+final String locale;
+final String title;
+final String body;
 
-  const AnnouncementText({
-    required this.locale,
-    required this.title,
-    required this.body,
-  });
+                const AnnouncementText({required this.locale ,required this.title ,required this.body ,});
 
-  @override
-  int get hashCode => locale.hashCode ^ title.hashCode ^ body.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is AnnouncementText &&
-          runtimeType == other.runtimeType &&
-          locale == other.locale &&
-          title == other.title &&
-          body == other.body;
-}
+                
+        @override
+        int get hashCode => locale.hashCode^title.hashCode^body.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is AnnouncementText &&
+                runtimeType == other.runtimeType
+                && locale == other.locale&& title == other.title&& body == other.body;
+        
+            }
 
 /// Aggregated user-facing application settings.
 ///
 /// `privacy_mode` is a read-only mirror of `IdentityInfo.privacy_mode` —
 /// the authoritative value lives in the Identity layer.
-class AppSettings {
-  final ThemeMode theme;
+class AppSettings  {
+                final ThemeMode theme;
+/// BCP-47 language tag, e.g. `"en"`, `"es"`.
+final String language;
+/// Currency code selected as the user's default, if any: ISO 4217 or a
+/// stablecoin code (3 to 5 upper-case letters).
+final String? defaultFiatCode;
+/// Default Lightning Address in `user@domain` format, if set.
+final String? defaultLightningAddress;
+final bool loggingEnabled;
+/// Read-only mirror of `IdentityInfo.privacy_mode`.
+final bool privacyMode;
 
-  /// BCP-47 language tag, e.g. `"en"`, `"es"`.
-  final String language;
+                const AppSettings({required this.theme ,required this.language ,this.defaultFiatCode ,this.defaultLightningAddress ,required this.loggingEnabled ,required this.privacyMode ,});
 
-  /// Currency code selected as the user's default, if any: ISO 4217 or a
-  /// stablecoin code (3 to 5 upper-case letters).
-  final String? defaultFiatCode;
+                
+                
 
-  /// Default Lightning Address in `user@domain` format, if set.
-  final String? defaultLightningAddress;
-  final bool loggingEnabled;
+                
+        @override
+        int get hashCode => theme.hashCode^language.hashCode^defaultFiatCode.hashCode^defaultLightningAddress.hashCode^loggingEnabled.hashCode^privacyMode.hashCode;
+        
 
-  /// Read-only mirror of `IdentityInfo.privacy_mode`.
-  final bool privacyMode;
-
-  const AppSettings({
-    required this.theme,
-    required this.language,
-    this.defaultFiatCode,
-    this.defaultLightningAddress,
-    required this.loggingEnabled,
-    required this.privacyMode,
-  });
-
-  @override
-  int get hashCode =>
-      theme.hashCode ^
-      language.hashCode ^
-      defaultFiatCode.hashCode ^
-      defaultLightningAddress.hashCode ^
-      loggingEnabled.hashCode ^
-      privacyMode.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is AppSettings &&
-          runtimeType == other.runtimeType &&
-          theme == other.theme &&
-          language == other.language &&
-          defaultFiatCode == other.defaultFiatCode &&
-          defaultLightningAddress == other.defaultLightningAddress &&
-          loggingEnabled == other.loggingEnabled &&
-          privacyMode == other.privacyMode;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is AppSettings &&
+                runtimeType == other.runtimeType
+                && theme == other.theme&& language == other.language&& defaultFiatCode == other.defaultFiatCode&& defaultLightningAddress == other.defaultLightningAddress&& loggingEnabled == other.loggingEnabled&& privacyMode == other.privacyMode;
+        
+            }
 
 /// An image or file sent in a chat (#589), as read from v1's JSON message.
-class AttachmentInfo {
-  /// Sanitized: the last path component only, safe to show and save under.
-  final String fileName;
+class AttachmentInfo  {
+                /// Sanitized: the last path component only, safe to show and save under.
+final String fileName;
+/// As declared by the sender; a label only.
+final String mimeType;
+/// Size of the file before encryption, in bytes.
+final BigInt fileSize;
+final FileType fileType;
+final DownloadStatus downloadStatus;
+/// Where the encrypted blob lives (`https://…/<sha256>`).
+final String blossomUrl;
+/// Hex SHA-256 of the encrypted blob, from the URL.
+final String sha256;
+final BigInt encryptedSize;
+/// Pixel size, for images: lets the bubble keep its shape before the
+/// image is decrypted.
+final int? width;
+final int? height;
+/// For a file we sent: the pubkey it was encrypted to — the peer, or the
+/// solver in the dispute chat. Never read from the wire. Kept because
+/// our own message names only us as its sender, and a resolved
+/// dispute's solver key is gone after a restart (PR #596 review).
+final String? counterpartPubkey;
 
-  /// As declared by the sender; a label only.
-  final String mimeType;
+                const AttachmentInfo({required this.fileName ,required this.mimeType ,required this.fileSize ,required this.fileType ,required this.downloadStatus ,required this.blossomUrl ,required this.sha256 ,required this.encryptedSize ,this.width ,this.height ,this.counterpartPubkey ,});
 
-  /// Size of the file before encryption, in bytes.
-  final BigInt fileSize;
-  final FileType fileType;
-  final DownloadStatus downloadStatus;
+                
+                
 
-  /// Where the encrypted blob lives (`https://…/<sha256>`).
-  final String blossomUrl;
+                
+        @override
+        int get hashCode => fileName.hashCode^mimeType.hashCode^fileSize.hashCode^fileType.hashCode^downloadStatus.hashCode^blossomUrl.hashCode^sha256.hashCode^encryptedSize.hashCode^width.hashCode^height.hashCode^counterpartPubkey.hashCode;
+        
 
-  /// Hex SHA-256 of the encrypted blob, from the URL.
-  final String sha256;
-  final BigInt encryptedSize;
-
-  /// Pixel size, for images: lets the bubble keep its shape before the
-  /// image is decrypted.
-  final int? width;
-  final int? height;
-
-  /// For a file we sent: the pubkey it was encrypted to — the peer, or the
-  /// solver in the dispute chat. Never read from the wire. Kept because
-  /// our own message names only us as its sender, and a resolved
-  /// dispute's solver key is gone after a restart (PR #596 review).
-  final String? counterpartPubkey;
-
-  const AttachmentInfo({
-    required this.fileName,
-    required this.mimeType,
-    required this.fileSize,
-    required this.fileType,
-    required this.downloadStatus,
-    required this.blossomUrl,
-    required this.sha256,
-    required this.encryptedSize,
-    this.width,
-    this.height,
-    this.counterpartPubkey,
-  });
-
-  @override
-  int get hashCode =>
-      fileName.hashCode ^
-      mimeType.hashCode ^
-      fileSize.hashCode ^
-      fileType.hashCode ^
-      downloadStatus.hashCode ^
-      blossomUrl.hashCode ^
-      sha256.hashCode ^
-      encryptedSize.hashCode ^
-      width.hashCode ^
-      height.hashCode ^
-      counterpartPubkey.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is AttachmentInfo &&
-          runtimeType == other.runtimeType &&
-          fileName == other.fileName &&
-          mimeType == other.mimeType &&
-          fileSize == other.fileSize &&
-          fileType == other.fileType &&
-          downloadStatus == other.downloadStatus &&
-          blossomUrl == other.blossomUrl &&
-          sha256 == other.sha256 &&
-          encryptedSize == other.encryptedSize &&
-          width == other.width &&
-          height == other.height &&
-          counterpartPubkey == other.counterpartPubkey;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is AttachmentInfo &&
+                runtimeType == other.runtimeType
+                && fileName == other.fileName&& mimeType == other.mimeType&& fileSize == other.fileSize&& fileType == other.fileType&& downloadStatus == other.downloadStatus&& blossomUrl == other.blossomUrl&& sha256 == other.sha256&& encryptedSize == other.encryptedSize&& width == other.width&& height == other.height&& counterpartPubkey == other.counterpartPubkey;
+        
+            }
 
 /// What the add-invoice screen needs from a BOLT11 invoice to validate it
 /// before submission (see `api::invoice::decode_bolt11`).
-class Bolt11Summary {
-  /// Millisatoshis, or `None` for an invoice that leaves the amount open.
-  /// Kept in msat so a sub-sat remainder is never rounded into a match.
-  final BigInt? amountMsat;
+class Bolt11Summary  {
+                /// Millisatoshis, or `None` for an invoice that leaves the amount open.
+/// Kept in msat so a sub-sat remainder is never rounded into a match.
+final BigInt? amountMsat;
+/// Unix seconds after which the invoice can no longer be paid.
+final PlatformInt64 expiresAt;
+/// The chain the invoice is for, in LND's naming (`mainnet`, `testnet`,
+/// `regtest`, `signet`, `simnet`) so it compares against the node's
+/// `lnd_networks`.
+final String network;
 
-  /// Unix seconds after which the invoice can no longer be paid.
-  final PlatformInt64 expiresAt;
+                const Bolt11Summary({this.amountMsat ,required this.expiresAt ,required this.network ,});
 
-  /// The chain the invoice is for, in LND's naming (`mainnet`, `testnet`,
-  /// `regtest`, `signet`, `simnet`) so it compares against the node's
-  /// `lnd_networks`.
-  final String network;
+                
+                
 
-  const Bolt11Summary({
-    this.amountMsat,
-    required this.expiresAt,
-    required this.network,
-  });
+                
+        @override
+        int get hashCode => amountMsat.hashCode^expiresAt.hashCode^network.hashCode;
+        
 
-  @override
-  int get hashCode =>
-      amountMsat.hashCode ^ expiresAt.hashCode ^ network.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is Bolt11Summary &&
-          runtimeType == other.runtimeType &&
-          amountMsat == other.amountMsat &&
-          expiresAt == other.expiresAt &&
-          network == other.network;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is Bolt11Summary &&
+                runtimeType == other.runtimeType
+                && amountMsat == other.amountMsat&& expiresAt == other.expiresAt&& network == other.network;
+        
+            }
 
 /// Which side of a trade must lock a bond (`bond_apply_to` tag).
 enum BondApplyTo {
-  /// Only the taker, at take time.
-  take,
-
-  /// Only the maker, before the order is published.
-  make,
-
-  /// Both sides.
-  both,
-}
+                    /// Only the taker, at take time.
+take,
+/// Only the maker, before the order is published.
+make,
+/// Both sides.
+both,
+                    ;
+                    
+                }
 
 /// The counterparty's share of a slashed bond this user may claim
 /// (docs/ANTI_ABUSE_BOND.md §6.4, §7.1). Independent of the trade row: the
@@ -313,283 +234,207 @@ enum BondApplyTo {
 /// daemon asks for an invoice. Keyed by `(node_pubkey, order_id)`: the user
 /// can switch nodes while a claim is open, and the submission always
 /// addresses the daemon that issued it.
-class BondClaim {
-  final String orderId;
+class BondClaim  {
+                final String orderId;
+/// The daemon that issued the claim; the submission target.
+final String nodePubkey;
+/// The trade key index the daemon addressed the request to: the slashed
+/// attempt's key, which the reply must come from even when the order was
+/// retaken on a newer key since. `None` only for a claim stored before it
+/// was recorded; the order's current key is used then.
+final int? tradeIndex;
+/// The share on offer, in satoshis; the invoice must be for exactly this.
+final BigInt amountSats;
+/// Unix seconds when the daemon slashed the bond, from the request.
+final PlatformInt64 slashedAt;
+/// `slashed_at + claim window`, frozen when the claim is first persisted:
+/// a later policy change cannot move a deadline the user was shown.
+final PlatformInt64 deadlineAt;
+final BondClaimPhase phase;
+/// The bolt11 sent, kept so the screen can show it while the daemon answers.
+final String? submittedInvoice;
+/// Display only, from the request's order.
+final String fiatCode;
+final double? fiatAmount;
+final String paymentMethod;
+/// Unix seconds of the last change, the list's sort key.
+final PlatformInt64 updatedAt;
 
-  /// The daemon that issued the claim; the submission target.
-  final String nodePubkey;
+                const BondClaim({required this.orderId ,required this.nodePubkey ,this.tradeIndex ,required this.amountSats ,required this.slashedAt ,required this.deadlineAt ,required this.phase ,this.submittedInvoice ,required this.fiatCode ,this.fiatAmount ,required this.paymentMethod ,required this.updatedAt ,});
 
-  /// The trade key index the daemon addressed the request to: the slashed
-  /// attempt's key, which the reply must come from even when the order was
-  /// retaken on a newer key since. `None` only for a claim stored before it
-  /// was recorded; the order's current key is used then.
-  final int? tradeIndex;
+                /// The storage key: `<node_pubkey>:<order_id>`.
+ Future<String>  storageId()=>RustLib.instance.api.crateApiTypesBondClaimStorageId(that: this, );
 
-  /// The share on offer, in satoshis; the invoice must be for exactly this.
-  final BigInt amountSats;
 
-  /// Unix seconds when the daemon slashed the bond, from the request.
-  final PlatformInt64 slashedAt;
+                
 
-  /// `slashed_at + claim window`, frozen when the claim is first persisted:
-  /// a later policy change cannot move a deadline the user was shown.
-  final PlatformInt64 deadlineAt;
-  final BondClaimPhase phase;
+                
+        @override
+        int get hashCode => orderId.hashCode^nodePubkey.hashCode^tradeIndex.hashCode^amountSats.hashCode^slashedAt.hashCode^deadlineAt.hashCode^phase.hashCode^submittedInvoice.hashCode^fiatCode.hashCode^fiatAmount.hashCode^paymentMethod.hashCode^updatedAt.hashCode;
+        
 
-  /// The bolt11 sent, kept so the screen can show it while the daemon answers.
-  final String? submittedInvoice;
-
-  /// Display only, from the request's order.
-  final String fiatCode;
-  final double? fiatAmount;
-  final String paymentMethod;
-
-  /// Unix seconds of the last change, the list's sort key.
-  final PlatformInt64 updatedAt;
-
-  const BondClaim({
-    required this.orderId,
-    required this.nodePubkey,
-    this.tradeIndex,
-    required this.amountSats,
-    required this.slashedAt,
-    required this.deadlineAt,
-    required this.phase,
-    this.submittedInvoice,
-    required this.fiatCode,
-    this.fiatAmount,
-    required this.paymentMethod,
-    required this.updatedAt,
-  });
-
-  /// The storage key: `<node_pubkey>:<order_id>`.
-  Future<String> storageId() =>
-      RustLib.instance.api.crateApiTypesBondClaimStorageId(that: this);
-
-  @override
-  int get hashCode =>
-      orderId.hashCode ^
-      nodePubkey.hashCode ^
-      tradeIndex.hashCode ^
-      amountSats.hashCode ^
-      slashedAt.hashCode ^
-      deadlineAt.hashCode ^
-      phase.hashCode ^
-      submittedInvoice.hashCode ^
-      fiatCode.hashCode ^
-      fiatAmount.hashCode ^
-      paymentMethod.hashCode ^
-      updatedAt.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is BondClaim &&
-          runtimeType == other.runtimeType &&
-          orderId == other.orderId &&
-          nodePubkey == other.nodePubkey &&
-          tradeIndex == other.tradeIndex &&
-          amountSats == other.amountSats &&
-          slashedAt == other.slashedAt &&
-          deadlineAt == other.deadlineAt &&
-          phase == other.phase &&
-          submittedInvoice == other.submittedInvoice &&
-          fiatCode == other.fiatCode &&
-          fiatAmount == other.fiatAmount &&
-          paymentMethod == other.paymentMethod &&
-          updatedAt == other.updatedAt;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is BondClaim &&
+                runtimeType == other.runtimeType
+                && orderId == other.orderId&& nodePubkey == other.nodePubkey&& tradeIndex == other.tradeIndex&& amountSats == other.amountSats&& slashedAt == other.slashedAt&& deadlineAt == other.deadlineAt&& phase == other.phase&& submittedInvoice == other.submittedInvoice&& fiatCode == other.fiatCode&& fiatAmount == other.fiatAmount&& paymentMethod == other.paymentMethod&& updatedAt == other.updatedAt;
+        
+            }
 
 /// Where a payout claim stands (docs/ANTI_ABUSE_BOND.md §6.4): the daemon
 /// asked for an invoice, the user sent one, the daemon accepted it, the
 /// share was paid — or the claim window closed first.
 enum BondClaimPhase {
-  /// `add-bond-invoice` received, no invoice sent (or the daemon re-prompted).
-  pending,
+                    /// `add-bond-invoice` received, no invoice sent (or the daemon re-prompted).
+pending,
+/// The user's bolt11 was published; the daemon has not answered yet.
+submitted,
+/// `bond-invoice-accepted`: the payout is in progress.
+acknowledged,
+/// `bond-payout-completed`: the share was paid.
+completed,
+/// The claim window closed unclaimed.
+expired,
+                    ;
+                    /// A phase nothing follows: the daemon stops retrying and the kind-14
+/// filter no longer needs the issuing node for this claim.
+ Future<bool>  isTerminal()=>RustLib.instance.api.crateApiTypesBondClaimPhaseIsTerminal(that: this, );
 
-  /// The user's bolt11 was published; the daemon has not answered yet.
-  submitted,
 
-  /// `bond-invoice-accepted`: the payout is in progress.
-  acknowledged,
-
-  /// `bond-payout-completed`: the share was paid.
-  completed,
-
-  /// The claim window closed unclaimed.
-  expired;
-
-  /// A phase nothing follows: the daemon stops retrying and the kind-14
-  /// filter no longer needs the issuing node for this claim.
-  Future<bool> isTerminal() =>
-      RustLib.instance.api.crateApiTypesBondClaimPhaseIsTerminal(that: this);
-}
+                }
 
 /// A claim's phase changed (new claim, submission, ack, payout, expiry).
-class BondClaimUpdate {
-  final String orderId;
+class BondClaimUpdate  {
+                final String orderId;
+/// The node that issued the claim: two nodes can hold a claim for the
+/// same order, and a consumer must read the one that changed.
+final String nodePubkey;
+final BondClaimPhase phase;
 
-  /// The node that issued the claim: two nodes can hold a claim for the
-  /// same order, and a consumer must read the one that changed.
-  final String nodePubkey;
-  final BondClaimPhase phase;
+                const BondClaimUpdate({required this.orderId ,required this.nodePubkey ,required this.phase ,});
 
-  const BondClaimUpdate({
-    required this.orderId,
-    required this.nodePubkey,
-    required this.phase,
-  });
+                
+                
 
-  @override
-  int get hashCode => orderId.hashCode ^ nodePubkey.hashCode ^ phase.hashCode;
+                
+        @override
+        int get hashCode => orderId.hashCode^nodePubkey.hashCode^phase.hashCode;
+        
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is BondClaimUpdate &&
-          runtimeType == other.runtimeType &&
-          orderId == other.orderId &&
-          nodePubkey == other.nodePubkey &&
-          phase == other.phase;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is BondClaimUpdate &&
+                runtimeType == other.runtimeType
+                && orderId == other.orderId&& nodePubkey == other.nodePubkey&& phase == other.phase;
+        
+            }
 
 /// The bond the daemon asked this user to lock for one trade.
-class BondInfo {
-  final BondRole role;
+class BondInfo  {
+                final BondRole role;
+/// Bond amount in satoshis, as sent by the daemon (never computed here).
+final BigInt amountSats;
+/// The bond bolt11. Persisted so a restart lands back on the pay screen;
+/// `None` only after a fresh-device restore, which carries no invoice.
+final String? invoice;
+final BondState state;
+/// Unix seconds when `pay-bond-invoice` was received.
+final PlatformInt64 requestedAt;
+/// Unix seconds when the bolt11 stops being payable, decoded from the
+/// invoice itself. `None` when it could not be decoded — then no local
+/// expiry runs.
+final PlatformInt64? expiresAt;
+/// Unix seconds when the bond was inferred locked.
+final PlatformInt64? lockedAt;
 
-  /// Bond amount in satoshis, as sent by the daemon (never computed here).
-  final BigInt amountSats;
+                const BondInfo({required this.role ,required this.amountSats ,this.invoice ,required this.state ,required this.requestedAt ,this.expiresAt ,this.lockedAt ,});
 
-  /// The bond bolt11. Persisted so a restart lands back on the pay screen;
-  /// `None` only after a fresh-device restore, which carries no invoice.
-  final String? invoice;
-  final BondState state;
+                
+                
 
-  /// Unix seconds when `pay-bond-invoice` was received.
-  final PlatformInt64 requestedAt;
+                
+        @override
+        int get hashCode => role.hashCode^amountSats.hashCode^invoice.hashCode^state.hashCode^requestedAt.hashCode^expiresAt.hashCode^lockedAt.hashCode;
+        
 
-  /// Unix seconds when the bolt11 stops being payable, decoded from the
-  /// invoice itself. `None` when it could not be decoded — then no local
-  /// expiry runs.
-  final PlatformInt64? expiresAt;
-
-  /// Unix seconds when the bond was inferred locked.
-  final PlatformInt64? lockedAt;
-
-  const BondInfo({
-    required this.role,
-    required this.amountSats,
-    this.invoice,
-    required this.state,
-    required this.requestedAt,
-    this.expiresAt,
-    this.lockedAt,
-  });
-
-  @override
-  int get hashCode =>
-      role.hashCode ^
-      amountSats.hashCode ^
-      invoice.hashCode ^
-      state.hashCode ^
-      requestedAt.hashCode ^
-      expiresAt.hashCode ^
-      lockedAt.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is BondInfo &&
-          runtimeType == other.runtimeType &&
-          role == other.role &&
-          amountSats == other.amountSats &&
-          invoice == other.invoice &&
-          state == other.state &&
-          requestedAt == other.requestedAt &&
-          expiresAt == other.expiresAt &&
-          lockedAt == other.lockedAt;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is BondInfo &&
+                runtimeType == other.runtimeType
+                && role == other.role&& amountSats == other.amountSats&& invoice == other.invoice&& state == other.state&& requestedAt == other.requestedAt&& expiresAt == other.expiresAt&& lockedAt == other.lockedAt;
+        
+            }
 
 /// Whether the active node enforces anti-abuse bonds. Three states on
 /// purpose: an old daemon that publishes no `bond_enabled` tag is
 /// `Unsupported`, which is not the same as a node that turned the feature off.
 enum BondPolicy {
-  /// No `bond_enabled` tag: the daemon predates the feature.
-  unsupported,
+                    /// No `bond_enabled` tag: the daemon predates the feature.
+unsupported,
+/// `bond_enabled = false`.
+disabled,
+/// `bond_enabled = true`; the other fields of [`BondPolicyInfo`] are live.
+enabled,
+                    ;
+                    static Future<BondPolicy>  default_()=>RustLib.instance.api.crateApiTypesBondPolicyDefault();
 
-  /// `bond_enabled = false`.
-  disabled,
 
-  /// `bond_enabled = true`; the other fields of [`BondPolicyInfo`] are live.
-  enabled;
-
-  static Future<BondPolicy> default_() =>
-      RustLib.instance.api.crateApiTypesBondPolicyDefault();
-}
+                }
 
 /// The bond policy a node advertises in its kind 38385 info event
 /// (`docs/ANTI_ABUSE_BOND.md` §3.4). Every parameter is `None` unless
 /// `policy == Enabled` **and** the tag parsed within its valid range, so a
 /// consumer can key off nullability alone.
-class BondPolicyInfo {
-  final BondPolicy policy;
-  final BondApplyTo? applyTo;
+class BondPolicyInfo  {
+                final BondPolicy policy;
+final BondApplyTo? applyTo;
+/// `bond_amount_pct` as the wire **fraction** (`0.01` = 1 %), `>= 0`.
+final double? amountPct;
+/// `bond_base_amount_sats`: floor of the bond, in sats.
+final BigInt? baseAmountSats;
+/// Whether a missed waiting-state timeout can slash a bond on this node.
+final bool? slashOnWaitingTimeout;
+/// Fraction of a slashed bond the node keeps, in `[0, 1]`.
+final double? slashNodeSharePct;
+/// Days the winning counterparty has, from the slash, to claim its share.
+final int? payoutClaimWindowDays;
 
-  /// `bond_amount_pct` as the wire **fraction** (`0.01` = 1 %), `>= 0`.
-  final double? amountPct;
+                const BondPolicyInfo({required this.policy ,this.applyTo ,this.amountPct ,this.baseAmountSats ,this.slashOnWaitingTimeout ,this.slashNodeSharePct ,this.payoutClaimWindowDays ,});
 
-  /// `bond_base_amount_sats`: floor of the bond, in sats.
-  final BigInt? baseAmountSats;
+                static Future<BondPolicyInfo>  default_()=>RustLib.instance.api.crateApiTypesBondPolicyInfoDefault();
 
-  /// Whether a missed waiting-state timeout can slash a bond on this node.
-  final bool? slashOnWaitingTimeout;
 
-  /// Fraction of a slashed bond the node keeps, in `[0, 1]`.
-  final double? slashNodeSharePct;
+                
 
-  /// Days the winning counterparty has, from the slash, to claim its share.
-  final int? payoutClaimWindowDays;
+                
+        @override
+        int get hashCode => policy.hashCode^applyTo.hashCode^amountPct.hashCode^baseAmountSats.hashCode^slashOnWaitingTimeout.hashCode^slashNodeSharePct.hashCode^payoutClaimWindowDays.hashCode;
+        
 
-  const BondPolicyInfo({
-    required this.policy,
-    this.applyTo,
-    this.amountPct,
-    this.baseAmountSats,
-    this.slashOnWaitingTimeout,
-    this.slashNodeSharePct,
-    this.payoutClaimWindowDays,
-  });
-
-  static Future<BondPolicyInfo> default_() =>
-      RustLib.instance.api.crateApiTypesBondPolicyInfoDefault();
-
-  @override
-  int get hashCode =>
-      policy.hashCode ^
-      applyTo.hashCode ^
-      amountPct.hashCode ^
-      baseAmountSats.hashCode ^
-      slashOnWaitingTimeout.hashCode ^
-      slashNodeSharePct.hashCode ^
-      payoutClaimWindowDays.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is BondPolicyInfo &&
-          runtimeType == other.runtimeType &&
-          policy == other.policy &&
-          applyTo == other.applyTo &&
-          amountPct == other.amountPct &&
-          baseAmountSats == other.baseAmountSats &&
-          slashOnWaitingTimeout == other.slashOnWaitingTimeout &&
-          slashNodeSharePct == other.slashNodeSharePct &&
-          payoutClaimWindowDays == other.payoutClaimWindowDays;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is BondPolicyInfo &&
+                runtimeType == other.runtimeType
+                && policy == other.policy&& applyTo == other.applyTo&& amountPct == other.amountPct&& baseAmountSats == other.baseAmountSats&& slashOnWaitingTimeout == other.slashOnWaitingTimeout&& slashNodeSharePct == other.slashNodeSharePct&& payoutClaimWindowDays == other.payoutClaimWindowDays;
+        
+            }
 
 /// Who posted the bond — a *posting-timing* role, not the buyer/seller side
 /// (`docs/ANTI_ABUSE_BOND.md` §2.3).
-enum BondRole { maker, taker }
+enum BondRole {
+                    maker,
+taker,
+                    ;
+                    
+                }
 
 /// Event emitted when the local user's anti-abuse bond is slashed.
 ///
@@ -597,793 +442,638 @@ enum BondRole { maker, taker }
 /// the user keeps no claim over the forfeited sats. `amount_sats` is the
 /// **slashed bond amount**, not the trade amount — the tracked order's real
 /// status and amount are deliberately left untouched.
-class BondSlashedEvent {
-  /// Stable identity of the source daemon event. The daemon replays stored
-  /// history on reconnect/restart, so consumers key the notification on this
-  /// id to persist exactly one record per slash.
-  final String eventId;
+class BondSlashedEvent  {
+                /// Stable identity of the source daemon event. The daemon replays stored
+/// history on reconnect/restart, so consumers key the notification on this
+/// id to persist exactly one record per slash.
+final String eventId;
+/// The order whose bond was slashed.
+final String orderId;
+/// Slashed bond amount, in satoshis.
+final BigInt amountSats;
+final String fiatCode;
+final PlatformInt64 fiatAmount;
+final String paymentMethod;
+/// Inferred cause (timeout vs dispute).
+final SlashCause cause;
 
-  /// The order whose bond was slashed.
-  final String orderId;
+                const BondSlashedEvent({required this.eventId ,required this.orderId ,required this.amountSats ,required this.fiatCode ,required this.fiatAmount ,required this.paymentMethod ,required this.cause ,});
 
-  /// Slashed bond amount, in satoshis.
-  final BigInt amountSats;
-  final String fiatCode;
-  final PlatformInt64 fiatAmount;
-  final String paymentMethod;
+                
+                
 
-  /// Inferred cause (timeout vs dispute).
-  final SlashCause cause;
+                
+        @override
+        int get hashCode => eventId.hashCode^orderId.hashCode^amountSats.hashCode^fiatCode.hashCode^fiatAmount.hashCode^paymentMethod.hashCode^cause.hashCode;
+        
 
-  const BondSlashedEvent({
-    required this.eventId,
-    required this.orderId,
-    required this.amountSats,
-    required this.fiatCode,
-    required this.fiatAmount,
-    required this.paymentMethod,
-    required this.cause,
-  });
-
-  @override
-  int get hashCode =>
-      eventId.hashCode ^
-      orderId.hashCode ^
-      amountSats.hashCode ^
-      fiatCode.hashCode ^
-      fiatAmount.hashCode ^
-      paymentMethod.hashCode ^
-      cause.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is BondSlashedEvent &&
-          runtimeType == other.runtimeType &&
-          eventId == other.eventId &&
-          orderId == other.orderId &&
-          amountSats == other.amountSats &&
-          fiatCode == other.fiatCode &&
-          fiatAmount == other.fiatAmount &&
-          paymentMethod == other.paymentMethod &&
-          cause == other.cause;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is BondSlashedEvent &&
+                runtimeType == other.runtimeType
+                && eventId == other.eventId&& orderId == other.orderId&& amountSats == other.amountSats&& fiatCode == other.fiatCode&& fiatAmount == other.fiatAmount&& paymentMethod == other.paymentMethod&& cause == other.cause;
+        
+            }
 
 /// Client-side view of a bond's lifecycle. The daemon owns the real state
 /// machine; this mirrors what the client can observe from the wire.
 enum BondState {
-  /// `pay-bond-invoice` received; the bolt11 has not been paid.
-  requested,
-
-  /// Paid. Inferred from the first trade-flow message after the request —
-  /// the daemon sends no explicit "bond locked" message.
-  locked,
-
-  /// The trade ended without a slash notice: the HTLC was cancelled and the
-  /// sats never left the user's wallet.
-  released,
-
-  /// `bond-slashed` received for this order.
-  slashed,
-}
+                    /// `pay-bond-invoice` received; the bolt11 has not been paid.
+requested,
+/// Paid. Inferred from the first trade-flow message after the request —
+/// the daemon sends no explicit "bond locked" message.
+locked,
+/// The trade ended without a slash notice: the HTLC was cancelled and the
+/// sats never left the user's wallet.
+released,
+/// `bond-slashed` received for this order.
+slashed,
+                    ;
+                    
+                }
 
 enum BuyerStep {
-  orderTaken,
-  payInvoice,
-  paymentLocked,
-  fiatSent,
-  awaitingRelease,
-  complete,
-}
+                    orderTaken,
+payInvoice,
+paymentLocked,
+fiatSent,
+awaitingRelease,
+complete,
+                    ;
+                    
+                }
 
 /// What a seller is about to lock into a Cashu escrow — phase C5.
 ///
 /// Shown before the seller commits anything. The amount comes from the order;
 /// the fee is derived from the node's advertised rate and must match what the
 /// daemon computed to the satoshi, so it is surfaced rather than hidden.
-class CashuEscrowQuote {
-  final String orderId;
+class CashuEscrowQuote  {
+                final String orderId;
+/// The escrow itself: exactly the order amount.
+final BigInt amountSats;
+/// The Mostro fee funded with the lock. Zero until the daemon collects a
+/// fee token (its TA-1f): today it ignores one, so building it would only
+/// cost the seller.
+final BigInt feeSats;
+/// `amount_sats + fee_sats` — what the wallet must actually hold.
+final BigInt totalSats;
+/// Spendable balance right now, so the UI can say "fund your wallet"
+/// instead of failing at the mint.
+final BigInt balanceSats;
+/// Mint the escrow will be locked at.
+final String mintUrl;
+/// Days the escrow stays locked before the seller can reclaim it alone.
+final int locktimeDays;
+/// An escrow is already locked for this trade and recorded, but the node
+/// has not confirmed it: the next `lock_escrow` re-sends that same token
+/// and swaps nothing.
+final bool pendingSubmission;
 
-  /// The escrow itself: exactly the order amount.
-  final BigInt amountSats;
+                const CashuEscrowQuote({required this.orderId ,required this.amountSats ,required this.feeSats ,required this.totalSats ,required this.balanceSats ,required this.mintUrl ,required this.locktimeDays ,required this.pendingSubmission ,});
 
-  /// The Mostro fee funded with the lock. Zero until the daemon collects a
-  /// fee token (its TA-1f): today it ignores one, so building it would only
-  /// cost the seller.
-  final BigInt feeSats;
+                
+                
 
-  /// `amount_sats + fee_sats` — what the wallet must actually hold.
-  final BigInt totalSats;
+                
+        @override
+        int get hashCode => orderId.hashCode^amountSats.hashCode^feeSats.hashCode^totalSats.hashCode^balanceSats.hashCode^mintUrl.hashCode^locktimeDays.hashCode^pendingSubmission.hashCode;
+        
 
-  /// Spendable balance right now, so the UI can say "fund your wallet"
-  /// instead of failing at the mint.
-  final BigInt balanceSats;
-
-  /// Mint the escrow will be locked at.
-  final String mintUrl;
-
-  /// Days the escrow stays locked before the seller can reclaim it alone.
-  final int locktimeDays;
-
-  /// An escrow is already locked for this trade and recorded, but the node
-  /// has not confirmed it: the next `lock_escrow` re-sends that same token
-  /// and swaps nothing.
-  final bool pendingSubmission;
-
-  const CashuEscrowQuote({
-    required this.orderId,
-    required this.amountSats,
-    required this.feeSats,
-    required this.totalSats,
-    required this.balanceSats,
-    required this.mintUrl,
-    required this.locktimeDays,
-    required this.pendingSubmission,
-  });
-
-  @override
-  int get hashCode =>
-      orderId.hashCode ^
-      amountSats.hashCode ^
-      feeSats.hashCode ^
-      totalSats.hashCode ^
-      balanceSats.hashCode ^
-      mintUrl.hashCode ^
-      locktimeDays.hashCode ^
-      pendingSubmission.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is CashuEscrowQuote &&
-          runtimeType == other.runtimeType &&
-          orderId == other.orderId &&
-          amountSats == other.amountSats &&
-          feeSats == other.feeSats &&
-          totalSats == other.totalSats &&
-          balanceSats == other.balanceSats &&
-          mintUrl == other.mintUrl &&
-          locktimeDays == other.locktimeDays &&
-          pendingSubmission == other.pendingSubmission;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is CashuEscrowQuote &&
+                runtimeType == other.runtimeType
+                && orderId == other.orderId&& amountSats == other.amountSats&& feeSats == other.feeSats&& totalSats == other.totalSats&& balanceSats == other.balanceSats&& mintUrl == other.mintUrl&& locktimeDays == other.locktimeDays&& pendingSubmission == other.pendingSubmission;
+        
+            }
 
 /// What paying a Lightning invoice from the Cashu wallet costs — phase C3b-1.
 ///
 /// Shown for confirmation before anything is spent. Nothing is reserved
 /// while it is on screen; [`crate::api::cashu::cashu_melt`] prices the quote
 /// again and refuses one that now costs more than `max_total_sats`.
-class CashuMeltQuote {
-  /// The mint's quote id, handed back to pay it.
-  final String quoteId;
+class CashuMeltQuote  {
+                /// The mint's quote id, handed back to pay it.
+final String quoteId;
+/// What the invoice asks for.
+final BigInt amountSats;
+/// The most the mint may spend on Lightning routing; what it does not
+/// spend comes back to the wallet.
+final BigInt feeReserveSats;
+/// The mint's input fees on the ecash spent (a swap's included).
+final BigInt inputFeeSats;
+/// The most the payment can take from the balance: amount, fee reserve
+/// and input fees. "Up to", not exact: unspent reserve is returned.
+final BigInt maxTotalSats;
 
-  /// What the invoice asks for.
-  final BigInt amountSats;
+                const CashuMeltQuote({required this.quoteId ,required this.amountSats ,required this.feeReserveSats ,required this.inputFeeSats ,required this.maxTotalSats ,});
 
-  /// The most the mint may spend on Lightning routing; what it does not
-  /// spend comes back to the wallet.
-  final BigInt feeReserveSats;
+                
+                
 
-  /// The mint's input fees on the ecash spent (a swap's included).
-  final BigInt inputFeeSats;
+                
+        @override
+        int get hashCode => quoteId.hashCode^amountSats.hashCode^feeReserveSats.hashCode^inputFeeSats.hashCode^maxTotalSats.hashCode;
+        
 
-  /// The most the payment can take from the balance: amount, fee reserve
-  /// and input fees. "Up to", not exact: unspent reserve is returned.
-  final BigInt maxTotalSats;
-
-  const CashuMeltQuote({
-    required this.quoteId,
-    required this.amountSats,
-    required this.feeReserveSats,
-    required this.inputFeeSats,
-    required this.maxTotalSats,
-  });
-
-  @override
-  int get hashCode =>
-      quoteId.hashCode ^
-      amountSats.hashCode ^
-      feeReserveSats.hashCode ^
-      inputFeeSats.hashCode ^
-      maxTotalSats.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is CashuMeltQuote &&
-          runtimeType == other.runtimeType &&
-          quoteId == other.quoteId &&
-          amountSats == other.amountSats &&
-          feeReserveSats == other.feeReserveSats &&
-          inputFeeSats == other.inputFeeSats &&
-          maxTotalSats == other.maxTotalSats;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is CashuMeltQuote &&
+                runtimeType == other.runtimeType
+                && quoteId == other.quoteId&& amountSats == other.amountSats&& feeReserveSats == other.feeReserveSats&& inputFeeSats == other.inputFeeSats&& maxTotalSats == other.maxTotalSats;
+        
+            }
 
 @freezed
-sealed class CashuMeltResult with _$CashuMeltResult {
-  const CashuMeltResult._();
+                sealed class CashuMeltResult with _$CashuMeltResult  {
+                    const CashuMeltResult._();
 
-  /// The invoice is paid. `fee_paid_sats` is what it actually cost beyond
-  /// the invoice: routing plus the mint's input fees.
-  const factory CashuMeltResult.paid({
-    required BigInt amountSats,
-    required BigInt feePaidSats,
-  }) = CashuMeltResult_Paid;
+                     /// The invoice is paid. `fee_paid_sats` is what it actually cost beyond
+/// the invoice: routing plus the mint's input fees.
+const factory CashuMeltResult.paid({   required BigInt amountSats ,  required BigInt feePaidSats , }) = CashuMeltResult_Paid;
+ /// How it ended is not known yet: the mint is still routing it, or did
+/// not answer after the request left. Its ecash stays reserved until the
+/// mint says, at the next sync.
+const factory CashuMeltResult.pending() = CashuMeltResult_Pending;
 
-  /// How it ended is not known yet: the mint is still routing it, or did
-  /// not answer after the request left. Its ecash stays reserved until the
-  /// mint says, at the next sync.
-  const factory CashuMeltResult.pending() = CashuMeltResult_Pending;
-}
+                    
+
+                    
+                }
 
 /// State of the embedded Cashu wallet — phase C2 of `docs/cashu/README.md`.
 ///
 /// Reported for every node, including Lightning ones, where it is simply
 /// "not connected": the UI asks before it knows what the node runs.
-class CashuWalletStatus {
-  /// Whether a wallet is bound to a mint right now. False on any Lightning
-  /// node, and before the first successful connect on a Cashu one.
-  final bool connected;
+class CashuWalletStatus  {
+                /// Whether a wallet is bound to a mint right now. False on any Lightning
+/// node, and before the first successful connect on a Cashu one.
+final bool connected;
+/// The mint the wallet is bound to, when connected.
+final String? mintUrl;
+/// Spendable balance in satoshis, or `None` when it could not be read.
+///
+/// `None` and `Some(0)` are different facts and only one of them is
+/// alarming: ecash is bearer money, and showing a user "0 sat" because a
+/// store read failed invites exactly the wrong reaction. The UI must render
+/// the unknown case as unknown.
+final BigInt? balanceSats;
+/// Stable markers for anything the mint failed to advertise (`"nut07"`,
+/// `"nut11"`, `"nut12"`, `"sat_keyset"`). Empty on a healthy connection —
+/// a mint missing any of them is refused at connect, so a non-empty list
+/// here means the wallet is bound to a mint that has since changed.
+final List<String> missingCapabilities;
+/// Whether the mint melts to `bolt11` invoices (NUT-05), so the wallet
+/// can pay one — phase C3b-1. False when not connected. Optional: a mint
+/// without it is still usable, and the UI hides "to Lightning" instead.
+final bool canSendLightning;
 
-  /// The mint the wallet is bound to, when connected.
-  final String? mintUrl;
+                const CashuWalletStatus({required this.connected ,this.mintUrl ,this.balanceSats ,required this.missingCapabilities ,required this.canSendLightning ,});
 
-  /// Spendable balance in satoshis, or `None` when it could not be read.
-  ///
-  /// `None` and `Some(0)` are different facts and only one of them is
-  /// alarming: ecash is bearer money, and showing a user "0 sat" because a
-  /// store read failed invites exactly the wrong reaction. The UI must render
-  /// the unknown case as unknown.
-  final BigInt? balanceSats;
+                
+                
 
-  /// Stable markers for anything the mint failed to advertise (`"nut07"`,
-  /// `"nut11"`, `"nut12"`, `"sat_keyset"`). Empty on a healthy connection —
-  /// a mint missing any of them is refused at connect, so a non-empty list
-  /// here means the wallet is bound to a mint that has since changed.
-  final List<String> missingCapabilities;
+                
+        @override
+        int get hashCode => connected.hashCode^mintUrl.hashCode^balanceSats.hashCode^missingCapabilities.hashCode^canSendLightning.hashCode;
+        
 
-  /// Whether the mint melts to `bolt11` invoices (NUT-05), so the wallet
-  /// can pay one — phase C3b-1. False when not connected. Optional: a mint
-  /// without it is still usable, and the UI hides "to Lightning" instead.
-  final bool canSendLightning;
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is CashuWalletStatus &&
+                runtimeType == other.runtimeType
+                && connected == other.connected&& mintUrl == other.mintUrl&& balanceSats == other.balanceSats&& missingCapabilities == other.missingCapabilities&& canSendLightning == other.canSendLightning;
+        
+            }
 
-  const CashuWalletStatus({
-    required this.connected,
-    this.mintUrl,
-    this.balanceSats,
-    required this.missingCapabilities,
-    required this.canSendLightning,
-  });
+class ChatMessage  {
+                final String id;
+final String tradeId;
+final String senderPubkey;
+final String content;
+final MessageType messageType;
+final bool isMine;
+final bool isRead;
+final bool hasAttachment;
+final AttachmentInfo? attachment;
+final PlatformInt64 createdAt;
+/// Reactions to this message (protocol chat.md, "Reactions"), at most one
+/// per party: the newest that party sent. One with an empty `emoji` was
+/// withdrawn; it is kept so a re-wrapped older reaction changes nothing.
+/// Older stored messages have none, hence the default.
+final List<ChatReaction> reactions;
 
-  @override
-  int get hashCode =>
-      connected.hashCode ^
-      mintUrl.hashCode ^
-      balanceSats.hashCode ^
-      missingCapabilities.hashCode ^
-      canSendLightning.hashCode;
+                const ChatMessage({required this.id ,required this.tradeId ,required this.senderPubkey ,required this.content ,required this.messageType ,required this.isMine ,required this.isRead ,required this.hasAttachment ,this.attachment ,required this.createdAt ,required this.reactions ,});
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is CashuWalletStatus &&
-          runtimeType == other.runtimeType &&
-          connected == other.connected &&
-          mintUrl == other.mintUrl &&
-          balanceSats == other.balanceSats &&
-          missingCapabilities == other.missingCapabilities &&
-          canSendLightning == other.canSendLightning;
-}
+                
+                
 
-class ChatMessage {
-  final String id;
-  final String tradeId;
-  final String senderPubkey;
-  final String content;
-  final MessageType messageType;
-  final bool isMine;
-  final bool isRead;
-  final bool hasAttachment;
-  final AttachmentInfo? attachment;
-  final PlatformInt64 createdAt;
+                
+        @override
+        int get hashCode => id.hashCode^tradeId.hashCode^senderPubkey.hashCode^content.hashCode^messageType.hashCode^isMine.hashCode^isRead.hashCode^hasAttachment.hashCode^attachment.hashCode^createdAt.hashCode^reactions.hashCode;
+        
 
-  /// Reactions to this message (protocol chat.md, "Reactions"), at most one
-  /// per party: the newest that party sent. One with an empty `emoji` was
-  /// withdrawn; it is kept so a re-wrapped older reaction changes nothing.
-  /// Older stored messages have none, hence the default.
-  final List<ChatReaction> reactions;
-
-  const ChatMessage({
-    required this.id,
-    required this.tradeId,
-    required this.senderPubkey,
-    required this.content,
-    required this.messageType,
-    required this.isMine,
-    required this.isRead,
-    required this.hasAttachment,
-    this.attachment,
-    required this.createdAt,
-    required this.reactions,
-  });
-
-  @override
-  int get hashCode =>
-      id.hashCode ^
-      tradeId.hashCode ^
-      senderPubkey.hashCode ^
-      content.hashCode ^
-      messageType.hashCode ^
-      isMine.hashCode ^
-      isRead.hashCode ^
-      hasAttachment.hashCode ^
-      attachment.hashCode ^
-      createdAt.hashCode ^
-      reactions.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ChatMessage &&
-          runtimeType == other.runtimeType &&
-          id == other.id &&
-          tradeId == other.tradeId &&
-          senderPubkey == other.senderPubkey &&
-          content == other.content &&
-          messageType == other.messageType &&
-          isMine == other.isMine &&
-          isRead == other.isRead &&
-          hasAttachment == other.hasAttachment &&
-          attachment == other.attachment &&
-          createdAt == other.createdAt &&
-          reactions == other.reactions;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is ChatMessage &&
+                runtimeType == other.runtimeType
+                && id == other.id&& tradeId == other.tradeId&& senderPubkey == other.senderPubkey&& content == other.content&& messageType == other.messageType&& isMine == other.isMine&& isRead == other.isRead&& hasAttachment == other.hasAttachment&& attachment == other.attachment&& createdAt == other.createdAt&& reactions == other.reactions;
+        
+            }
 
 /// A party's reaction to a chat message: an inner kind 7 event naming the
 /// message by its inner id.
-class ChatReaction {
-  /// Trade pubkey of the party who reacted, from the verified inner event.
-  final String senderPubkey;
+class ChatReaction  {
+                /// Trade pubkey of the party who reacted, from the verified inner event.
+final String senderPubkey;
+/// The emoji, or empty when the reaction was withdrawn.
+final String emoji;
+/// Inner `created_at`: of a party's reactions to one message, the newest
+/// holds.
+final PlatformInt64 createdAt;
+/// Inner event id: breaks a tie between two reactions of the same second.
+final String eventId;
 
-  /// The emoji, or empty when the reaction was withdrawn.
-  final String emoji;
+                const ChatReaction({required this.senderPubkey ,required this.emoji ,required this.createdAt ,required this.eventId ,});
 
-  /// Inner `created_at`: of a party's reactions to one message, the newest
-  /// holds.
-  final PlatformInt64 createdAt;
+                
+                
 
-  /// Inner event id: breaks a tie between two reactions of the same second.
-  final String eventId;
+                
+        @override
+        int get hashCode => senderPubkey.hashCode^emoji.hashCode^createdAt.hashCode^eventId.hashCode;
+        
 
-  const ChatReaction({
-    required this.senderPubkey,
-    required this.emoji,
-    required this.createdAt,
-    required this.eventId,
-  });
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is ChatReaction &&
+                runtimeType == other.runtimeType
+                && senderPubkey == other.senderPubkey&& emoji == other.emoji&& createdAt == other.createdAt&& eventId == other.eventId;
+        
+            }
 
-  @override
-  int get hashCode =>
-      senderPubkey.hashCode ^
-      emoji.hashCode ^
-      createdAt.hashCode ^
-      eventId.hashCode;
+enum ConnectionState {
+                    online,
+offline,
+reconnecting,
+                    ;
+                    
+                }
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ChatReaction &&
-          runtimeType == other.runtimeType &&
-          senderPubkey == other.senderPubkey &&
-          emoji == other.emoji &&
-          createdAt == other.createdAt &&
-          eventId == other.eventId;
-}
-
-enum ConnectionState { online, offline, reconnecting }
-
-enum CooperativeCancelState { requestedByMe, requestedByPeer, accepted }
+enum CooperativeCancelState {
+                    requestedByMe,
+requestedByPeer,
+accepted,
+                    ;
+                    
+                }
 
 /// An open or resolved dispute on a trade.
 ///
 /// Created locally when the user initiates a dispute or when a peer-initiated
 /// dispute notification arrives. Status updated as admin actions are received.
-class Dispute {
-  /// Unique dispute identifier (generated locally or from protocol event).
-  final String id;
+class Dispute  {
+                /// Unique dispute identifier (generated locally or from protocol event).
+final String id;
+/// The trade this dispute belongs to.
+final String tradeId;
+/// Current dispute lifecycle status.
+final DisputeStatus status;
+/// `true` if the local user opened the dispute.
+final bool initiatedByMe;
+/// Optional free-text reason supplied when opening the dispute.
+final String? reason;
+/// Admin's Nostr public key (hex), populated when `adminTookDispute`
+/// is received and ECDH admin shared key is derived.
+final String? adminPubkey;
+/// Resolution outcome, populated when status becomes `Resolved`.
+final DisputeResolution? resolution;
+/// Unix timestamp (seconds) when the dispute was opened.
+final PlatformInt64 openedAt;
+/// Unix timestamp (seconds) when the dispute was resolved; `None` while
+/// still open.
+final PlatformInt64? resolvedAt;
+/// Whether the local user has seen the latest dispute update.
+final bool isRead;
+/// Whether this side already sent the current solver the chat key
+/// (#415). A takeover clears it: the new solver never got the key.
+final bool chatKeyShared;
 
-  /// The trade this dispute belongs to.
-  final String tradeId;
+                const Dispute({required this.id ,required this.tradeId ,required this.status ,required this.initiatedByMe ,this.reason ,this.adminPubkey ,this.resolution ,required this.openedAt ,this.resolvedAt ,required this.isRead ,required this.chatKeyShared ,});
 
-  /// Current dispute lifecycle status.
-  final DisputeStatus status;
+                
+                
 
-  /// `true` if the local user opened the dispute.
-  final bool initiatedByMe;
+                
+        @override
+        int get hashCode => id.hashCode^tradeId.hashCode^status.hashCode^initiatedByMe.hashCode^reason.hashCode^adminPubkey.hashCode^resolution.hashCode^openedAt.hashCode^resolvedAt.hashCode^isRead.hashCode^chatKeyShared.hashCode;
+        
 
-  /// Optional free-text reason supplied when opening the dispute.
-  final String? reason;
-
-  /// Admin's Nostr public key (hex), populated when `adminTookDispute`
-  /// is received and ECDH admin shared key is derived.
-  final String? adminPubkey;
-
-  /// Resolution outcome, populated when status becomes `Resolved`.
-  final DisputeResolution? resolution;
-
-  /// Unix timestamp (seconds) when the dispute was opened.
-  final PlatformInt64 openedAt;
-
-  /// Unix timestamp (seconds) when the dispute was resolved; `None` while
-  /// still open.
-  final PlatformInt64? resolvedAt;
-
-  /// Whether the local user has seen the latest dispute update.
-  final bool isRead;
-
-  /// Whether this side already sent the current solver the chat key
-  /// (#415). A takeover clears it: the new solver never got the key.
-  final bool chatKeyShared;
-
-  const Dispute({
-    required this.id,
-    required this.tradeId,
-    required this.status,
-    required this.initiatedByMe,
-    this.reason,
-    this.adminPubkey,
-    this.resolution,
-    required this.openedAt,
-    this.resolvedAt,
-    required this.isRead,
-    required this.chatKeyShared,
-  });
-
-  @override
-  int get hashCode =>
-      id.hashCode ^
-      tradeId.hashCode ^
-      status.hashCode ^
-      initiatedByMe.hashCode ^
-      reason.hashCode ^
-      adminPubkey.hashCode ^
-      resolution.hashCode ^
-      openedAt.hashCode ^
-      resolvedAt.hashCode ^
-      isRead.hashCode ^
-      chatKeyShared.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is Dispute &&
-          runtimeType == other.runtimeType &&
-          id == other.id &&
-          tradeId == other.tradeId &&
-          status == other.status &&
-          initiatedByMe == other.initiatedByMe &&
-          reason == other.reason &&
-          adminPubkey == other.adminPubkey &&
-          resolution == other.resolution &&
-          openedAt == other.openedAt &&
-          resolvedAt == other.resolvedAt &&
-          isRead == other.isRead &&
-          chatKeyShared == other.chatKeyShared;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is Dispute &&
+                runtimeType == other.runtimeType
+                && id == other.id&& tradeId == other.tradeId&& status == other.status&& initiatedByMe == other.initiatedByMe&& reason == other.reason&& adminPubkey == other.adminPubkey&& resolution == other.resolution&& openedAt == other.openedAt&& resolvedAt == other.resolvedAt&& isRead == other.isRead&& chatKeyShared == other.chatKeyShared;
+        
+            }
 
 enum DisputeResolution {
-  /// Admin settled the dispute — sats released to the buyer.
-  fundsToBuyer,
+                    /// Admin settled the dispute — sats released to the buyer.
+fundsToBuyer,
+/// Admin canceled the order — sats returned to the seller.
+fundsToSeller,
+cooperativeCancel,
+                    ;
+                    
+                }
 
-  /// Admin canceled the order — sats returned to the seller.
-  fundsToSeller,
-  cooperativeCancel,
-}
+enum DisputeStatus {
+                    open,
+inReview,
+resolved,
+                    ;
+                    
+                }
 
-enum DisputeStatus { open, inReview, resolved }
-
-enum DownloadStatus { pending, downloading, downloaded, failed }
+enum DownloadStatus {
+                    pending,
+downloading,
+downloaded,
+failed,
+                    ;
+                    
+                }
 
 /// The settlement backend the active Mostro node runs, as resolved by
 /// [`crate::mostro::escrow_mode`] with the developer overrides applied.
 ///
 /// Phase C1b of `docs/cashu/README.md`.
-class EscrowModeInfo {
-  /// Stable marker — `"unknown"`, `"lightning"` or `"cashu"`. Rust does not
-  /// translate; Dart maps this to a localized string.
-  final String mode;
+class EscrowModeInfo  {
+                /// Stable marker — `"unknown"`, `"lightning"` or `"cashu"`. Rust does not
+/// translate; Dart maps this to a localized string.
+final String mode;
+/// The one mint every escrow on the node is locked at, override applied:
+/// set only when the node accepts exactly one (the wallet binds to it).
+/// `None` on a Lightning node, and on a Cashu node that accepts several
+/// mints or any.
+final String? mintUrl;
+/// Every mint the node accepts (MostroP2P/mostro#1047), override applied.
+/// Meaningful only when [`Self::mode`] is `"cashu"`, where empty means the
+/// node accepts any mint.
+final List<String> mintUrls;
+/// NUT-11 locktime the seller must set, in days.
+final int? escrowLocktimeDays;
+/// How close to expiry the daemon stops accepting `fiat-sent`, in days.
+final int? settlementMarginDays;
+/// True when [`Self::mode`] came from the developer override rather than
+/// the node's own tags.
+final bool isOverridden;
+/// **The gate.** True only when the mode is Cashu *and* the node pins one
+/// mint for the wallet to bind to. `mode == "cashu"` alone is not enough —
+/// a node can accept several mints, or any.
+final bool isCashuAvailable;
+/// Developer override state, mirrored so the dev-only settings surface can
+/// render its own controls without a second call.
+final bool forceCashuOverride;
+/// Mint URL override as stored, independent of what the node advertises.
+final String? mintUrlOverride;
 
-  /// The one mint every escrow on the node is locked at, override applied:
-  /// set only when the node accepts exactly one (the wallet binds to it).
-  /// `None` on a Lightning node, and on a Cashu node that accepts several
-  /// mints or any.
-  final String? mintUrl;
+                const EscrowModeInfo({required this.mode ,this.mintUrl ,required this.mintUrls ,this.escrowLocktimeDays ,this.settlementMarginDays ,required this.isOverridden ,required this.isCashuAvailable ,required this.forceCashuOverride ,this.mintUrlOverride ,});
 
-  /// Every mint the node accepts (MostroP2P/mostro#1047), override applied.
-  /// Meaningful only when [`Self::mode`] is `"cashu"`, where empty means the
-  /// node accepts any mint.
-  final List<String> mintUrls;
+                
+                
 
-  /// NUT-11 locktime the seller must set, in days.
-  final int? escrowLocktimeDays;
+                
+        @override
+        int get hashCode => mode.hashCode^mintUrl.hashCode^mintUrls.hashCode^escrowLocktimeDays.hashCode^settlementMarginDays.hashCode^isOverridden.hashCode^isCashuAvailable.hashCode^forceCashuOverride.hashCode^mintUrlOverride.hashCode;
+        
 
-  /// How close to expiry the daemon stops accepting `fiat-sent`, in days.
-  final int? settlementMarginDays;
-
-  /// True when [`Self::mode`] came from the developer override rather than
-  /// the node's own tags.
-  final bool isOverridden;
-
-  /// **The gate.** True only when the mode is Cashu *and* the node pins one
-  /// mint for the wallet to bind to. `mode == "cashu"` alone is not enough —
-  /// a node can accept several mints, or any.
-  final bool isCashuAvailable;
-
-  /// Developer override state, mirrored so the dev-only settings surface can
-  /// render its own controls without a second call.
-  final bool forceCashuOverride;
-
-  /// Mint URL override as stored, independent of what the node advertises.
-  final String? mintUrlOverride;
-
-  const EscrowModeInfo({
-    required this.mode,
-    this.mintUrl,
-    required this.mintUrls,
-    this.escrowLocktimeDays,
-    this.settlementMarginDays,
-    required this.isOverridden,
-    required this.isCashuAvailable,
-    required this.forceCashuOverride,
-    this.mintUrlOverride,
-  });
-
-  @override
-  int get hashCode =>
-      mode.hashCode ^
-      mintUrl.hashCode ^
-      mintUrls.hashCode ^
-      escrowLocktimeDays.hashCode ^
-      settlementMarginDays.hashCode ^
-      isOverridden.hashCode ^
-      isCashuAvailable.hashCode ^
-      forceCashuOverride.hashCode ^
-      mintUrlOverride.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is EscrowModeInfo &&
-          runtimeType == other.runtimeType &&
-          mode == other.mode &&
-          mintUrl == other.mintUrl &&
-          mintUrls == other.mintUrls &&
-          escrowLocktimeDays == other.escrowLocktimeDays &&
-          settlementMarginDays == other.settlementMarginDays &&
-          isOverridden == other.isOverridden &&
-          isCashuAvailable == other.isCashuAvailable &&
-          forceCashuOverride == other.forceCashuOverride &&
-          mintUrlOverride == other.mintUrlOverride;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is EscrowModeInfo &&
+                runtimeType == other.runtimeType
+                && mode == other.mode&& mintUrl == other.mintUrl&& mintUrls == other.mintUrls&& escrowLocktimeDays == other.escrowLocktimeDays&& settlementMarginDays == other.settlementMarginDays&& isOverridden == other.isOverridden&& isCashuAvailable == other.isCashuAvailable&& forceCashuOverride == other.forceCashuOverride&& mintUrlOverride == other.mintUrlOverride;
+        
+            }
 
 @freezed
-sealed class ExchangeRateLookup with _$ExchangeRateLookup {
-  const ExchangeRateLookup._();
+                sealed class ExchangeRateLookup with _$ExchangeRateLookup  {
+                    const ExchangeRateLookup._();
 
-  /// The node publishes no usable rates event: none on the relays, expired,
-  /// or unreadable. Nothing can be told, so a market order is sent
-  /// unchecked (#337).
-  const factory ExchangeRateLookup.noRates() = ExchangeRateLookup_NoRates;
+                     /// The node publishes no usable rates event: none on the relays, expired,
+/// or unreadable. Nothing can be told, so a market order is sent
+/// unchecked (#337).
+const factory ExchangeRateLookup.noRates() = ExchangeRateLookup_NoRates;
+ /// The event is there and quotes no such currency. For a stablecoin that
+/// means the node will refuse a market order in it.
+const factory ExchangeRateLookup.notQuoted() = ExchangeRateLookup_NotQuoted;
+ /// The price of one BTC in the currency.
+const factory ExchangeRateLookup.quoted({   required double rate , }) = ExchangeRateLookup_Quoted;
 
-  /// The event is there and quotes no such currency. For a stablecoin that
-  /// means the node will refuse a market order in it.
-  const factory ExchangeRateLookup.notQuoted() = ExchangeRateLookup_NotQuoted;
+                    
 
-  /// The price of one BTC in the currency.
-  const factory ExchangeRateLookup.quoted({required double rate}) =
-      ExchangeRateLookup_Quoted;
-}
+                    
+                }
 
-enum FileType { image, document, video }
+enum FileType {
+                    image,
+document,
+video,
+                    ;
+                    
+                }
 
 /// One thing the current identity still has in flight, as listed by
 /// `funds_at_risk()` before a new user is generated or a seed imported.
-class FundsAtRisk {
-  final String orderId;
-  final FundsAtRiskReason reason;
+class FundsAtRisk  {
+                final String orderId;
+final FundsAtRiskReason reason;
+/// The sats concerned, when known: the escrow, the bond or the payout.
+final BigInt? amountSats;
 
-  /// The sats concerned, when known: the escrow, the bond or the payout.
-  final BigInt? amountSats;
+                const FundsAtRisk({required this.orderId ,required this.reason ,this.amountSats ,});
 
-  const FundsAtRisk({
-    required this.orderId,
-    required this.reason,
-    this.amountSats,
-  });
+                
+                
 
-  @override
-  int get hashCode => orderId.hashCode ^ reason.hashCode ^ amountSats.hashCode;
+                
+        @override
+        int get hashCode => orderId.hashCode^reason.hashCode^amountSats.hashCode;
+        
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is FundsAtRisk &&
-          runtimeType == other.runtimeType &&
-          orderId == other.orderId &&
-          reason == other.reason &&
-          amountSats == other.amountSats;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is FundsAtRisk &&
+                runtimeType == other.runtimeType
+                && orderId == other.orderId&& reason == other.reason&& amountSats == other.amountSats;
+        
+            }
 
 /// Why replacing the identity now would cost the user something (issue
 /// #533). A marker, not prose: Dart localizes it.
 enum FundsAtRiskReason {
-  /// The user is the seller and the hold invoice is paid and held; only a
-  /// `release` signed with this trade's key moves those sats.
-  sellerEscrowLocked,
+                    /// The user is the seller and the hold invoice is paid and held; only a
+/// `release` signed with this trade's key moves those sats.
+sellerEscrowLocked,
+/// An anti-abuse bond is locked; it is given back when its trade ends.
+bondLocked,
+/// A slashed-bond payout the user won and has not been paid yet.
+payoutClaimOpen,
+/// A live trade with none of the user's sats locked — a buyer mid-trade,
+/// or either side before the escrow is funded.
+tradeInProgress,
+/// A bond invoice that can still be paid: nothing is locked yet.
+bondInvoicePending,
+/// Ecash in this identity's Cashu wallet. Its proof store opens only
+/// under this identity, so only these words bring it back. Not tied to an
+/// order: `order_id` is empty.
+cashuWalletBalance,
+                    ;
+                    
+                }
 
-  /// An anti-abuse bond is locked; it is given back when its trade ends.
-  bondLocked,
+class IdentityInfo  {
+                final String publicKey;
+final String? displayName;
+/// Authoritative privacy mode flag. The Settings `privacy_mode` is a
+/// read-only mirror of this value.
+final bool privacyMode;
+final int tradeKeyIndex;
+final PlatformInt64 createdAt;
 
-  /// A slashed-bond payout the user won and has not been paid yet.
-  payoutClaimOpen,
+                const IdentityInfo({required this.publicKey ,this.displayName ,required this.privacyMode ,required this.tradeKeyIndex ,required this.createdAt ,});
 
-  /// A live trade with none of the user's sats locked — a buyer mid-trade,
-  /// or either side before the escrow is funded.
-  tradeInProgress,
+                
+                
 
-  /// A bond invoice that can still be paid: nothing is locked yet.
-  bondInvoicePending,
+                
+        @override
+        int get hashCode => publicKey.hashCode^displayName.hashCode^privacyMode.hashCode^tradeKeyIndex.hashCode^createdAt.hashCode;
+        
 
-  /// Ecash in this identity's Cashu wallet. Its proof store opens only
-  /// under this identity, so only these words bring it back. Not tied to an
-  /// order: `order_id` is empty.
-  cashuWalletBalance,
-}
-
-class IdentityInfo {
-  final String publicKey;
-  final String? displayName;
-
-  /// Authoritative privacy mode flag. The Settings `privacy_mode` is a
-  /// read-only mirror of this value.
-  final bool privacyMode;
-  final int tradeKeyIndex;
-  final PlatformInt64 createdAt;
-
-  const IdentityInfo({
-    required this.publicKey,
-    this.displayName,
-    required this.privacyMode,
-    required this.tradeKeyIndex,
-    required this.createdAt,
-  });
-
-  @override
-  int get hashCode =>
-      publicKey.hashCode ^
-      displayName.hashCode ^
-      privacyMode.hashCode ^
-      tradeKeyIndex.hashCode ^
-      createdAt.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is IdentityInfo &&
-          runtimeType == other.runtimeType &&
-          publicKey == other.publicKey &&
-          displayName == other.displayName &&
-          privacyMode == other.privacyMode &&
-          tradeKeyIndex == other.tradeKeyIndex &&
-          createdAt == other.createdAt;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is IdentityInfo &&
+                runtimeType == other.runtimeType
+                && publicKey == other.publicKey&& displayName == other.displayName&& privacyMode == other.privacyMode&& tradeKeyIndex == other.tradeKeyIndex&& createdAt == other.createdAt;
+        
+            }
 
 /// Why a buyer invoice would be refused, locally or by the daemon.
 enum InvoiceProblem {
-  /// Neither an invoice nor a Lightning address.
-  unrecognized,
-
-  /// Starts like an invoice but does not decode.
-  malformed,
-
-  /// Decodes, but its amount is not the trade's.
-  wrongAmount,
-
-  /// Its expiry has already passed.
-  expired,
-
-  /// Unexpired, but with less remaining lifetime than the node demands
-  /// (`invoice_expiration_window`): mostrod refuses it as invalid.
-  expiresTooSoon,
-
-  /// Decodes, but for another chain than the node's.
-  wrongNetwork,
-}
+                    /// Neither an invoice nor a Lightning address.
+unrecognized,
+/// Starts like an invoice but does not decode.
+malformed,
+/// Decodes, but its amount is not the trade's.
+wrongAmount,
+/// Its expiry has already passed.
+expired,
+/// Unexpired, but with less remaining lifetime than the node demands
+/// (`invoice_expiration_window`): mostrod refuses it as invalid.
+expiresTooSoon,
+/// Decodes, but for another chain than the node's.
+wrongNetwork,
+                    ;
+                    
+                }
 
 @freezed
-sealed class InvoiceVerdict with _$InvoiceVerdict {
-  const InvoiceVerdict._();
+                sealed class InvoiceVerdict with _$InvoiceVerdict  {
+                    const InvoiceVerdict._();
 
-  /// Nothing typed: nothing to say and nothing to submit.
-  const factory InvoiceVerdict.empty() = InvoiceVerdict_Empty;
+                     /// Nothing typed: nothing to say and nothing to submit.
+const factory InvoiceVerdict.empty() = InvoiceVerdict_Empty;
+ /// Nothing to say locally — an open-amount invoice, or the trade amount
+/// is not known yet — so submission is allowed and the daemon decides.
+const factory InvoiceVerdict.unverified() = InvoiceVerdict_Unverified;
+ /// A Lightning address, resolved into an invoice on submission.
+const factory InvoiceVerdict.address() = InvoiceVerdict_Address;
+ /// A BOLT11 invoice for exactly `sats`, unexpired, on the node's chain.
+/// `expires_at` (unix seconds) lets the caller re-judge it before the
+/// verdict goes stale: it stops being valid `min_remaining_secs` before
+/// that moment. `u64`, not `i64`: an `i64` inside a bridge enum is a
+/// Dart `int` in the generated union but a `BigInt` on the web, and
+/// dart2js refuses the mismatch — a `u64` is a `BigInt` everywhere.
+const factory InvoiceVerdict.valid({   required BigInt sats ,  required BigInt expiresAt , }) = InvoiceVerdict_Valid;
+ /// Refused. The optional fields carry what the copy needs to name.
+const factory InvoiceVerdict.rejected({   required InvoiceProblem problem ,/// `WrongAmount`: what the invoice asks for, in msat (a sub-sat
+/// remainder must not be rounded into a match).
+  BigInt? actualMsat ,/// `WrongAmount`: what the trade pays.
+  BigInt? expectedSats ,/// `WrongNetwork`: the invoice's chain, in LND naming.
+  String? invoiceNetwork ,/// `WrongNetwork`: the node's chain, in LND naming.
+  String? nodeNetwork ,/// `ExpiresTooSoon`: the node's minimum remaining lifetime, seconds.
+  BigInt? minRemainingSecs , }) = InvoiceVerdict_Rejected;
 
-  /// Nothing to say locally — an open-amount invoice, or the trade amount
-  /// is not known yet — so submission is allowed and the daemon decides.
-  const factory InvoiceVerdict.unverified() = InvoiceVerdict_Unverified;
+                    
 
-  /// A Lightning address, resolved into an invoice on submission.
-  const factory InvoiceVerdict.address() = InvoiceVerdict_Address;
+                    
+                }
 
-  /// A BOLT11 invoice for exactly `sats`, unexpired, on the node's chain.
-  /// `expires_at` (unix seconds) lets the caller re-judge it before the
-  /// verdict goes stale: it stops being valid `min_remaining_secs` before
-  /// that moment. `u64`, not `i64`: an `i64` inside a bridge enum is a
-  /// Dart `int` in the generated union but a `BigInt` on the web, and
-  /// dart2js refuses the mismatch — a `u64` is a `BigInt` everywhere.
-  const factory InvoiceVerdict.valid({
-    required BigInt sats,
-    required BigInt expiresAt,
-  }) = InvoiceVerdict_Valid;
+class LogEntry  {
+                final int id;
+final LogLevel level;
+final String tag;
+final String message;
+final PlatformInt64 timestamp;
 
-  /// Refused. The optional fields carry what the copy needs to name.
-  const factory InvoiceVerdict.rejected({
-    required InvoiceProblem problem,
+                const LogEntry({required this.id ,required this.level ,required this.tag ,required this.message ,required this.timestamp ,});
 
-    /// `WrongAmount`: what the invoice asks for, in msat (a sub-sat
-    /// remainder must not be rounded into a match).
-    BigInt? actualMsat,
+                
+                
 
-    /// `WrongAmount`: what the trade pays.
-    BigInt? expectedSats,
+                
+        @override
+        int get hashCode => id.hashCode^level.hashCode^tag.hashCode^message.hashCode^timestamp.hashCode;
+        
 
-    /// `WrongNetwork`: the invoice's chain, in LND naming.
-    String? invoiceNetwork,
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is LogEntry &&
+                runtimeType == other.runtimeType
+                && id == other.id&& level == other.level&& tag == other.tag&& message == other.message&& timestamp == other.timestamp;
+        
+            }
 
-    /// `WrongNetwork`: the node's chain, in LND naming.
-    String? nodeNetwork,
+enum LogLevel {
+                    debug,
+info,
+warning,
+error,
+                    ;
+                    
+                }
 
-    /// `ExpiresTooSoon`: the node's minimum remaining lifetime, seconds.
-    BigInt? minRemainingSecs,
-  }) = InvoiceVerdict_Rejected;
-}
-
-class LogEntry {
-  final int id;
-  final LogLevel level;
-  final String tag;
-  final String message;
-  final PlatformInt64 timestamp;
-
-  const LogEntry({
-    required this.id,
-    required this.level,
-    required this.tag,
-    required this.message,
-    required this.timestamp,
-  });
-
-  @override
-  int get hashCode =>
-      id.hashCode ^
-      level.hashCode ^
-      tag.hashCode ^
-      message.hashCode ^
-      timestamp.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is LogEntry &&
-          runtimeType == other.runtimeType &&
-          id == other.id &&
-          level == other.level &&
-          tag == other.tag &&
-          message == other.message &&
-          timestamp == other.timestamp;
-}
-
-enum LogLevel { debug, info, warning, error }
-
-enum MessageType { peer, admin, system }
+enum MessageType {
+                    peer,
+admin,
+system,
+                    ;
+                    
+                }
 
 /// One entry of the Mostro node registry shown in Settings → Mostro Node.
 ///
@@ -1392,203 +1082,145 @@ enum MessageType { peer, admin, system }
 /// the node operator's Nostr kind 0 event and may lag or be absent. Distinct
 /// from [`MostroNodeInfo`], which models the daemon's kind 38385 instance
 /// status rather than the operator's profile.
-class MostroNodeEntry {
-  /// Node pubkey, 64-char lowercase hex.
-  final String pubkey;
+class MostroNodeEntry  {
+                /// Node pubkey, 64-char lowercase hex.
+final String pubkey;
+/// Region label (flag emoji + place name) for trusted nodes, `None` for
+/// user-added ones.
+final String? region;
+/// `true` when the entry comes from the compiled-in trusted registry.
+final bool isTrusted;
+/// `true` when this is the currently active node.
+final bool isActive;
+/// Display name: user-given (custom nodes) or from kind 0 metadata.
+final String? name;
+/// Avatar URL from kind 0 metadata (https only; anything else is dropped).
+final String? picture;
+/// Operator description from kind 0 metadata.
+final String? about;
+/// Website URL from kind 0 metadata.
+final String? website;
 
-  /// Region label (flag emoji + place name) for trusted nodes, `None` for
-  /// user-added ones.
-  final String? region;
+                const MostroNodeEntry({required this.pubkey ,this.region ,required this.isTrusted ,required this.isActive ,this.name ,this.picture ,this.about ,this.website ,});
 
-  /// `true` when the entry comes from the compiled-in trusted registry.
-  final bool isTrusted;
+                
+                
 
-  /// `true` when this is the currently active node.
-  final bool isActive;
+                
+        @override
+        int get hashCode => pubkey.hashCode^region.hashCode^isTrusted.hashCode^isActive.hashCode^name.hashCode^picture.hashCode^about.hashCode^website.hashCode;
+        
 
-  /// Display name: user-given (custom nodes) or from kind 0 metadata.
-  final String? name;
-
-  /// Avatar URL from kind 0 metadata (https only; anything else is dropped).
-  final String? picture;
-
-  /// Operator description from kind 0 metadata.
-  final String? about;
-
-  /// Website URL from kind 0 metadata.
-  final String? website;
-
-  const MostroNodeEntry({
-    required this.pubkey,
-    this.region,
-    required this.isTrusted,
-    required this.isActive,
-    this.name,
-    this.picture,
-    this.about,
-    this.website,
-  });
-
-  @override
-  int get hashCode =>
-      pubkey.hashCode ^
-      region.hashCode ^
-      isTrusted.hashCode ^
-      isActive.hashCode ^
-      name.hashCode ^
-      picture.hashCode ^
-      about.hashCode ^
-      website.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is MostroNodeEntry &&
-          runtimeType == other.runtimeType &&
-          pubkey == other.pubkey &&
-          region == other.region &&
-          isTrusted == other.isTrusted &&
-          isActive == other.isActive &&
-          name == other.name &&
-          picture == other.picture &&
-          about == other.about &&
-          website == other.website;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is MostroNodeEntry &&
+                runtimeType == other.runtimeType
+                && pubkey == other.pubkey&& region == other.region&& isTrusted == other.isTrusted&& isActive == other.isActive&& name == other.name&& picture == other.picture&& about == other.about&& website == other.website;
+        
+            }
 
 /// A node's kind 0 picture as the device keeps it (`crate::node_pictures`):
 /// the bytes as downloaded and the URL they came from, so the UI shows them
 /// only while the profile still names that URL.
-class MostroNodePicture {
-  final String url;
-  final Uint8List bytes;
+class MostroNodePicture  {
+                final String url;
+final Uint8List bytes;
 
-  const MostroNodePicture({required this.url, required this.bytes});
+                const MostroNodePicture({required this.url ,required this.bytes ,});
 
-  @override
-  int get hashCode => url.hashCode ^ bytes.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is MostroNodePicture &&
-          runtimeType == other.runtimeType &&
-          url == other.url &&
-          bytes == other.bytes;
-}
+                
+        @override
+        int get hashCode => url.hashCode^bytes.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is MostroNodePicture &&
+                runtimeType == other.runtimeType
+                && url == other.url&& bytes == other.bytes;
+        
+            }
 
 /// Parameters for creating a new order via the Mostro protocol.
-class NewOrderParams {
-  final OrderKind kind;
+class NewOrderParams  {
+                final OrderKind kind;
+/// Fixed fiat amount (null if range order).
+final double? fiatAmount;
+/// Min fiat amount for range orders (null if fixed).
+final double? fiatAmountMin;
+/// Max fiat amount for range orders (null if fixed).
+final double? fiatAmountMax;
+/// Currency code: ISO 4217, or a stablecoin code from the protocol book's
+/// list (`USDT`, `USDC`, `DOC`).
+final String fiatCode;
+/// Comma-separated payment method descriptions.
+final String paymentMethod;
+/// Market premium/discount percentage.
+final double premium;
+/// Optional fixed sat amount.
+final BigInt? amountSats;
 
-  /// Fixed fiat amount (null if range order).
-  final double? fiatAmount;
+                const NewOrderParams({required this.kind ,this.fiatAmount ,this.fiatAmountMin ,this.fiatAmountMax ,required this.fiatCode ,required this.paymentMethod ,required this.premium ,this.amountSats ,});
 
-  /// Min fiat amount for range orders (null if fixed).
-  final double? fiatAmountMin;
+                
+                
 
-  /// Max fiat amount for range orders (null if fixed).
-  final double? fiatAmountMax;
+                
+        @override
+        int get hashCode => kind.hashCode^fiatAmount.hashCode^fiatAmountMin.hashCode^fiatAmountMax.hashCode^fiatCode.hashCode^paymentMethod.hashCode^premium.hashCode^amountSats.hashCode;
+        
 
-  /// Currency code: ISO 4217, or a stablecoin code from the protocol book's
-  /// list (`USDT`, `USDC`, `DOC`).
-  final String fiatCode;
-
-  /// Comma-separated payment method descriptions.
-  final String paymentMethod;
-
-  /// Market premium/discount percentage.
-  final double premium;
-
-  /// Optional fixed sat amount.
-  final BigInt? amountSats;
-
-  const NewOrderParams({
-    required this.kind,
-    this.fiatAmount,
-    this.fiatAmountMin,
-    this.fiatAmountMax,
-    required this.fiatCode,
-    required this.paymentMethod,
-    required this.premium,
-    this.amountSats,
-  });
-
-  @override
-  int get hashCode =>
-      kind.hashCode ^
-      fiatAmount.hashCode ^
-      fiatAmountMin.hashCode ^
-      fiatAmountMax.hashCode ^
-      fiatCode.hashCode ^
-      paymentMethod.hashCode ^
-      premium.hashCode ^
-      amountSats.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is NewOrderParams &&
-          runtimeType == other.runtimeType &&
-          kind == other.kind &&
-          fiatAmount == other.fiatAmount &&
-          fiatAmountMin == other.fiatAmountMin &&
-          fiatAmountMax == other.fiatAmountMax &&
-          fiatCode == other.fiatCode &&
-          paymentMethod == other.paymentMethod &&
-          premium == other.premium &&
-          amountSats == other.amountSats;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is NewOrderParams &&
+                runtimeType == other.runtimeType
+                && kind == other.kind&& fiatAmount == other.fiatAmount&& fiatAmountMin == other.fiatAmountMin&& fiatAmountMax == other.fiatAmountMax&& fiatCode == other.fiatCode&& paymentMethod == other.paymentMethod&& premium == other.premium&& amountSats == other.amountSats;
+        
+            }
 
 /// Connected wallet information returned by `connect_wallet` and `get_wallet`.
-class NwcWalletInfo {
-  /// Wallet service Nostr public key (hex).
-  final String walletPubkey;
+class NwcWalletInfo  {
+                /// Wallet service Nostr public key (hex).
+final String walletPubkey;
+/// Human-readable wallet name/alias, if provided by the service.
+final String? walletName;
+/// Current connection status.
+final WalletStatus status;
+/// Balance in satoshis; `None` if the wallet does not expose balance.
+final BigInt? balanceSats;
+/// NWC relay URL(s).
+final List<String> relayUrls;
+/// Unix timestamp of the last successful connection.
+final PlatformInt64? lastConnectedAt;
 
-  /// Human-readable wallet name/alias, if provided by the service.
-  final String? walletName;
+                const NwcWalletInfo({required this.walletPubkey ,this.walletName ,required this.status ,this.balanceSats ,required this.relayUrls ,this.lastConnectedAt ,});
 
-  /// Current connection status.
-  final WalletStatus status;
+                
+                
 
-  /// Balance in satoshis; `None` if the wallet does not expose balance.
-  final BigInt? balanceSats;
+                
+        @override
+        int get hashCode => walletPubkey.hashCode^walletName.hashCode^status.hashCode^balanceSats.hashCode^relayUrls.hashCode^lastConnectedAt.hashCode;
+        
 
-  /// NWC relay URL(s).
-  final List<String> relayUrls;
-
-  /// Unix timestamp of the last successful connection.
-  final PlatformInt64? lastConnectedAt;
-
-  const NwcWalletInfo({
-    required this.walletPubkey,
-    this.walletName,
-    required this.status,
-    this.balanceSats,
-    required this.relayUrls,
-    this.lastConnectedAt,
-  });
-
-  @override
-  int get hashCode =>
-      walletPubkey.hashCode ^
-      walletName.hashCode ^
-      status.hashCode ^
-      balanceSats.hashCode ^
-      relayUrls.hashCode ^
-      lastConnectedAt.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is NwcWalletInfo &&
-          runtimeType == other.runtimeType &&
-          walletPubkey == other.walletPubkey &&
-          walletName == other.walletName &&
-          status == other.status &&
-          balanceSats == other.balanceSats &&
-          relayUrls == other.relayUrls &&
-          lastConnectedAt == other.lastConnectedAt;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is NwcWalletInfo &&
+                runtimeType == other.runtimeType
+                && walletPubkey == other.walletPubkey&& walletName == other.walletName&& status == other.status&& balanceSats == other.balanceSats&& relayUrls == other.relayUrls&& lastConnectedAt == other.lastConnectedAt;
+        
+            }
 
 /// Deterministic pseudonymous identity derived from a public key.
 ///
@@ -1597,233 +1229,170 @@ class NwcWalletInfo {
 /// implementation had a bug where the icon color matched the background,
 /// making it invisible. v2 MUST always use white icon color regardless of
 /// `color_hue` (FR-011c).
-class NymIdentity {
-  /// Deterministic pseudonym in adjective-noun format.
-  final String pseudonym;
+class NymIdentity  {
+                /// Deterministic pseudonym in adjective-noun format.
+final String pseudonym;
+/// Icon selector (0–36).
+final int iconIndex;
+/// HSV hue (0–359) for the avatar background circle.
+final int colorHue;
 
-  /// Icon selector (0–36).
-  final int iconIndex;
+                const NymIdentity({required this.pseudonym ,required this.iconIndex ,required this.colorHue ,});
 
-  /// HSV hue (0–359) for the avatar background circle.
-  final int colorHue;
+                
+                
 
-  const NymIdentity({
-    required this.pseudonym,
-    required this.iconIndex,
-    required this.colorHue,
-  });
+                
+        @override
+        int get hashCode => pseudonym.hashCode^iconIndex.hashCode^colorHue.hashCode;
+        
 
-  @override
-  int get hashCode =>
-      pseudonym.hashCode ^ iconIndex.hashCode ^ colorHue.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is NymIdentity &&
-          runtimeType == other.runtimeType &&
-          pseudonym == other.pseudonym &&
-          iconIndex == other.iconIndex &&
-          colorHue == other.colorHue;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is NymIdentity &&
+                runtimeType == other.runtimeType
+                && pseudonym == other.pseudonym&& iconIndex == other.iconIndex&& colorHue == other.colorHue;
+        
+            }
 
 /// The whole book — every status, as the snapshot stream carries it — and the
 /// revision it was read at. See [`OrderDelta`].
-class OrderBookSnapshot {
-  final int revision;
-  final List<OrderInfo> orders;
+class OrderBookSnapshot  {
+                final int revision;
+final List<OrderInfo> orders;
+/// Whether the relay already finished replaying the node's stored pending
+/// orders into this book — what [`OrderDelta::Loaded`] announces when it
+/// happens. A consumer created afterwards never hears that event, so it
+/// reads the fact here: with `loaded`, an empty `orders` is really empty.
+/// Back to `false` when the book is cleared for another node.
+final bool loaded;
 
-  /// Whether the relay already finished replaying the node's stored pending
-  /// orders into this book — what [`OrderDelta::Loaded`] announces when it
-  /// happens. A consumer created afterwards never hears that event, so it
-  /// reads the fact here: with `loaded`, an empty `orders` is really empty.
-  /// Back to `false` when the book is cleared for another node.
-  final bool loaded;
+                const OrderBookSnapshot({required this.revision ,required this.orders ,required this.loaded ,});
 
-  const OrderBookSnapshot({
-    required this.revision,
-    required this.orders,
-    required this.loaded,
-  });
+                
+                
 
-  @override
-  int get hashCode => revision.hashCode ^ orders.hashCode ^ loaded.hashCode;
+                
+        @override
+        int get hashCode => revision.hashCode^orders.hashCode^loaded.hashCode;
+        
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is OrderBookSnapshot &&
-          runtimeType == other.runtimeType &&
-          revision == other.revision &&
-          orders == other.orders &&
-          loaded == other.loaded;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is OrderBookSnapshot &&
+                runtimeType == other.runtimeType
+                && revision == other.revision&& orders == other.orders&& loaded == other.loaded;
+        
+            }
 
 @freezed
-sealed class OrderDelta with _$OrderDelta {
-  const OrderDelta._();
+                sealed class OrderDelta with _$OrderDelta  {
+                    const OrderDelta._();
 
-  /// `order` was added or changed.
-  const factory OrderDelta.upserted({
-    required int revision,
-    required OrderInfo order,
-  }) = OrderDelta_Upserted;
+                     /// `order` was added or changed.
+const factory OrderDelta.upserted({   required int revision ,  required OrderInfo order , }) = OrderDelta_Upserted;
+ /// The order with this id left the book.
+const factory OrderDelta.removed({   required int revision ,  required String orderId , }) = OrderDelta_Removed;
+ /// What happened cannot be told order by order: the book was replaced or
+/// cleared (a node switch), or this subscriber fell behind and deltas
+/// were dropped.
+const factory OrderDelta.resync() = OrderDelta_Resync;
+ /// The relay finished replaying the node's stored pending orders: the
+/// book as the consumer has it is complete, so an empty one is really
+/// empty. Without this a quiet node never produces a delta, and a screen
+/// waiting for one to leave its loading state waits forever. Changes
+/// nothing in the book; may arrive more than once (one per relay).
+const factory OrderDelta.loaded() = OrderDelta_Loaded;
 
-  /// The order with this id left the book.
-  const factory OrderDelta.removed({
-    required int revision,
-    required String orderId,
-  }) = OrderDelta_Removed;
+                    
 
-  /// What happened cannot be told order by order: the book was replaced or
-  /// cleared (a node switch), or this subscriber fell behind and deltas
-  /// were dropped.
-  const factory OrderDelta.resync() = OrderDelta_Resync;
+                    
+                }
 
-  /// The relay finished replaying the node's stored pending orders: the
-  /// book as the consumer has it is complete, so an empty one is really
-  /// empty. Without this a quiet node never produces a delta, and a screen
-  /// waiting for one to leave its loading state waits forever. Changes
-  /// nothing in the book; may arrive more than once (one per relay).
-  const factory OrderDelta.loaded() = OrderDelta_Loaded;
-}
+class OrderInfo  {
+                final String id;
+final OrderKind kind;
+final OrderStatus status;
+final BigInt? amountSats;
+/// Fiat amount for display/transmission only.
+/// **Do not use for precise financial calculations** — `f64` cannot
+/// represent all decimal values exactly. Use integer minor units or a
+/// decimal type (e.g. `rust_decimal`) wherever arithmetic is needed.
+final double? fiatAmount;
+/// Lower bound of a range order. Same precision caveat as `fiat_amount`.
+final double? fiatAmountMin;
+/// Upper bound of a range order. Same precision caveat as `fiat_amount`.
+final double? fiatAmountMax;
+final String fiatCode;
+final String paymentMethod;
+/// Market premium as a percentage, e.g. `1.5` means 1.5% above market.
+/// For display only — same `f64` precision caveat applies.
+final double premium;
+/// The Mostro node that issued the order: the Kind 38383 author on a book
+/// order, the node that answered on a trade row. Empty when unknown.
+/// Rows persisted before the rename carry it as `creator_pubkey`.
+final String nodePubkey;
+/// Unix timestamp (seconds).
+final PlatformInt64 createdAt;
+final PlatformInt64? expiresAt;
+final bool isMine;
+/// Maker reputation from the Kind 38383 `rating` tag (`total_rating`
+/// aggregate, 0–5). `0.0` when the maker has no reputation yet or
+/// publishes in full-privacy mode (`rating` = `"none"`).
+///
+/// `serde(default)` on these three fields keeps rows persisted before
+/// they existed (orders table, `OrderInfo` nested in trades JSON)
+/// deserializable after an app upgrade.
+final double rating;
+/// Number of reviews behind [`Self::rating`] (`total_reviews`).
+final int totalReviews;
+/// Days the maker has been active on this Mostro node (`days`).
+/// Deprecated on the wire in favour of [`Self::maker_since`]; kept as the
+/// fallback for daemons that do not publish `since`.
+final int daysActive;
+/// Unix timestamp (seconds) of the maker's first trade, truncated to its
+/// UTC day start (the `rating` tag's `since`). `None` from daemons that
+/// predate it and for users without a date. The UI computes the age at
+/// display time (now − since) and falls back to [`Self::days_active`].
+final PlatformInt64? makerSince;
+/// Mint the order's escrow is locked at, from the Kind 38383
+/// `cashu_mint_url` tag (MostroP2P/mostro#1047): the maker picks it among
+/// the node's mints. `None` on a Lightning order, on a Cashu order from an
+/// older daemon, and on our own new order until its book event says.
+final String? cashuMintUrl;
 
-class OrderInfo {
-  final String id;
-  final OrderKind kind;
-  final OrderStatus status;
-  final BigInt? amountSats;
+                const OrderInfo({required this.id ,required this.kind ,required this.status ,this.amountSats ,this.fiatAmount ,this.fiatAmountMin ,this.fiatAmountMax ,required this.fiatCode ,required this.paymentMethod ,required this.premium ,required this.nodePubkey ,required this.createdAt ,this.expiresAt ,required this.isMine ,required this.rating ,required this.totalReviews ,required this.daysActive ,this.makerSince ,this.cashuMintUrl ,});
 
-  /// Fiat amount for display/transmission only.
-  /// **Do not use for precise financial calculations** — `f64` cannot
-  /// represent all decimal values exactly. Use integer minor units or a
-  /// decimal type (e.g. `rust_decimal`) wherever arithmetic is needed.
-  final double? fiatAmount;
+                
+                
 
-  /// Lower bound of a range order. Same precision caveat as `fiat_amount`.
-  final double? fiatAmountMin;
+                
+        @override
+        int get hashCode => id.hashCode^kind.hashCode^status.hashCode^amountSats.hashCode^fiatAmount.hashCode^fiatAmountMin.hashCode^fiatAmountMax.hashCode^fiatCode.hashCode^paymentMethod.hashCode^premium.hashCode^nodePubkey.hashCode^createdAt.hashCode^expiresAt.hashCode^isMine.hashCode^rating.hashCode^totalReviews.hashCode^daysActive.hashCode^makerSince.hashCode^cashuMintUrl.hashCode;
+        
 
-  /// Upper bound of a range order. Same precision caveat as `fiat_amount`.
-  final double? fiatAmountMax;
-  final String fiatCode;
-  final String paymentMethod;
-
-  /// Market premium as a percentage, e.g. `1.5` means 1.5% above market.
-  /// For display only — same `f64` precision caveat applies.
-  final double premium;
-
-  /// The Mostro node that issued the order: the Kind 38383 author on a book
-  /// order, the node that answered on a trade row. Empty when unknown.
-  /// Rows persisted before the rename carry it as `creator_pubkey`.
-  final String nodePubkey;
-
-  /// Unix timestamp (seconds).
-  final PlatformInt64 createdAt;
-  final PlatformInt64? expiresAt;
-  final bool isMine;
-
-  /// Maker reputation from the Kind 38383 `rating` tag (`total_rating`
-  /// aggregate, 0–5). `0.0` when the maker has no reputation yet or
-  /// publishes in full-privacy mode (`rating` = `"none"`).
-  ///
-  /// `serde(default)` on these three fields keeps rows persisted before
-  /// they existed (orders table, `OrderInfo` nested in trades JSON)
-  /// deserializable after an app upgrade.
-  final double rating;
-
-  /// Number of reviews behind [`Self::rating`] (`total_reviews`).
-  final int totalReviews;
-
-  /// Days the maker has been active on this Mostro node (`days`).
-  /// Deprecated on the wire in favour of [`Self::maker_since`]; kept as the
-  /// fallback for daemons that do not publish `since`.
-  final int daysActive;
-
-  /// Unix timestamp (seconds) of the maker's first trade, truncated to its
-  /// UTC day start (the `rating` tag's `since`). `None` from daemons that
-  /// predate it and for users without a date. The UI computes the age at
-  /// display time (now − since) and falls back to [`Self::days_active`].
-  final PlatformInt64? makerSince;
-
-  /// Mint the order's escrow is locked at, from the Kind 38383
-  /// `cashu_mint_url` tag (MostroP2P/mostro#1047): the maker picks it among
-  /// the node's mints. `None` on a Lightning order, on a Cashu order from an
-  /// older daemon, and on our own new order until its book event says.
-  final String? cashuMintUrl;
-
-  const OrderInfo({
-    required this.id,
-    required this.kind,
-    required this.status,
-    this.amountSats,
-    this.fiatAmount,
-    this.fiatAmountMin,
-    this.fiatAmountMax,
-    required this.fiatCode,
-    required this.paymentMethod,
-    required this.premium,
-    required this.nodePubkey,
-    required this.createdAt,
-    this.expiresAt,
-    required this.isMine,
-    required this.rating,
-    required this.totalReviews,
-    required this.daysActive,
-    this.makerSince,
-    this.cashuMintUrl,
-  });
-
-  @override
-  int get hashCode =>
-      id.hashCode ^
-      kind.hashCode ^
-      status.hashCode ^
-      amountSats.hashCode ^
-      fiatAmount.hashCode ^
-      fiatAmountMin.hashCode ^
-      fiatAmountMax.hashCode ^
-      fiatCode.hashCode ^
-      paymentMethod.hashCode ^
-      premium.hashCode ^
-      nodePubkey.hashCode ^
-      createdAt.hashCode ^
-      expiresAt.hashCode ^
-      isMine.hashCode ^
-      rating.hashCode ^
-      totalReviews.hashCode ^
-      daysActive.hashCode ^
-      makerSince.hashCode ^
-      cashuMintUrl.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is OrderInfo &&
-          runtimeType == other.runtimeType &&
-          id == other.id &&
-          kind == other.kind &&
-          status == other.status &&
-          amountSats == other.amountSats &&
-          fiatAmount == other.fiatAmount &&
-          fiatAmountMin == other.fiatAmountMin &&
-          fiatAmountMax == other.fiatAmountMax &&
-          fiatCode == other.fiatCode &&
-          paymentMethod == other.paymentMethod &&
-          premium == other.premium &&
-          nodePubkey == other.nodePubkey &&
-          createdAt == other.createdAt &&
-          expiresAt == other.expiresAt &&
-          isMine == other.isMine &&
-          rating == other.rating &&
-          totalReviews == other.totalReviews &&
-          daysActive == other.daysActive &&
-          makerSince == other.makerSince &&
-          cashuMintUrl == other.cashuMintUrl;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is OrderInfo &&
+                runtimeType == other.runtimeType
+                && id == other.id&& kind == other.kind&& status == other.status&& amountSats == other.amountSats&& fiatAmount == other.fiatAmount&& fiatAmountMin == other.fiatAmountMin&& fiatAmountMax == other.fiatAmountMax&& fiatCode == other.fiatCode&& paymentMethod == other.paymentMethod&& premium == other.premium&& nodePubkey == other.nodePubkey&& createdAt == other.createdAt&& expiresAt == other.expiresAt&& isMine == other.isMine&& rating == other.rating&& totalReviews == other.totalReviews&& daysActive == other.daysActive&& makerSince == other.makerSince&& cashuMintUrl == other.cashuMintUrl;
+        
+            }
 
 /// Shared types exposed to Flutter via flutter_rust_bridge.
 /// These are the data structures that cross the Rust/Dart boundary.
-enum OrderKind { buy, sell }
+enum OrderKind {
+                    buy,
+sell,
+                    ;
+                    
+                }
 
 /// Protocol-level order states.
 ///
@@ -1834,747 +1403,628 @@ enum OrderKind { buy, sell }
 /// `CooperativelyCanceled` is a **client-side UI state only** — the protocol
 /// does not change the order status for cooperative cancellations.
 enum OrderStatus {
-  pending,
-  waitingBuyerInvoice,
-  waitingPayment,
-  active,
-  fiatSent,
-  settledHoldInvoice,
-  success,
-  canceled,
-  expired,
-
-  /// Client-side UI state only — not a protocol status change.
-  cooperativelyCanceled,
-  canceledByAdmin,
-  settledByAdmin,
-  completedByAdmin,
-  dispute,
-  inProgress,
-
-  /// The taker's anti-abuse bond is outstanding: the daemon matched the
-  /// take but the trade flow has not started. Publicly the order is still
-  /// `pending` (NIP-69 bucket), so it stays takeable by others until a bond
-  /// locks. See `docs/ANTI_ABUSE_BOND.md` §2.7.
-  waitingTakerBond,
-
-  /// The maker's anti-abuse bond is outstanding: the order exists on the
-  /// daemon but has **no** kind 38383 event yet and is invisible in the
-  /// order book until the bond locks. See `docs/ANTI_ABUSE_BOND.md` §2.8.
-  waitingMakerBond,
-}
+                    pending,
+waitingBuyerInvoice,
+waitingPayment,
+active,
+fiatSent,
+settledHoldInvoice,
+success,
+canceled,
+expired,
+/// Client-side UI state only — not a protocol status change.
+cooperativelyCanceled,
+canceledByAdmin,
+settledByAdmin,
+completedByAdmin,
+dispute,
+inProgress,
+/// The taker's anti-abuse bond is outstanding: the daemon matched the
+/// take but the trade flow has not started. Publicly the order is still
+/// `pending` (NIP-69 bucket), so it stays takeable by others until a bond
+/// locks. See `docs/ANTI_ABUSE_BOND.md` §2.7.
+waitingTakerBond,
+/// The maker's anti-abuse bond is outstanding: the order exists on the
+/// daemon but has **no** kind 38383 event yet and is invisible in the
+/// order book until the bond locks. See `docs/ANTI_ABUSE_BOND.md` §2.8.
+waitingMakerBond,
+                    ;
+                    
+                }
 
 @freezed
-sealed class PaymentDestination with _$PaymentDestination {
-  const PaymentDestination._();
+                sealed class PaymentDestination with _$PaymentDestination  {
+                    const PaymentDestination._();
 
-  /// Nothing but whitespace (or a bare `lightning:` scheme).
-  const factory PaymentDestination.empty() = PaymentDestination_Empty;
+                     /// Nothing but whitespace (or a bare `lightning:` scheme).
+const factory PaymentDestination.empty() = PaymentDestination_Empty;
+ /// A well-formed, correctly signed BOLT11 invoice.
+const factory PaymentDestination.bolt11(  Bolt11Summary field0,) = PaymentDestination_Bolt11;
+ /// Starts like an invoice (`lnbc…` / `lntb…`) but does not decode: a
+/// typo or a truncated copy.
+const factory PaymentDestination.malformedBolt11() = PaymentDestination_MalformedBolt11;
+ /// `user@domain` (LUD-16), normalized to lower case.
+const factory PaymentDestination.lightningAddress(  String field0,) = PaymentDestination_LightningAddress;
+ /// Anything else — including an LNURL, which the submission path does
+/// not resolve.
+const factory PaymentDestination.unknown() = PaymentDestination_Unknown;
 
-  /// A well-formed, correctly signed BOLT11 invoice.
-  const factory PaymentDestination.bolt11(Bolt11Summary field0) =
-      PaymentDestination_Bolt11;
+                    
 
-  /// Starts like an invoice (`lnbc…` / `lntb…`) but does not decode: a
-  /// typo or a truncated copy.
-  const factory PaymentDestination.malformedBolt11() =
-      PaymentDestination_MalformedBolt11;
-
-  /// `user@domain` (LUD-16), normalized to lower case.
-  const factory PaymentDestination.lightningAddress(String field0) =
-      PaymentDestination_LightningAddress;
-
-  /// Anything else — including an LNURL, which the submission path does
-  /// not resolve.
-  const factory PaymentDestination.unknown() = PaymentDestination_Unknown;
-}
+                    
+                }
 
 /// Result returned by `pay_invoice`.
-class PaymentResult {
-  /// Whether the payment succeeded.
-  final bool success;
+class PaymentResult  {
+                /// Whether the payment succeeded.
+final bool success;
+/// BOLT-11 payment preimage (hex), present on success.
+final String? preimage;
+/// Human-readable error message, present on failure.
+final String? error;
 
-  /// BOLT-11 payment preimage (hex), present on success.
-  final String? preimage;
+                const PaymentResult({required this.success ,this.preimage ,this.error ,});
 
-  /// Human-readable error message, present on failure.
-  final String? error;
+                
+                
 
-  const PaymentResult({required this.success, this.preimage, this.error});
+                
+        @override
+        int get hashCode => success.hashCode^preimage.hashCode^error.hashCode;
+        
 
-  @override
-  int get hashCode => success.hashCode ^ preimage.hashCode ^ error.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is PaymentResult &&
-          runtimeType == other.runtimeType &&
-          success == other.success &&
-          preimage == other.preimage &&
-          error == other.error;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is PaymentResult &&
+                runtimeType == other.runtimeType
+                && success == other.success&& preimage == other.preimage&& error == other.error;
+        
+            }
 
 /// One destination the buyer's payout was sent to, as this device submitted
 /// it (#823). Read with `orders::payout_destinations`, oldest first.
 ///
 /// Recorded locally, so a trade restored on another device has none: the
 /// node does not say where it paid.
-class PayoutDestination {
-  /// The Lightning address or the BOLT11 invoice, as sent.
-  final String destination;
-  final bool isLightningAddress;
-  final PayoutSource source;
+class PayoutDestination  {
+                /// The Lightning address or the BOLT11 invoice, as sent.
+final String destination;
+final bool isLightningAddress;
+final PayoutSource source;
+/// The NWC wallet's name, when the wallet gave one and made the invoice.
+final String? walletName;
+/// Unix seconds, local clock, when the destination was sent.
+final PlatformInt64 submittedAt;
+/// The sats the destination receives: the invoice's amount, or the
+/// payout amount once the node said it. `None` while unknown.
+final BigInt? amountSats;
+/// Hex payment hash of an invoice; `None` for a Lightning address,
+/// whose invoice only the node sees.
+final String? paymentHash;
+final PayoutOutcome outcome;
+/// Unix seconds of the node message that set [`Self::outcome`] (node
+/// clock), or of the rejection (local clock). `None` while submitted.
+final PlatformInt64? outcomeAt;
+/// How many times the node tries to pay before it gives up, from its
+/// `payment-failed` notice. `None` until one arrives.
+final int? attempts;
 
-  /// The NWC wallet's name, when the wallet gave one and made the invoice.
-  final String? walletName;
+                const PayoutDestination({required this.destination ,required this.isLightningAddress ,required this.source ,this.walletName ,required this.submittedAt ,this.amountSats ,this.paymentHash ,required this.outcome ,this.outcomeAt ,this.attempts ,});
 
-  /// Unix seconds, local clock, when the destination was sent.
-  final PlatformInt64 submittedAt;
+                
+                
 
-  /// The sats the destination receives: the invoice's amount, or the
-  /// payout amount once the node said it. `None` while unknown.
-  final BigInt? amountSats;
+                
+        @override
+        int get hashCode => destination.hashCode^isLightningAddress.hashCode^source.hashCode^walletName.hashCode^submittedAt.hashCode^amountSats.hashCode^paymentHash.hashCode^outcome.hashCode^outcomeAt.hashCode^attempts.hashCode;
+        
 
-  /// Hex payment hash of an invoice; `None` for a Lightning address,
-  /// whose invoice only the node sees.
-  final String? paymentHash;
-  final PayoutOutcome outcome;
-
-  /// Unix seconds of the node message that set [`Self::outcome`] (node
-  /// clock), or of the rejection (local clock). `None` while submitted.
-  final PlatformInt64? outcomeAt;
-
-  /// How many times the node tries to pay before it gives up, from its
-  /// `payment-failed` notice. `None` until one arrives.
-  final int? attempts;
-
-  const PayoutDestination({
-    required this.destination,
-    required this.isLightningAddress,
-    required this.source,
-    this.walletName,
-    required this.submittedAt,
-    this.amountSats,
-    this.paymentHash,
-    required this.outcome,
-    this.outcomeAt,
-    this.attempts,
-  });
-
-  @override
-  int get hashCode =>
-      destination.hashCode ^
-      isLightningAddress.hashCode ^
-      source.hashCode ^
-      walletName.hashCode ^
-      submittedAt.hashCode ^
-      amountSats.hashCode ^
-      paymentHash.hashCode ^
-      outcome.hashCode ^
-      outcomeAt.hashCode ^
-      attempts.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is PayoutDestination &&
-          runtimeType == other.runtimeType &&
-          destination == other.destination &&
-          isLightningAddress == other.isLightningAddress &&
-          source == other.source &&
-          walletName == other.walletName &&
-          submittedAt == other.submittedAt &&
-          amountSats == other.amountSats &&
-          paymentHash == other.paymentHash &&
-          outcome == other.outcome &&
-          outcomeAt == other.outcomeAt &&
-          attempts == other.attempts;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is PayoutDestination &&
+                runtimeType == other.runtimeType
+                && destination == other.destination&& isLightningAddress == other.isLightningAddress&& source == other.source&& walletName == other.walletName&& submittedAt == other.submittedAt&& amountSats == other.amountSats&& paymentHash == other.paymentHash&& outcome == other.outcome&& outcomeAt == other.outcomeAt&& attempts == other.attempts;
+        
+            }
 
 /// What became of one payout destination (#823).
 enum PayoutOutcome {
-  /// Sent to the node; no news of the payout yet.
-  submitted,
-
-  /// The node's first payment failed and it is retrying.
-  retrying,
-
-  /// The node gave up on it and asked for a new invoice.
-  failed,
-
-  /// The node refused it when it was submitted.
-  rejected,
-
-  /// The node acknowledged a later destination in its place, before
-  /// paying anything.
-  replaced,
-
-  /// The node paid it: the trade completed.
-  paid,
-
-  /// The node paid, but more than one destination was still open and its
-  /// message does not say which one: this one or another marked the same.
-  maybePaid,
-}
+                    /// Sent to the node; no news of the payout yet.
+submitted,
+/// The node's first payment failed and it is retrying.
+retrying,
+/// The node gave up on it and asked for a new invoice.
+failed,
+/// The node refused it when it was submitted.
+rejected,
+/// The node acknowledged a later destination in its place, before
+/// paying anything.
+replaced,
+/// The node paid it: the trade completed.
+paid,
+/// The node paid, but more than one destination was still open and its
+/// message does not say which one: this one or another marked the same.
+maybePaid,
+                    ;
+                    
+                }
 
 /// How a payout destination was chosen (#823).
 enum PayoutSource {
-  /// The default Lightning address from Settings, sent with the take.
-  defaultLightningAddress,
-
-  /// An invoice the connected NWC wallet generated and the app submitted
-  /// on its own.
-  nwcWallet,
-
-  /// An invoice or Lightning address the buyer entered for this trade.
-  entered,
-}
+                    /// The default Lightning address from Settings, sent with the take.
+defaultLightningAddress,
+/// An invoice the connected NWC wallet generated and the app submitted
+/// on its own.
+nwcWallet,
+/// An invoice or Lightning address the buyer entered for this trade.
+entered,
+                    ;
+                    
+                }
 
 /// The device token's platform, as the push server wants it
 /// (docs/PUSH_NOTIFICATIONS.md §3.1, §3.5).
 enum PushPlatform {
-  android,
-  ios,
-  web;
+                    android,
+ios,
+web,
+                    ;
+                    /// The wire value of `platform`.
+ Future<void>  asWire()=>RustLib.instance.api.crateApiTypesPushPlatformAsWire(that: this, );
 
-  /// The wire value of `platform`.
-  Future<void> asWire() =>
-      RustLib.instance.api.crateApiTypesPushPlatformAsWire(that: this);
 
-  static Future<PushPlatform?> fromWire({required String value}) =>
-      RustLib.instance.api.crateApiTypesPushPlatformFromWire(value: value);
-}
+static Future<PushPlatform?>  fromWire({required String value })=>RustLib.instance.api.crateApiTypesPushPlatformFromWire(value: value);
+
+
+                }
 
 /// What the notification settings screen shows about push registration
 /// (docs/PUSH_NOTIFICATIONS.md §8.1, §9.1). Capability (can this platform
 /// push at all) and permission are Dart's to know; this is the token and
 /// what the server holds.
-class PushStatus {
-  /// The master toggle.
-  final bool enabled;
+class PushStatus  {
+                /// The master toggle.
+final bool enabled;
+/// A device token is held (Dart handed one over).
+final bool hasToken;
+/// Trade pubkeys the server currently holds a token for.
+final int registered;
+/// Trade pubkeys that should be registered right now.
+final int wanted;
+/// Unix seconds of the most recent accepted registration.
+final PlatformInt64? lastSuccessAt;
+/// Stable marker of the last failure, never prose: `PushServerUnreachable`,
+/// `PushRateLimited`, `PushNodeRefused`, `PushBadRequest`.
+final String? lastError;
+/// Unix seconds until which the operator's `403` for the active node
+/// keeps its keys unregistered; `None` when not refused.
+final PlatformInt64? nodeRefusedUntil;
 
-  /// A device token is held (Dart handed one over).
-  final bool hasToken;
+                const PushStatus({required this.enabled ,required this.hasToken ,required this.registered ,required this.wanted ,this.lastSuccessAt ,this.lastError ,this.nodeRefusedUntil ,});
 
-  /// Trade pubkeys the server currently holds a token for.
-  final int registered;
+                
+                
 
-  /// Trade pubkeys that should be registered right now.
-  final int wanted;
+                
+        @override
+        int get hashCode => enabled.hashCode^hasToken.hashCode^registered.hashCode^wanted.hashCode^lastSuccessAt.hashCode^lastError.hashCode^nodeRefusedUntil.hashCode;
+        
 
-  /// Unix seconds of the most recent accepted registration.
-  final PlatformInt64? lastSuccessAt;
-
-  /// Stable marker of the last failure, never prose: `PushServerUnreachable`,
-  /// `PushRateLimited`, `PushNodeRefused`, `PushBadRequest`.
-  final String? lastError;
-
-  /// Unix seconds until which the operator's `403` for the active node
-  /// keeps its keys unregistered; `None` when not refused.
-  final PlatformInt64? nodeRefusedUntil;
-
-  const PushStatus({
-    required this.enabled,
-    required this.hasToken,
-    required this.registered,
-    required this.wanted,
-    this.lastSuccessAt,
-    this.lastError,
-    this.nodeRefusedUntil,
-  });
-
-  @override
-  int get hashCode =>
-      enabled.hashCode ^
-      hasToken.hashCode ^
-      registered.hashCode ^
-      wanted.hashCode ^
-      lastSuccessAt.hashCode ^
-      lastError.hashCode ^
-      nodeRefusedUntil.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is PushStatus &&
-          runtimeType == other.runtimeType &&
-          enabled == other.enabled &&
-          hasToken == other.hasToken &&
-          registered == other.registered &&
-          wanted == other.wanted &&
-          lastSuccessAt == other.lastSuccessAt &&
-          lastError == other.lastError &&
-          nodeRefusedUntil == other.nodeRefusedUntil;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is PushStatus &&
+                runtimeType == other.runtimeType
+                && enabled == other.enabled&& hasToken == other.hasToken&& registered == other.registered&& wanted == other.wanted&& lastSuccessAt == other.lastSuccessAt&& lastError == other.lastError&& nodeRefusedUntil == other.nodeRefusedUntil;
+        
+            }
 
 /// Rating submitted or received for a completed trade.
-class RatingInfo {
-  /// The trade this rating belongs to.
-  final String tradeId;
+class RatingInfo  {
+                /// The trade this rating belongs to.
+final String tradeId;
+/// Star score (1–5).
+final int score;
+/// `true` if the local user submitted this rating.
+final bool isMine;
+/// Unix timestamp (seconds) when the rating was submitted.
+final PlatformInt64 createdAt;
 
-  /// Star score (1–5).
-  final int score;
+                const RatingInfo({required this.tradeId ,required this.score ,required this.isMine ,required this.createdAt ,});
 
-  /// `true` if the local user submitted this rating.
-  final bool isMine;
+                
+                
 
-  /// Unix timestamp (seconds) when the rating was submitted.
-  final PlatformInt64 createdAt;
+                
+        @override
+        int get hashCode => tradeId.hashCode^score.hashCode^isMine.hashCode^createdAt.hashCode;
+        
 
-  const RatingInfo({
-    required this.tradeId,
-    required this.score,
-    required this.isMine,
-    required this.createdAt,
-  });
-
-  @override
-  int get hashCode =>
-      tradeId.hashCode ^ score.hashCode ^ isMine.hashCode ^ createdAt.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is RatingInfo &&
-          runtimeType == other.runtimeType &&
-          tradeId == other.tradeId &&
-          score == other.score &&
-          isMine == other.isMine &&
-          createdAt == other.createdAt;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is RatingInfo &&
+                runtimeType == other.runtimeType
+                && tradeId == other.tradeId&& score == other.score&& isMine == other.isMine&& createdAt == other.createdAt;
+        
+            }
 
 /// Event emitted when the counterparty submits a rating for the local user.
-class RatingReceivedEvent {
-  /// The trade this rating belongs to.
-  final String tradeId;
+class RatingReceivedEvent  {
+                /// The trade this rating belongs to.
+final String tradeId;
+/// Star score submitted by the counterparty (1–5).
+final int score;
+/// Nostr public key (hex) of the rater.
+final String fromPubkey;
 
-  /// Star score submitted by the counterparty (1–5).
-  final int score;
+                const RatingReceivedEvent({required this.tradeId ,required this.score ,required this.fromPubkey ,});
 
-  /// Nostr public key (hex) of the rater.
-  final String fromPubkey;
+                
+                
 
-  const RatingReceivedEvent({
-    required this.tradeId,
-    required this.score,
-    required this.fromPubkey,
-  });
+                
+        @override
+        int get hashCode => tradeId.hashCode^score.hashCode^fromPubkey.hashCode;
+        
 
-  @override
-  int get hashCode => tradeId.hashCode ^ score.hashCode ^ fromPubkey.hashCode;
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is RatingReceivedEvent &&
+                runtimeType == other.runtimeType
+                && tradeId == other.tradeId&& score == other.score&& fromPubkey == other.fromPubkey;
+        
+            }
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is RatingReceivedEvent &&
-          runtimeType == other.runtimeType &&
-          tradeId == other.tradeId &&
-          score == other.score &&
-          fromPubkey == other.fromPubkey;
-}
+class RelayInfo  {
+                final String url;
+final bool isActive;
+final bool isDefault;
+final RelaySource source;
+final bool isBlacklisted;
+final RelayStatus status;
+final PlatformInt64? lastConnectedAt;
+final String? lastError;
 
-class RelayInfo {
-  final String url;
-  final bool isActive;
-  final bool isDefault;
-  final RelaySource source;
-  final bool isBlacklisted;
-  final RelayStatus status;
-  final PlatformInt64? lastConnectedAt;
-  final String? lastError;
+                const RelayInfo({required this.url ,required this.isActive ,required this.isDefault ,required this.source ,required this.isBlacklisted ,required this.status ,this.lastConnectedAt ,this.lastError ,});
 
-  const RelayInfo({
-    required this.url,
-    required this.isActive,
-    required this.isDefault,
-    required this.source,
-    required this.isBlacklisted,
-    required this.status,
-    this.lastConnectedAt,
-    this.lastError,
-  });
+                
+                
 
-  @override
-  int get hashCode =>
-      url.hashCode ^
-      isActive.hashCode ^
-      isDefault.hashCode ^
-      source.hashCode ^
-      isBlacklisted.hashCode ^
-      status.hashCode ^
-      lastConnectedAt.hashCode ^
-      lastError.hashCode;
+                
+        @override
+        int get hashCode => url.hashCode^isActive.hashCode^isDefault.hashCode^source.hashCode^isBlacklisted.hashCode^status.hashCode^lastConnectedAt.hashCode^lastError.hashCode;
+        
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is RelayInfo &&
-          runtimeType == other.runtimeType &&
-          url == other.url &&
-          isActive == other.isActive &&
-          isDefault == other.isDefault &&
-          source == other.source &&
-          isBlacklisted == other.isBlacklisted &&
-          status == other.status &&
-          lastConnectedAt == other.lastConnectedAt &&
-          lastError == other.lastError;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is RelayInfo &&
+                runtimeType == other.runtimeType
+                && url == other.url&& isActive == other.isActive&& isDefault == other.isDefault&& source == other.source&& isBlacklisted == other.isBlacklisted&& status == other.status&& lastConnectedAt == other.lastConnectedAt&& lastError == other.lastError;
+        
+            }
 
-enum RelaySource { default_, mostroDiscovered, userAdded }
+enum RelaySource {
+                    default_,
+mostroDiscovered,
+userAdded,
+                    ;
+                    
+                }
 
-enum RelayStatus { connected, disconnected, connecting, error }
+enum RelayStatus {
+                    connected,
+disconnected,
+connecting,
+error,
+                    ;
+                    
+                }
 
 @freezed
-sealed class RestoreProgress with _$RestoreProgress {
-  const RestoreProgress._();
+                sealed class RestoreProgress with _$RestoreProgress  {
+                    const RestoreProgress._();
 
-  /// The restore request reached at least one relay.
-  const factory RestoreProgress.connected() = RestoreProgress_Connected;
+                     /// The restore request reached at least one relay.
+const factory RestoreProgress.connected() = RestoreProgress_Connected;
+ /// The node answered. `found` is every order and dispute it returned;
+/// `to_load` is how many of them the app fetches the details of.
+const factory RestoreProgress.found({   required int found ,  required int toLoad , }) = RestoreProgress_Found;
+ /// `done` of the `to_load` orders have their details. A restore that
+/// ends with `done < to_load` recovered only part of them.
+const factory RestoreProgress.loaded({   required int done ,  required int toLoad , }) = RestoreProgress_Loaded;
 
-  /// The node answered. `found` is every order and dispute it returned;
-  /// `to_load` is how many of them the app fetches the details of.
-  const factory RestoreProgress.found({
-    required int found,
-    required int toLoad,
-  }) = RestoreProgress_Found;
+                    
 
-  /// `done` of the `to_load` orders have their details. A restore that
-  /// ends with `done < to_load` recovered only part of them.
-  const factory RestoreProgress.loaded({
-    required int done,
-    required int toLoad,
-  }) = RestoreProgress_Loaded;
-}
+                    
+                }
 
 /// What one `resync` pass found and did (docs/PUSH_NOTIFICATIONS.md §10).
-class ResyncOutcome {
-  /// The pool reported `Online` once the reconnect nudge settled.
-  final bool online;
+class ResyncOutcome  {
+                /// The pool reported `Online` once the reconnect nudge settled.
+final bool online;
+/// Queued outgoing events published by this pass.
+final int flushed;
+/// This call did no work of its own: a pass that was already running
+/// when it arrived finished meanwhile, and its result is what it reports.
+final bool coalesced;
 
-  /// Queued outgoing events published by this pass.
-  final int flushed;
+                const ResyncOutcome({required this.online ,required this.flushed ,required this.coalesced ,});
 
-  /// This call did no work of its own: a pass that was already running
-  /// when it arrived finished meanwhile, and its result is what it reports.
-  final bool coalesced;
+                
+                
 
-  const ResyncOutcome({
-    required this.online,
-    required this.flushed,
-    required this.coalesced,
-  });
+                
+        @override
+        int get hashCode => online.hashCode^flushed.hashCode^coalesced.hashCode;
+        
 
-  @override
-  int get hashCode => online.hashCode ^ flushed.hashCode ^ coalesced.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ResyncOutcome &&
-          runtimeType == other.runtimeType &&
-          online == other.online &&
-          flushed == other.flushed &&
-          coalesced == other.coalesced;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is ResyncOutcome &&
+                runtimeType == other.runtimeType
+                && online == other.online&& flushed == other.flushed&& coalesced == other.coalesced;
+        
+            }
 
 enum SellerStep {
-  orderPublished,
-  takerFound,
-  invoiceCreated,
-  paymentLocked,
-  awaitingFiat,
-  complete,
-}
+                    orderPublished,
+takerFound,
+invoiceCreated,
+paymentLocked,
+awaitingFiat,
+complete,
+                    ;
+                    
+                }
 
 /// Cause of an anti-abuse bond slash, inferred from the tracked order state.
 ///
 /// The wire message carries no `reason`, so the cause is inferred client-side
 /// (see `crate::api::bond::infer_slash_cause`).
 enum SlashCause {
-  /// The bonded party let a waiting-state timeout elapse.
-  timeout,
-
-  /// A solver directed the slash while resolving a dispute.
-  dispute,
-}
+                    /// The bonded party let a waiting-state timeout elapse.
+timeout,
+/// A solver directed the slash while resolving a dispute.
+dispute,
+                    ;
+                    
+                }
 
 /// Who a dispute solver is, for the label the dispute chat shows (#637).
 /// Rust decides it; Dart only localizes it.
 enum SolverRole {
-  /// The dispute assistant (Serbero) a known node announces in its info
-  /// event: it helps the parties and hands the case to a person.
-  assistant,
-
-  /// Anyone else: a person who can settle or cancel. Every solver of a node
-  /// that announces no assistant is one.
-  human,
-}
+                    /// The dispute assistant (Serbero) a known node announces in its info
+/// event: it helps the parties and hands the case to a person.
+assistant,
+/// Anyone else: a person who can settle or cancel. Every solver of a node
+/// that announces no assistant is one.
+human,
+                    ;
+                    
+                }
 
 @freezed
-sealed class TakePayout with _$TakePayout {
-  const TakePayout._();
+                sealed class TakePayout with _$TakePayout  {
+                    const TakePayout._();
 
-  /// The default Lightning address from Settings, when one is set.
-  const factory TakePayout.defaultAddress() = TakePayout_DefaultAddress;
+                     /// The default Lightning address from Settings, when one is set.
+const factory TakePayout.defaultAddress() = TakePayout_DefaultAddress;
+ /// Another Lightning address, for this trade only.
+const factory TakePayout.address({   required String address , }) = TakePayout_Address;
+ /// No address: the node asks for an invoice once the trade starts.
+const factory TakePayout.askForInvoice() = TakePayout_AskForInvoice;
 
-  /// Another Lightning address, for this trade only.
-  const factory TakePayout.address({required String address}) =
-      TakePayout_Address;
+                    
 
-  /// No address: the node asks for an invoice once the trade starts.
-  const factory TakePayout.askForInvoice() = TakePayout_AskForInvoice;
-}
+                    
+                }
 
-enum ThemeMode { system, dark, light }
+enum ThemeMode {
+                    system,
+dark,
+light,
+                    ;
+                    
+                }
 
-class TradeInfo {
-  /// This row's own id — **not** the order's, and not reliably either the
-  /// same or different.
-  ///
-  /// A take made on this device mints a fresh UUID here (`take_order`)
-  /// while `order.id` holds the id the daemon knows, so the two diverge. A
-  /// row rebuilt instead of taken — from a replayed daemon message on a
-  /// fresh device (`trade_row_from_small_order`), or from a restored bond
-  /// (`restored_bond_row`) — reuses the order id for both. So neither
-  /// equality nor inequality says whose row it is, and no code should ask:
-  /// `order.is_mine` and `role` are what carry that.
-  ///
-  /// Nothing looks a trade up by this, whether or not it happens to match.
-  /// Every accessor on [`crate::db::Storage`] keys on `order.id`, and so
-  /// does the chat (`messages.trade_id`); its one job is to be the row's
-  /// primary key, so `save_trade` replaces a row instead of inserting a
-  /// second one. Carry it forward when rebuilding a row, and reach for
-  /// `order.id` when looking one up (issue #395).
-  final String id;
-  final OrderInfo order;
-  final TradeRole role;
-  final String counterpartyPubkey;
-  final TradeStep currentStep;
-  final String? holdInvoice;
-  final String? buyerInvoice;
-  final int tradeKeyIndex;
-  final CooperativeCancelState? cooperativeCancelState;
-  final PlatformInt64? timeoutAt;
-  final PlatformInt64 startedAt;
-  final PlatformInt64? completedAt;
+class TradeInfo  {
+                /// This row's own id — **not** the order's, and not reliably either the
+/// same or different.
+///
+/// A take made on this device mints a fresh UUID here (`take_order`)
+/// while `order.id` holds the id the daemon knows, so the two diverge. A
+/// row rebuilt instead of taken — from a replayed daemon message on a
+/// fresh device (`trade_row_from_small_order`), or from a restored bond
+/// (`restored_bond_row`) — reuses the order id for both. So neither
+/// equality nor inequality says whose row it is, and no code should ask:
+/// `order.is_mine` and `role` are what carry that.
+///
+/// Nothing looks a trade up by this, whether or not it happens to match.
+/// Every accessor on [`crate::db::Storage`] keys on `order.id`, and so
+/// does the chat (`messages.trade_id`); its one job is to be the row's
+/// primary key, so `save_trade` replaces a row instead of inserting a
+/// second one. Carry it forward when rebuilding a row, and reach for
+/// `order.id` when looking one up (issue #395).
+final String id;
+final OrderInfo order;
+final TradeRole role;
+final String counterpartyPubkey;
+final TradeStep currentStep;
+final String? holdInvoice;
+final String? buyerInvoice;
+final int tradeKeyIndex;
+final CooperativeCancelState? cooperativeCancelState;
+final PlatformInt64? timeoutAt;
+final PlatformInt64 startedAt;
+final PlatformInt64? completedAt;
+/// Unix seconds (the node's clock) when the seller's hold invoice was
+/// accepted: the `created_at` of the daemon message that moved the order
+/// out of `waiting-payment`. The escrow deadline guardian counts from
+/// there. The oldest candidate is kept, so a replayed or re-sent message
+/// never moves it. `None` until recorded, and on rows written before the
+/// field existed (`#[serde(default)]`).
+final PlatformInt64? escrowLockedAt;
+/// The node (hex pubkey) that sent the message [`Self::escrow_locked_at`]
+/// was taken from: its info event says how far the deadline is, whichever
+/// node is active now.
+final String? escrowNode;
+final TradeOutcome? outcome;
+/// Counterparty (taker) reputation snapshot from the daemon's follow-up
+/// Peer DM (issue #305). All-zeros is ambiguous on the wire — a brand-new
+/// user and a full-privacy taker are indistinguishable — so the UI shows
+/// the raw numbers rather than guessing. `#[serde(default)]` keeps trade
+/// rows written before this field existed deserializable.
+final double? peerRating;
+final int? peerReviews;
+final int? peerDays;
+/// Unix timestamp (seconds) of the counterparty's first trade, truncated
+/// to its UTC day start (`UserInfo.since` in the Peer DM). `None` from
+/// daemons that predate it and for users without a date. The UI computes
+/// the age at display time (now − since) and falls back to
+/// [`Self::peer_days`].
+final PlatformInt64? peerSince;
+/// Durable "the local user rated this trade" marker (unix seconds): set
+/// after `submit_rating` publishes (issue #339), and when the daemon's
+/// `rate-received` — sent to the rater alone — arrives or is replayed,
+/// dated by it: a rating made on another device closes the step here too.
+///
+/// The daemon's kind 38383 tag carries the peer's *aggregate* reputation
+/// only, and `rate-received` lives only as long as the relays keep it, so
+/// the marker is persisted here: the closed state survives a restart and
+/// keeps the duplicate-rating guard armed. The score itself is
+/// deliberately not stored — the closed UI shows only a label, not the note.
+/// `#[serde(default)]` keeps trade rows written before this field existed
+/// deserializable.
+final PlatformInt64? ratedAt;
+/// Anti-abuse bond attached to this trade, when the node required one
+/// (`docs/ANTI_ABUSE_BOND.md` §7.1). `None` on nodes without bonds and
+/// on rows written before the field existed (`#[serde(default)]`).
+final BondInfo? bond;
+/// The buyer's **per-order trade pubkey**, as the daemon stated it.
+///
+/// Not the same as [`Self::counterparty_pubkey`], which holds the maker's
+/// order-book key for a taker and nothing at all for a maker. The Cashu
+/// escrow is locked to these keys, and the daemon re-derives them from the
+/// order and rejects a proof that names any others — so this is the only
+/// value that can be used to build one.
+///
+/// `None` until the daemon sends a reply carrying an order payload.
+final String? buyerTradePubkey;
+/// The seller's per-order trade pubkey. See [`Self::buyer_trade_pubkey`].
+final String? sellerTradePubkey;
+/// Mint the escrow was locked at. Recorded per trade rather than read back
+/// from settings: a node may change its mint, and a trade must still be
+/// settleable at the mint its funds actually sit in.
+final String? cashuMintUrl;
+/// The 2-of-3 escrow token the seller locked. Kept so the seller can
+/// re-submit after an interrupted send, and so either party can settle or
+/// reclaim without asking the daemon for it again.
+final String? cashuEscrowToken;
+/// Unix timestamp (seconds) when the escrow was locked. The locktime
+/// refund window is counted from the node's advertised locktime, not from
+/// this — this is for display and for ordering.
+final PlatformInt64? cashuLockedAt;
+/// Escrow tokens the daemon rejected for good (`invalid_cashu_token`,
+/// `invalid_mint_url`): it did not store them, so a retry must build a new
+/// one. Kept, never dropped — each is the seller's money, reclaimable
+/// through the refund path once its locktime passes.
+final List<String> cashuRejectedEscrowTokens;
 
-  /// Unix seconds (the node's clock) when the seller's hold invoice was
-  /// accepted: the `created_at` of the daemon message that moved the order
-  /// out of `waiting-payment`. The escrow deadline guardian counts from
-  /// there. The oldest candidate is kept, so a replayed or re-sent message
-  /// never moves it. `None` until recorded, and on rows written before the
-  /// field existed (`#[serde(default)]`).
-  final PlatformInt64? escrowLockedAt;
+                const TradeInfo({required this.id ,required this.order ,required this.role ,required this.counterpartyPubkey ,required this.currentStep ,this.holdInvoice ,this.buyerInvoice ,required this.tradeKeyIndex ,this.cooperativeCancelState ,this.timeoutAt ,required this.startedAt ,this.completedAt ,this.escrowLockedAt ,this.escrowNode ,this.outcome ,this.peerRating ,this.peerReviews ,this.peerDays ,this.peerSince ,this.ratedAt ,this.bond ,this.buyerTradePubkey ,this.sellerTradePubkey ,this.cashuMintUrl ,this.cashuEscrowToken ,this.cashuLockedAt ,required this.cashuRejectedEscrowTokens ,});
 
-  /// The node (hex pubkey) that sent the message [`Self::escrow_locked_at`]
-  /// was taken from: its info event says how far the deadline is, whichever
-  /// node is active now.
-  final String? escrowNode;
-  final TradeOutcome? outcome;
+                
+                
 
-  /// Counterparty (taker) reputation snapshot from the daemon's follow-up
-  /// Peer DM (issue #305). All-zeros is ambiguous on the wire — a brand-new
-  /// user and a full-privacy taker are indistinguishable — so the UI shows
-  /// the raw numbers rather than guessing. `#[serde(default)]` keeps trade
-  /// rows written before this field existed deserializable.
-  final double? peerRating;
-  final int? peerReviews;
-  final int? peerDays;
+                
+        @override
+        int get hashCode => id.hashCode^order.hashCode^role.hashCode^counterpartyPubkey.hashCode^currentStep.hashCode^holdInvoice.hashCode^buyerInvoice.hashCode^tradeKeyIndex.hashCode^cooperativeCancelState.hashCode^timeoutAt.hashCode^startedAt.hashCode^completedAt.hashCode^escrowLockedAt.hashCode^escrowNode.hashCode^outcome.hashCode^peerRating.hashCode^peerReviews.hashCode^peerDays.hashCode^peerSince.hashCode^ratedAt.hashCode^bond.hashCode^buyerTradePubkey.hashCode^sellerTradePubkey.hashCode^cashuMintUrl.hashCode^cashuEscrowToken.hashCode^cashuLockedAt.hashCode^cashuRejectedEscrowTokens.hashCode;
+        
 
-  /// Unix timestamp (seconds) of the counterparty's first trade, truncated
-  /// to its UTC day start (`UserInfo.since` in the Peer DM). `None` from
-  /// daemons that predate it and for users without a date. The UI computes
-  /// the age at display time (now − since) and falls back to
-  /// [`Self::peer_days`].
-  final PlatformInt64? peerSince;
-
-  /// Durable "the local user rated this trade" marker (unix seconds): set
-  /// after `submit_rating` publishes (issue #339), and when the daemon's
-  /// `rate-received` — sent to the rater alone — arrives or is replayed,
-  /// dated by it: a rating made on another device closes the step here too.
-  ///
-  /// The daemon's kind 38383 tag carries the peer's *aggregate* reputation
-  /// only, and `rate-received` lives only as long as the relays keep it, so
-  /// the marker is persisted here: the closed state survives a restart and
-  /// keeps the duplicate-rating guard armed. The score itself is
-  /// deliberately not stored — the closed UI shows only a label, not the note.
-  /// `#[serde(default)]` keeps trade rows written before this field existed
-  /// deserializable.
-  final PlatformInt64? ratedAt;
-
-  /// Anti-abuse bond attached to this trade, when the node required one
-  /// (`docs/ANTI_ABUSE_BOND.md` §7.1). `None` on nodes without bonds and
-  /// on rows written before the field existed (`#[serde(default)]`).
-  final BondInfo? bond;
-
-  /// The buyer's **per-order trade pubkey**, as the daemon stated it.
-  ///
-  /// Not the same as [`Self::counterparty_pubkey`], which holds the maker's
-  /// order-book key for a taker and nothing at all for a maker. The Cashu
-  /// escrow is locked to these keys, and the daemon re-derives them from the
-  /// order and rejects a proof that names any others — so this is the only
-  /// value that can be used to build one.
-  ///
-  /// `None` until the daemon sends a reply carrying an order payload.
-  final String? buyerTradePubkey;
-
-  /// The seller's per-order trade pubkey. See [`Self::buyer_trade_pubkey`].
-  final String? sellerTradePubkey;
-
-  /// Mint the escrow was locked at. Recorded per trade rather than read back
-  /// from settings: a node may change its mint, and a trade must still be
-  /// settleable at the mint its funds actually sit in.
-  final String? cashuMintUrl;
-
-  /// The 2-of-3 escrow token the seller locked. Kept so the seller can
-  /// re-submit after an interrupted send, and so either party can settle or
-  /// reclaim without asking the daemon for it again.
-  final String? cashuEscrowToken;
-
-  /// Unix timestamp (seconds) when the escrow was locked. The locktime
-  /// refund window is counted from the node's advertised locktime, not from
-  /// this — this is for display and for ordering.
-  final PlatformInt64? cashuLockedAt;
-
-  /// Escrow tokens the daemon rejected for good (`invalid_cashu_token`,
-  /// `invalid_mint_url`): it did not store them, so a retry must build a new
-  /// one. Kept, never dropped — each is the seller's money, reclaimable
-  /// through the refund path once its locktime passes.
-  final List<String> cashuRejectedEscrowTokens;
-
-  const TradeInfo({
-    required this.id,
-    required this.order,
-    required this.role,
-    required this.counterpartyPubkey,
-    required this.currentStep,
-    this.holdInvoice,
-    this.buyerInvoice,
-    required this.tradeKeyIndex,
-    this.cooperativeCancelState,
-    this.timeoutAt,
-    required this.startedAt,
-    this.completedAt,
-    this.escrowLockedAt,
-    this.escrowNode,
-    this.outcome,
-    this.peerRating,
-    this.peerReviews,
-    this.peerDays,
-    this.peerSince,
-    this.ratedAt,
-    this.bond,
-    this.buyerTradePubkey,
-    this.sellerTradePubkey,
-    this.cashuMintUrl,
-    this.cashuEscrowToken,
-    this.cashuLockedAt,
-    required this.cashuRejectedEscrowTokens,
-  });
-
-  @override
-  int get hashCode =>
-      id.hashCode ^
-      order.hashCode ^
-      role.hashCode ^
-      counterpartyPubkey.hashCode ^
-      currentStep.hashCode ^
-      holdInvoice.hashCode ^
-      buyerInvoice.hashCode ^
-      tradeKeyIndex.hashCode ^
-      cooperativeCancelState.hashCode ^
-      timeoutAt.hashCode ^
-      startedAt.hashCode ^
-      completedAt.hashCode ^
-      escrowLockedAt.hashCode ^
-      escrowNode.hashCode ^
-      outcome.hashCode ^
-      peerRating.hashCode ^
-      peerReviews.hashCode ^
-      peerDays.hashCode ^
-      peerSince.hashCode ^
-      ratedAt.hashCode ^
-      bond.hashCode ^
-      buyerTradePubkey.hashCode ^
-      sellerTradePubkey.hashCode ^
-      cashuMintUrl.hashCode ^
-      cashuEscrowToken.hashCode ^
-      cashuLockedAt.hashCode ^
-      cashuRejectedEscrowTokens.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is TradeInfo &&
-          runtimeType == other.runtimeType &&
-          id == other.id &&
-          order == other.order &&
-          role == other.role &&
-          counterpartyPubkey == other.counterpartyPubkey &&
-          currentStep == other.currentStep &&
-          holdInvoice == other.holdInvoice &&
-          buyerInvoice == other.buyerInvoice &&
-          tradeKeyIndex == other.tradeKeyIndex &&
-          cooperativeCancelState == other.cooperativeCancelState &&
-          timeoutAt == other.timeoutAt &&
-          startedAt == other.startedAt &&
-          completedAt == other.completedAt &&
-          escrowLockedAt == other.escrowLockedAt &&
-          escrowNode == other.escrowNode &&
-          outcome == other.outcome &&
-          peerRating == other.peerRating &&
-          peerReviews == other.peerReviews &&
-          peerDays == other.peerDays &&
-          peerSince == other.peerSince &&
-          ratedAt == other.ratedAt &&
-          bond == other.bond &&
-          buyerTradePubkey == other.buyerTradePubkey &&
-          sellerTradePubkey == other.sellerTradePubkey &&
-          cashuMintUrl == other.cashuMintUrl &&
-          cashuEscrowToken == other.cashuEscrowToken &&
-          cashuLockedAt == other.cashuLockedAt &&
-          cashuRejectedEscrowTokens == other.cashuRejectedEscrowTokens;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is TradeInfo &&
+                runtimeType == other.runtimeType
+                && id == other.id&& order == other.order&& role == other.role&& counterpartyPubkey == other.counterpartyPubkey&& currentStep == other.currentStep&& holdInvoice == other.holdInvoice&& buyerInvoice == other.buyerInvoice&& tradeKeyIndex == other.tradeKeyIndex&& cooperativeCancelState == other.cooperativeCancelState&& timeoutAt == other.timeoutAt&& startedAt == other.startedAt&& completedAt == other.completedAt&& escrowLockedAt == other.escrowLockedAt&& escrowNode == other.escrowNode&& outcome == other.outcome&& peerRating == other.peerRating&& peerReviews == other.peerReviews&& peerDays == other.peerDays&& peerSince == other.peerSince&& ratedAt == other.ratedAt&& bond == other.bond&& buyerTradePubkey == other.buyerTradePubkey&& sellerTradePubkey == other.sellerTradePubkey&& cashuMintUrl == other.cashuMintUrl&& cashuEscrowToken == other.cashuEscrowToken&& cashuLockedAt == other.cashuLockedAt&& cashuRejectedEscrowTokens == other.cashuRejectedEscrowTokens;
+        
+            }
 
 /// Final trade outcomes.
 ///
 /// `PaymentFailed` is intentionally absent — LN payment failures are transient
 /// and retried; they are not a terminal trade outcome. The order stays in
 /// `SettledHoldInvoice` while retries are in flight.
-enum TradeOutcome { success, canceled, expired, disputeWon, disputeLost }
+enum TradeOutcome {
+                    success,
+canceled,
+expired,
+disputeWon,
+disputeLost,
+                    ;
+                    
+                }
 
-enum TradeRole { buyer, seller }
+enum TradeRole {
+                    buyer,
+seller,
+                    ;
+                    
+                }
 
 @freezed
-sealed class TradeStep with _$TradeStep {
-  const TradeStep._();
+                sealed class TradeStep with _$TradeStep  {
+                    const TradeStep._();
 
-  const factory TradeStep.buyer(BuyerStep field0) = TradeStep_Buyer;
-  const factory TradeStep.seller(SellerStep field0) = TradeStep_Seller;
-  const factory TradeStep.disputed() = TradeStep_Disputed;
-}
+                     const factory TradeStep.buyer(  BuyerStep field0,) = TradeStep_Buyer;
+ const factory TradeStep.seller(  SellerStep field0,) = TradeStep_Seller;
+ const factory TradeStep.disputed() = TradeStep_Disputed;
+
+                    
+
+                    
+                }
 
 /// "Read this trade again" — the doorbell of `api::trade_touch`. Unlike a
 /// [`TradeUpdate`] it says nothing about what changed and drives no
 /// notification; it only tells a screen its copy may be stale.
-class TradeTouch {
-  /// The order whose book entry or trade row was written. `None` means the
-  /// subscriber fell behind and touches were dropped: re-read every trade.
-  final String? orderId;
+class TradeTouch  {
+                /// The order whose book entry or trade row was written. `None` means the
+/// subscriber fell behind and touches were dropped: re-read every trade.
+final String? orderId;
 
-  const TradeTouch({this.orderId});
+                const TradeTouch({this.orderId ,});
 
-  @override
-  int get hashCode => orderId.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is TradeTouch &&
-          runtimeType == other.runtimeType &&
-          orderId == other.orderId;
-}
+                
+        @override
+        int get hashCode => orderId.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is TradeTouch &&
+                runtimeType == other.runtimeType
+                && orderId == other.orderId;
+        
+            }
 
 /// A trade lifecycle change pushed from Rust so the UI does not have to poll
 /// for it. Emitted on every daemon-driven status sync — cancellations
@@ -2583,46 +2033,39 @@ class TradeTouch {
 /// transition) as well as progression statuses like `WaitingBuyerInvoice`
 /// and `WaitingPayment`, which screens use to react to the daemon's
 /// add-invoice / pay-invoice requests.
-class TradeUpdate {
-  final String orderId;
-  final OrderStatus status;
+class TradeUpdate  {
+                final String orderId;
+final OrderStatus status;
+/// Why the status changed, when the wire action alone is ambiguous
+/// (`docs/ANTI_ABUSE_BOND.md` §6.1), or what happened when it did not
+/// change at all (a cooperative-cancel request). `None` from every
+/// emitter that has nothing to add.
+final TradeUpdateReason? reason;
+/// When the change happened, in Unix seconds: the daemon message's own
+/// `created_at` for a Kind 14 dispatch, the local clock for everything
+/// else. A history replay after a restore re-emits old transitions, and
+/// this is what tells them apart from new ones (issue #474).
+final PlatformInt64 occurredAt;
 
-  /// Why the status changed, when the wire action alone is ambiguous
-  /// (`docs/ANTI_ABUSE_BOND.md` §6.1), or what happened when it did not
-  /// change at all (a cooperative-cancel request). `None` from every
-  /// emitter that has nothing to add.
-  final TradeUpdateReason? reason;
+                const TradeUpdate({required this.orderId ,required this.status ,this.reason ,required this.occurredAt ,});
 
-  /// When the change happened, in Unix seconds: the daemon message's own
-  /// `created_at` for a Kind 14 dispatch, the local clock for everything
-  /// else. A history replay after a restore re-emits old transitions, and
-  /// this is what tells them apart from new ones (issue #474).
-  final PlatformInt64 occurredAt;
+                
+                
 
-  const TradeUpdate({
-    required this.orderId,
-    required this.status,
-    this.reason,
-    required this.occurredAt,
-  });
+                
+        @override
+        int get hashCode => orderId.hashCode^status.hashCode^reason.hashCode^occurredAt.hashCode;
+        
 
-  @override
-  int get hashCode =>
-      orderId.hashCode ^
-      status.hashCode ^
-      reason.hashCode ^
-      occurredAt.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is TradeUpdate &&
-          runtimeType == other.runtimeType &&
-          orderId == other.orderId &&
-          status == other.status &&
-          reason == other.reason &&
-          occurredAt == other.occurredAt;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is TradeUpdate &&
+                runtimeType == other.runtimeType
+                && orderId == other.orderId&& status == other.status&& reason == other.reason&& occurredAt == other.occurredAt;
+        
+            }
 
 /// The cause behind a `TradeUpdate` whose wire action carries none.
 ///
@@ -2630,49 +2073,58 @@ class TradeUpdate {
 /// things and the message does not say which; the local order book and the
 /// pending-cancel registry do.
 enum TradeUpdateReason {
-  /// This client sent the cancel itself.
-  userCanceled,
+                    /// This client sent the cancel itself.
+userCanceled,
+/// The maker cancelled the order (its wire status is `canceled`).
+makerCanceled,
+/// Another taker locked their bond first: the order left the `pending`
+/// bucket (or is still there for someone else to take).
+bondLostRace,
+/// The bond bolt11 expired unpaid; the local row was closed.
+bondExpired,
+/// This side asked to cancel an active trade; the status is unchanged
+/// until the counterparty also cancels (protocol `cancel.md`, "Cancel
+/// cooperatively"). Emitted on the daemon's
+/// `cooperative-cancel-initiated-by-you`.
+cooperativeCancelRequestedByMe,
+/// The counterparty asked to cancel; this side decides whether to
+/// cancel too. Emitted on `cooperative-cancel-initiated-by-peer`.
+cooperativeCancelRequestedByPeer,
+/// Not a step this client just learned of: a status Rust re-states so
+/// the screens read the trade again: a restore filing an old trade, a
+/// re-read after the peer's reputation arrived. A restore's is dated by
+/// the local clock, so its `occurred_at` cannot tell it from news; this
+/// does (#770). Not the startup sweep's cancel: that is the daemon's
+/// `Canceled` learned late, news like the message it stands in for.
+replayed,
+/// The node could not pay the buyer and asks for a new invoice: an
+/// `add-invoice` on a settled escrow (mostrod `check_failure_retries`).
+/// Rides on `WaitingBuyerInvoice`, like the first request, so the card
+/// and the screens can tell the two apart (#823).
+payoutFailed,
+/// The node published this client's order after `create_order` had
+/// returned: the maker's bond locked (`WaitingMakerBond → Pending`), or
+/// the confirmation came after the create timed out. Rides on `Pending`,
+/// which raises no card on its own (the book's bucket carries it too),
+/// so the card can tell the publication apart.
+orderPublished,
+/// The taker of this client's order walked away: they cancelled, or let
+/// the waiting window lapse, and the node put the order back in the book
+/// (mostrod republishes it as `pending` and sends the maker `new-order`).
+/// Rides on `Pending`, which raises no card on its own, so the card can
+/// tell the maker their trade is over and the order is takeable again
+/// (#917).
+takerLeft,
+                    ;
+                    
+                }
 
-  /// The maker cancelled the order (its wire status is `canceled`).
-  makerCanceled,
-
-  /// Another taker locked their bond first: the order left the `pending`
-  /// bucket (or is still there for someone else to take).
-  bondLostRace,
-
-  /// The bond bolt11 expired unpaid; the local row was closed.
-  bondExpired,
-
-  /// This side asked to cancel an active trade; the status is unchanged
-  /// until the counterparty also cancels (protocol `cancel.md`, "Cancel
-  /// cooperatively"). Emitted on the daemon's
-  /// `cooperative-cancel-initiated-by-you`.
-  cooperativeCancelRequestedByMe,
-
-  /// The counterparty asked to cancel; this side decides whether to
-  /// cancel too. Emitted on `cooperative-cancel-initiated-by-peer`.
-  cooperativeCancelRequestedByPeer,
-
-  /// Not a step this client just learned of: a status Rust re-states so
-  /// the screens read the trade again: a restore filing an old trade, a
-  /// re-read after the peer's reputation arrived. A restore's is dated by
-  /// the local clock, so its `occurred_at` cannot tell it from news; this
-  /// does (#770). Not the startup sweep's cancel: that is the daemon's
-  /// `Canceled` learned late, news like the message it stands in for.
-  replayed,
-
-  /// The node could not pay the buyer and asks for a new invoice: an
-  /// `add-invoice` on a settled escrow (mostrod `check_failure_retries`).
-  /// Rides on `WaitingBuyerInvoice`, like the first request, so the card
-  /// and the screens can tell the two apart (#823).
-  payoutFailed,
-
-  /// The node published this client's order after `create_order` had
-  /// returned: the maker's bond locked (`WaitingMakerBond → Pending`), or
-  /// the confirmation came after the create timed out. Rides on `Pending`,
-  /// which raises no card on its own (the book's bucket carries it too),
-  /// so the card can tell the publication apart.
-  orderPublished,
-}
-
-enum WalletStatus { connected, disconnected, connecting, error }
+enum WalletStatus {
+                    connected,
+disconnected,
+connecting,
+error,
+                    ;
+                    
+                }
+            
