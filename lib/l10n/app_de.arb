@@ -1206,7 +1206,7 @@
   "cashuMintAmountTitle": "Über Lightning empfangen",
   "cashuMintInvoiceTitle": "Bezahle diese Rechnung",
   "cashuMintInvoiceWaiting": "Warte auf die Zahlung…",
-  "cashuMintInvoiceNote": "Du kannst das schließen. Wird die Rechnung später bezahlt, kommen die Sats beim nächsten Öffnen der App an.",
+  "cashuMintInvoiceNote": "Du kannst das schließen. Wird die Rechnung später bezahlt, kommen die Sats beim nächsten Öffnen der App an; falls nicht, tippe auf „Mit der Mint synchronisieren“.",
   "cashuMintReceivedTitle": "{sats} Sats empfangen",
   "cashuMintExpiredTitle": "Rechnung abgelaufen",
   "cashuMintExpiredBody": "Sie wurde nicht bezahlt, also wurde nichts empfangen. Erstelle eine neue Rechnung, um es erneut zu versuchen.",

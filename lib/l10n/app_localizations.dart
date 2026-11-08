@@ -7338,10 +7338,10 @@ abstract class AppLocalizations {
   /// **'Waiting for the payment…'**
   String get cashuMintInvoiceWaiting;
 
-  /// Cashu wallet — closing the invoice dialog loses nothing: a later payment is collected when the app opens
+  /// Cashu wallet — closing the invoice dialog loses nothing: a later payment is collected when the app opens or resumes; if the mint did not answer then, the “Sync with mint” button (cashuSyncButton) collects it
   ///
   /// In en, this message translates to:
-  /// **'You can close this. If the invoice is paid later, the sats arrive the next time you open the app.'**
+  /// **'You can close this. If the invoice is paid later, the sats arrive the next time you open the app; if they don\'t, tap “Sync with mint”.'**
   String get cashuMintInvoiceNote;
 
   /// Cashu wallet — the invoice was paid and its ecash is in the wallet; sats is a formatted number

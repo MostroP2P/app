@@ -4470,7 +4470,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get cashuMintInvoiceNote =>
-      'Puedes cerrar esto. Si la factura se paga más tarde, los sats llegan la próxima vez que abras la app.';
+      'Puedes cerrar esto. Si la factura se paga más tarde, los sats llegan la próxima vez que abras la app; si no llegan, toca «Sincronizar con el mint».';
 
   @override
   String cashuMintReceivedTitle(String sats) {

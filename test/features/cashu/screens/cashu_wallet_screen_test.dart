@@ -1833,11 +1833,13 @@ void main() {
       final controller = _FakeController();
       await openInvoice(tester, controller);
 
-      // Closing is allowed while it waits, and says nothing is lost.
+      // Closing is allowed while it waits, says nothing is lost, and names
+      // Sync for a mint that does not answer when the app opens.
       expect(
         find.text(
           'You can close this. If the invoice is paid later, the sats arrive '
-          'the next time you open the app.',
+          'the next time you open the app; if they don\'t, tap “Sync with '
+          'mint”.',
         ),
         findsOneWidget,
       );

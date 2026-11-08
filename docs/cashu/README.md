@@ -806,11 +806,13 @@ mints is inconsistent), no general wallet features.
   - `CashuWalletStatus::receiving_sats`: the quotes the store knows paid and not
     yet issued (a mint that was down), shown as "receiving X sats";
   - the identity-replacement warning (`funds_at_risk`) gains
-    `FundsAtRiskReason::CashuPendingInvoices`, after `CashuWalletBalance`: one
-    entry for every invoice not minted, forgotten or dormant yet, at any mint,
-    since one paid while the app was closed reads unpaid until its mint is asked.
-    `amount_sats` names the sats known paid, `None` when none is; `order_id` is
-    empty. They come back with the identity's words, like its ecash;
+    `FundsAtRiskReason::CashuPendingInvoices`, after `CashuWalletBalance`: a
+    single entry, present while any invoice is not minted, forgotten or dormant
+    yet, at any mint, since one paid while the app was closed reads unpaid until
+    its mint is asked. It stands for all of them, so the count of entries is not
+    a count of invoices. `amount_sats` is the total known paid across them,
+    `None` when none is; `order_id` is empty. They come back with the identity's
+    words, like its ecash;
   - the backup of C10 covers them; for an open quote, its id is enough.
 - **Dart** (`lib/features/cashu/`): Receive → *Ecash token* / *Lightning* (rows of
   equal weight, the second hidden without `can_receive_lightning`); the amount

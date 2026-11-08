@@ -4481,7 +4481,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get cashuMintInvoiceNote =>
-      'Je kunt dit sluiten. Wordt de factuur later betaald, dan komen de sats binnen zodra je de app weer opent.';
+      'Je kunt dit sluiten. Wordt de factuur later betaald, dan komen de sats binnen zodra je de app weer opent; zo niet, tik dan op ‘Synchroniseren met mint’.';
 
   @override
   String cashuMintReceivedTitle(String sats) {

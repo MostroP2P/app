@@ -1206,7 +1206,7 @@
   "cashuMintAmountTitle": "Recevoir via Lightning",
   "cashuMintInvoiceTitle": "Payez cette facture",
   "cashuMintInvoiceWaiting": "En attente du paiement…",
-  "cashuMintInvoiceNote": "Vous pouvez fermer ceci. Si la facture est payée plus tard, les sats arrivent la prochaine fois que vous ouvrez l'app.",
+  "cashuMintInvoiceNote": "Vous pouvez fermer ceci. Si la facture est payée plus tard, les sats arrivent la prochaine fois que vous ouvrez l'app ; sinon, touchez « Synchroniser avec le mint ».",
   "cashuMintReceivedTitle": "{sats} sats reçus",
   "cashuMintExpiredTitle": "Facture expirée",
   "cashuMintExpiredBody": "Elle n'a pas été payée, rien n'a donc été reçu. Créez une nouvelle facture pour réessayer.",

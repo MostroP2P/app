@@ -1206,7 +1206,7 @@
   "cashuMintAmountTitle": "Ontvangen via Lightning",
   "cashuMintInvoiceTitle": "Betaal deze factuur",
   "cashuMintInvoiceWaiting": "Wachten op de betaling…",
-  "cashuMintInvoiceNote": "Je kunt dit sluiten. Wordt de factuur later betaald, dan komen de sats binnen zodra je de app weer opent.",
+  "cashuMintInvoiceNote": "Je kunt dit sluiten. Wordt de factuur later betaald, dan komen de sats binnen zodra je de app weer opent; zo niet, tik dan op ‘Synchroniseren met mint’.",
   "cashuMintReceivedTitle": "{sats} sats ontvangen",
   "cashuMintExpiredTitle": "Factuur verlopen",
   "cashuMintExpiredBody": "Ze is niet betaald, dus er is niets ontvangen. Maak een nieuwe factuur om het opnieuw te proberen.",

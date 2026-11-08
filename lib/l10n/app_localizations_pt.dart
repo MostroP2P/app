@@ -4494,7 +4494,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get cashuMintInvoiceNote =>
-      'Você pode fechar isto. Se a fatura for paga depois, os sats chegam na próxima vez que você abrir o app.';
+      'Você pode fechar isto. Se a fatura for paga depois, os sats chegam na próxima vez que você abrir o app; se não chegarem, toque em “Sincronizar com o mint”.';
 
   @override
   String cashuMintReceivedTitle(String sats) {
