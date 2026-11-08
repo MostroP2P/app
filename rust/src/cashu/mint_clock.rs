@@ -9,7 +9,7 @@
 //! The mint's own sense of time is not on offer where cdk looks for it:
 //! NUT-06's `time` is optional, cdk-mintd leaves it out, and cdk refuses a
 //! mint whose `time` is more than 30 s from the device's (`fetch_mint_info`,
-//! cdk 0.18.1) — so a skewed device never sees one. Every HTTP server dates
+//! cdk 0.18.2) — so a skewed device never sees one. Every HTTP server dates
 //! its answers, though (`Date`, RFC 9110 §6.6.1), so that header of a
 //! `GET /v1/info` is read instead. To the second, which is all a margin of
 //! minutes needs.

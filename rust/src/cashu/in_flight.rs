@@ -39,7 +39,7 @@
 //! **Issues have a mark of their own** (phase C3b-2), in a set apart: a melt
 //! and an issue touch different sagas, so neither waits for the other. cdk's
 //! status check of a mint quote, `inner_check_mint_quote_status`
-//! (`wallet/issue/mod.rs`, cdk 0.18.1), resumes any issue saga it finds on the
+//! (`wallet/issue/mod.rs`, cdk 0.18.2), resumes any issue saga it finds on the
 //! quote, with no check that its mint call is still running. Against a mint
 //! that has not signed yet the restore comes back empty and the saga is
 //! deleted; the check then rewrites the quote, the live mint's versioned write

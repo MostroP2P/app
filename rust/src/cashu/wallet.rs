@@ -1115,7 +1115,7 @@ fn mint_gate(capabilities: &MintCapabilities, amount_sats: u64) -> Result<()> {
 /// left to mint from it. `now` is unix time.
 ///
 /// `Issued` reads `amount_issued`, which cdk takes from the mint's answer as
-/// well as from its own mints (`apply_mint_quote_response`, cdk 0.18.1): the
+/// well as from its own mints (`apply_mint_quote_response`, cdk 0.18.2): the
 /// mint's word that it issued, which only this wallet's NUT-20 key can ask
 /// for. A quote the mint calls unpaid is `Expired` only once its expiry is
 /// [`MINT_QUOTE_EXPIRY_GRACE_SECS`] behind; an expiry of 0 means none.

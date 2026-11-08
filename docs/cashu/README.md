@@ -721,8 +721,8 @@ mints is inconsistent), no general wallet features.
     `CashuUnsupportedOnWeb`; the collector is a no-op there.
   - `on_cashu_wallet_changed` fires after every mint, so the balance rises.
 - **A status check resumes the quote's saga without asking whether it is still
-  running.** `inner_check_mint_quote_status` (`wallet/issue/mod.rs:344-403`, cdk
-  0.18.1) resumes any issue saga it finds on the quote: in `SecretsPrepared` it
+  running.** `inner_check_mint_quote_status` (`wallet/issue/mod.rs:361-429`, cdk
+  0.18.2) resumes any issue saga it finds on the quote: in `SecretsPrepared` it
   compensates, in `MintRequested` it replays or restores the outputs. Against a mint
   that has not signed yet the restore comes back empty and the saga is **deleted**
   (`issue/saga/resume.rs`, `EmptyResponse`); the check then writes the quote, which
@@ -779,7 +779,7 @@ mints is inconsistent), no general wallet features.
   time (`cashu/mint_clock.rs`): the `Date` header of a `GET /v1/info` (RFC 9110
   §6.6.1, sent by every HTTP server), its offset to the device kept 5 min per mint.
   NUT-06's `time` cannot serve: cdk-mintd leaves it out, and cdk refuses a mint
-  whose `time` is over 30 s from the device's (`fetch_mint_info`, cdk 0.18.1). The
+  whose `time` is over 30 s from the device's (`fetch_mint_info`, cdk 0.18.2). The
   device's clock only says whether a verdict may be due; with no readable date
   nothing is forgotten and nothing is called expired.
 - **A mint that never answers.** cdk reads a mint's "unknown quote" as a generic
@@ -797,8 +797,12 @@ mints is inconsistent), no general wallet features.
   runs out, rather than left at 00:00: until the mint says so the invoice is only
   waiting.
 - **The quote lives only in the local store.** Lost before minting (reinstall, lost
-  file), the sats stay at the mint with no way back — NUT-13 restore (#854) has
-  nothing signed to find. So:
+  file), the sats stay at the mint, and the words alone do not bring them back:
+  NUT-13 restore (#854) has nothing signed to find, and nothing else knows the
+  quote's id. With the id they would: cdk 0.18.2's `fetch_mint_quote_with_key_search`
+  re-derives the quote's NUT-20 key from the seed, searching its key counters for
+  the pubkey the mint reports. Nothing here calls it yet, and the id is kept in that
+  same store (`docs/cashu/cdk-spike.md`, 0.18.1 → 0.18.2). So:
   - `CashuWalletStatus::receiving_sats`: the quotes the store knows paid and not
     yet issued (a mint that was down), shown as "receiving X sats";
   - the identity-replacement warning (`funds_at_risk`) gains
@@ -807,7 +811,7 @@ mints is inconsistent), no general wallet features.
     since one paid while the app was closed reads unpaid until its mint is asked.
     `amount_sats` names the sats known paid, `None` when none is; `order_id` is
     empty. They come back with the identity's words, like its ecash;
-  - the backup of C10 covers them.
+  - the backup of C10 covers them; for an open quote, its id is enough.
 - **Dart** (`lib/features/cashu/`): Receive → *Ecash token* / *Lightning* (rows of
   equal weight, the second hidden without `can_receive_lightning`); the amount
   (`_AmountDialog`, with the mint's limits); a dialog with the invoice (`MostroQr`,
