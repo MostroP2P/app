@@ -92,7 +92,11 @@ identity first, so that is every import it makes (issue #555).
    every other node, and its live set does not list them. Its snapshot is
    stored under that node (`restore_snapshot:<node>`), and each trade is
    judged only by its own node's: another node's trades, and a row that does
-   not know its node, are never dropped, hidden or read as history. The
+   not know its node, are never dropped, hidden or read as history. Such a
+   row takes the restore's node when the reply names its order with its
+   trade index, among the orders or the disputes (#813), or from the active
+   node's message naming the order; the stale sweep wipes only the old
+   finished ones nothing adopted ([orders](orders.md)). The
    whole restore uses that node: the `LastTradeIndex` request, the order
    details, the public order of a restored taker bond and the node written
    on the rows it rebuilds. Account → Refresh takes the node once, and its

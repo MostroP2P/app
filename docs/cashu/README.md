@@ -450,7 +450,7 @@ buyer needs somewhere for redeemed ecash to land — so a minimal embedded walle
 hard prerequisite, not a nice-to-have.
 
 - Add `cdk` + `cdk-sqlite` deps (native); wasm gets a typed "not supported yet" stub
-  (NWC-client pattern, `rust/src/nwc/client.rs`). Pinned at `=0.18.1` — what was
+  (NWC-client pattern, `rust/src/nwc/client.rs`). Pinned at `=0.18.2` — what was
   verified against that version, and how to upgrade, is in
   [`cdk-spike.md`](cdk-spike.md).
 - `rust/src/cashu/mod.rs` — `CashuWallet`:
@@ -561,7 +561,7 @@ mints is inconsistent), no general wallet features.
   mint has proven usable; it resumes melts in flight as well. Best effort: a failure
   is logged, never fails the connect. Safe for escrow and exported tokens — cdk
   compensates only a send still in `ProofsReserved` (no token exists yet) and never
-  revokes one in `TokenCreated` (`wallet/send/saga/resume.rs`, cdk 0.18.1). It also
+  revokes one in `TokenCreated` (`wallet/send/saga/resume.rs`, cdk 0.18.2). It also
   covers the token sends of C2, which until now nothing recovered.
   - **Only at connect.** cdk documents it as crash recovery ("Call on startup",
     `wallet/recovery.rs`) and rolls back a send or melt in `ProofsReserved` without
@@ -597,7 +597,7 @@ mints is inconsistent), no general wallet features.
     - connect skips recovery entirely (`recover_incomplete_sagas` is all or
       nothing) and leaves it for the next connect.
 
-    **Which path actually breaks.** On native, cdk 0.18.1 reaches a mint through
+    **Which path actually breaks.** On native, cdk 0.18.2 reaches a mint through
     `bitreq` 0.3, one connection per host for each wallet, one request at a time.
     A Sync status check from the same wallet waits behind the melt's own request
     and reaches the mint after it, so today Sync cannot roll a melt back. A wallet

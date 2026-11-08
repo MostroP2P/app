@@ -24,10 +24,19 @@
     <!-- Camera is optional (QR falls back to paste if unavailable) -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 
+    <!-- No Auto Backup and no device transfer (#873): a restore at install
+         brought back the first-run flag and trade rows without the
+         Keystore-bound identity that owns them, and copied trade data to
+         Google. tools:replace keeps a merged library manifest from turning
+         it back on. Guarded by test/ci/android_backup_test.dart. -->
     <application
         android:label="Mostro"
         android:name="${applicationName}"
-        android:icon="@mipmap/launcher_icon">
+        android:icon="@mipmap/launcher_icon"
+        android:allowBackup="false"
+        android:fullBackupContent="@xml/backup_rules"
+        android:dataExtractionRules="@xml/data_extraction_rules"
+        tools:replace="android:allowBackup">
         <activity
             android:name=".MainActivity"
             android:exported="true"

@@ -6,6 +6,7 @@ import 'package:mostro/features/order/models/order_detail_rules.dart'
 import 'package:mostro/features/trades/models/trade_status.dart';
 import 'package:mostro/features/trades/models/trade_view.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/utils/btc_pegged.dart';
 import 'package:mostro/features/order/models/bond_rules.dart'
     show bondClaimEffectivePhase;
 import 'package:mostro/src/rust/api/types.dart'
@@ -347,16 +348,24 @@ String paymentMethodLabel(String paymentMethod) {
 
 /// The amount of a card: `966`, `1.250,50` or a range `100 – 500`, with the
 /// locale's separators. `—` when the order carries no amount.
+///
+/// A BTC-pegged [code] counts its amount in sats, so it reads in the asset's
+/// unit instead: `0.001` for 100000 RBTC sats (#907).
 String formatFiatAmount({
   required double? amount,
   required double? min,
   required double? max,
+  required String code,
   required String locale,
 }) {
-  String fmt(double v) => NumberFormat.decimalPatternDigits(
-    locale: locale,
-    decimalDigits: v == v.truncateToDouble() ? 0 : 2,
-  ).format(v);
+  final btcPegged = isBtcPeggedCode(code);
+  String fmt(double v) =>
+      btcPegged
+          ? formatBtcPeggedAmount(v, locale)
+          : NumberFormat.decimalPatternDigits(
+            locale: locale,
+            decimalDigits: v == v.truncateToDouble() ? 0 : 2,
+          ).format(v);
   if (amount != null && amount > 0) return fmt(amount);
   if (min != null && max != null) return '${fmt(min)} – ${fmt(max)}';
   return '—';
@@ -383,6 +392,7 @@ String tradeAmountSummary(
     amount: fiatAmount,
     min: fiatAmountMin,
     max: fiatAmountMax,
+    code: fiatCode,
     locale: locale,
   );
   return [

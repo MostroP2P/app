@@ -24,7 +24,6 @@ import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/widgets/mostro_modal.dart';
 import 'package:mostro/shared/widgets/dashed_border.dart';
-import 'package:mostro/shared/utils/fiat_currencies.dart';
 import 'package:mostro/src/rust/api/node_stats.dart' show MostroNodeStats;
 import 'package:mostro/src/rust/api/types.dart';
 
@@ -231,7 +230,6 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
     final myFiat = ref.watch(
       settingsProvider.select((s) => s.defaultFiatCode?.toUpperCase()),
     );
-    final flags = ref.watch(currencyFlagsProvider);
     final btcPrice =
         myFiat == null
             ? null
@@ -308,7 +306,6 @@ class _MostroNodeSelectorState extends ConsumerState<MostroNodeSelector> {
                           statsCached: live == null,
                           statsLoading: statsAsync.isLoading,
                           myFiat: myFiat,
-                          flags: flags,
                           btcPrice: btcPrice,
                           // One radio at a time: while a switch is in
                           // flight the tapped node owns it, not the node

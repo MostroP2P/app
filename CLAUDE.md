@@ -34,8 +34,9 @@ flutter analyze && flutter test             # Dart side
 #   ./scripts/build-web.sh --release
 #   flutter build web --release --base-href "/app/" --pwa-strategy=none
 cd test/web/smoke && npm ci && npx playwright install chromium && BASE_PATH=/app/ node smoke.mjs
-flutter run -d linux|chrome|android         # Rust is a lib — there is no `cargo run`
+flutter run -d linux|chrome|android         # Rust is a lib — `cargo run` runs no app
 flutter gen-l10n                            # after editing lib/l10n/*.arb
+cd rust && cargo run --bin announce -- --template   # announcement validator (docs/ANNOUNCEMENTS.md)
 ```
 
 ## Web (wasm) — non-obvious constraints
@@ -211,8 +212,8 @@ bridged by flutter_rust_bridge.
 
 ## Releases (`docs/RELEASING.md`)
 - **A pushed tag `vX.Y.Z` is the release.** `.github/workflows/release.yml` builds two signed
-  APKs (`armeabi-v7a`, `arm64-v8a`), publishes the GitHub release and opens the `CHANGELOG.md`
-  PR. It refuses a tag that is not on `main` or whose version `pubspec.yaml` **and**
+  APKs (`armeabi-v7a`, `arm64-v8a`), publishes the GitHub release, lists it on Zapstore (`zsp`,
+  signed with the `ZAPSTORE_SIGN_WITH` secret) and opens the `CHANGELOG.md` PR. It refuses a tag that is not on `main` or whose version `pubspec.yaml` **and**
   `rust/Cargo.toml` do not already carry — the About screen shows `CARGO_PKG_VERSION`. Cut a
   release with `./scripts/release.sh X.Y.Z`, run twice: it opens the bump PR
   (`scripts/bump-version.sh`, never one file by hand), then — once merged — tags `origin/main`.
@@ -382,6 +383,13 @@ bridged by flutter_rust_bridge.
   `rawTradesProvider` and `tradeRowsProvider` keep every node's trades, because Notifications needs
   another node's row for its header, pinning and "Go to trade". Filtering them breaks those cards.
   A row without a node is shown on no node (`isOnActiveNode`), unlike for actions (`isOnOtherNode`).
+  A restore that names its order with its trade index gives it that node — among the orders or the
+  disputes, which mostrod lists apart — and so does a message from the active node to the row's trade
+  key naming the order (the history replayed at start included), never a `CantDo`, which echoes
+  whatever id it refuses. The stale sweep wipes the rest that are finished and started before
+  `unadopted_rows_since`, never on the first sweep of a process, 72 h after it: messages, chat
+  cursors, cached chat and session go too, and the chat-room notifier drops their room. A live one
+  waits, hidden, for its node to name it.
 - **Trade screens are pushed, not polled — so every trade write must ring.** Rust's
   `api::trade_touch::touch_trade(order_id)` is the doorbell behind `tradeStatusProvider`, the
   invoice providers (`trade_state_provider.dart`) and the trade list (`rawTradesProvider`, which
@@ -411,5 +419,16 @@ bridged by flutter_rust_bridge.
   (`nodePictureProvider`); `Image.network` is only the fallback while nothing is stored from the
   URL the profile names now. Don't go back to the URL: on native nothing caches it across
   launches, so every first QR downloaded it with its centre blank meanwhile.
+- **Announcements (kind 38387) come from the project's keys, never from a node**
+  (`specs/006-announcement-channel`, `docs/ANNOUNCEMENTS.md`). Rust reads only
+  `nostr/announcements.rs::ALLOWLIST` (`npub`s, checked outside this repo), verifies every
+  event itself, caches 20 in the device-scoped `announcements` table and re-checks them
+  against the clock on every `Online` and resume, so an expiry holds offline. The toggle
+  (`settings` key `announcements_enabled`) closes the subscription at the tap; the cache
+  stays shown. Dart renders what `api::announcements` hands it and decides nothing:
+  `announcement_cards.dart` reconciles the Sembast cards to each snapshot, the copy follows
+  the locale on screen, a dismissed `critical` stays listed, read. Publish with
+  `cargo run --bin announce` + `nak`, to every default relay, in all seven locales — the
+  reader drops a partial one silently, and `SUPPORTED_LOCALES` is held equal to the ARBs.
 
 <!-- MANUAL ADDITIONS END -->

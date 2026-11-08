@@ -13,7 +13,8 @@ import 'package:mostro/l10n/app_localizations_de.dart';
 import 'package:mostro/l10n/app_localizations_en.dart';
 import 'package:mostro/src/rust/api/types.dart';
 
-/// #811: a card of a trade on another node says so, and opens nothing.
+/// #811: a card of a trade on another node says so, and every way into it
+/// goes through `onOtherNode`, which offers the switch first.
 
 final _en = AppLocalizationsEn();
 final _de = AppLocalizationsDe();
@@ -78,6 +79,7 @@ TradeRow _row() => TradeRow(
 void main() {
   late List<NotificationModel> tapped;
   late int wentToTrade;
+  late List<(String, String, VoidCallback)> offered;
 
   Future<void> pump(
     WidgetTester tester, {
@@ -87,6 +89,7 @@ void main() {
   }) async {
     tapped = [];
     wentToTrade = 0;
+    offered = [];
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
@@ -106,6 +109,8 @@ void main() {
                 tradeRow: _row(),
                 onTapNotification: tapped.add,
                 onGoToTrade: () => wentToTrade++,
+                onOtherNode:
+                    (node, name, open) => offered.add((node, name, open)),
               ),
             ),
           ),
@@ -115,7 +120,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('on another node the card names it and opens nothing', (
+  testWidgets('on another node the card names it and offers its node', (
     tester,
   ) async {
     await pump(
@@ -127,31 +132,34 @@ void main() {
     expect(find.text(_en.otherNodeCardLine('Node A')), findsOneWidget);
     expect(find.byIcon(Icons.warning_amber_rounded), findsOneWidget);
 
-    // Each way into the trade says where it lives instead, in a dialog.
-    Future<void> tapAndDismiss(Finder target) async {
-      await tester.tap(target);
-      await tester.pumpAndSettle();
-      expect(find.text(_en.otherNodeCardDialogTitle), findsOneWidget);
-      expect(find.text(_en.otherNodeCardOpenHint('Node A')), findsOneWidget);
-      await tester.tap(find.text(_en.okButtonLabel));
-      await tester.pumpAndSettle();
-      expect(find.text(_en.otherNodeCardDialogTitle), findsNothing);
-    }
-
-    await tapAndDismiss(find.text(_en.tradeCardFiatSentTitle));
-    await tapAndDismiss(find.text(_en.goToTrade));
+    // Each way into the trade offers its node instead of opening.
+    await tester.tap(find.text(_en.tradeCardFiatSentTitle));
+    await tester.tap(find.text(_en.goToTrade));
     await tester.tap(find.byIcon(Icons.keyboard_arrow_down));
     await tester.pumpAndSettle();
-    await tapAndDismiss(find.text(_en.tradeCardActiveTitle));
+    await tester.tap(find.text(_en.tradeCardActiveTitle));
+    await tester.pump();
 
     expect(tapped, isEmpty, reason: 'no event opens on another node');
     expect(wentToTrade, 0, reason: 'nor does Go to trade');
+    expect(
+      [for (final (node, name, _) in offered) (node, name)],
+      [(_nodeA, 'Node A'), (_nodeA, 'Node A'), (_nodeA, 'Node A')],
+    );
+
+    // What each would have done on the trade's node, run once switched.
+    for (final (_, _, open) in offered) {
+      open();
+    }
+    expect(tapped.map((n) => n.id), [
+      'trade-$_orderId-fiatSent',
+      'trade-$_orderId-active',
+    ]);
+    expect(wentToTrade, 1);
   });
 
-  // DS-A11Y-4: the card's line and the dialog at 320 dp, 2× text, German.
-  testWidgets('the line and the dialog fit 320 dp at 2× text in German', (
-    tester,
-  ) async {
+  // DS-A11Y-4: the card's line at 320 dp, 2× text, German.
+  testWidgets('the line fits 320 dp at 2× text in German', (tester) async {
     tester.view.physicalSize = const Size(320, 760);
     tester.view.devicePixelRatio = 1.0;
     tester.platformDispatcher.textScaleFactorTestValue = 2.0;
@@ -166,16 +174,6 @@ void main() {
     );
     expect(find.text(_de.otherNodeCardLine('Node A')), findsOneWidget);
     expect(tester.takeException(), isNull);
-
-    await tester.tap(find.text(_de.goToTrade));
-    await tester.pumpAndSettle();
-    expect(find.text(_de.otherNodeCardDialogTitle), findsOneWidget);
-    expect(find.text(_de.otherNodeCardOpenHint('Node A')), findsOneWidget);
-    expect(tester.takeException(), isNull);
-
-    await tester.tap(find.text(_de.okButtonLabel));
-    await tester.pumpAndSettle();
-    expect(find.text(_de.otherNodeCardDialogTitle), findsNothing);
   });
 
   testWidgets('on its own node the card has no line and opens as usual', (
@@ -195,6 +193,7 @@ void main() {
 
     expect(tapped.single.id, 'trade-$_orderId-fiatSent');
     expect(wentToTrade, 1);
+    expect(offered, isEmpty);
   });
 
   testWidgets('a card that recorded no node reads as the active node\'s', (

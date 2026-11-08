@@ -9,6 +9,7 @@ import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/settings_palette.dart';
 import 'package:mostro/features/about/screens/about_screen.dart'
     show appVersionProvider;
+import 'package:mostro/features/settings/providers/announcements_provider.dart';
 import 'package:mostro/features/settings/providers/mostro_nodes_provider.dart';
 import 'package:mostro/features/settings/providers/notification_permission_provider.dart';
 import 'package:mostro/features/settings/providers/notification_prefs_provider.dart';
@@ -65,6 +66,23 @@ PushStatus _push({
           : nodeRefusedUntil.millisecondsSinceEpoch ~/ 1000,
 );
 
+/// The Announcements toggle's Rust side, recording what it was asked.
+class _RecordingAnnouncements extends AnnouncementsBridge {
+  _RecordingAnnouncements({this.stored = true});
+
+  bool stored;
+  final asked = <bool>[];
+
+  @override
+  Future<bool> enabled() async => stored;
+
+  @override
+  Future<void> setEnabled(bool enabled) async {
+    asked.add(enabled);
+    stored = enabled;
+  }
+}
+
 /// Records what the master toggle asked for, without a bridge or a device.
 class _RecordingToggle implements PushToggle {
   final asked = <bool>[];
@@ -86,7 +104,11 @@ List<Override> _overrides({
   bool pushExpiresWithTab = false,
   PushStatus? push,
   PushToggle? toggle,
+  AnnouncementsBridge? announcements,
 }) => [
+  announcementsBridgeProvider.overrideWithValue(
+    announcements ?? _RecordingAnnouncements(),
+  ),
   pushSupportedProvider.overrideWithValue(pushSupported),
   pushExpiresWithTabProvider.overrideWithValue(pushExpiresWithTab),
   pushStatusProvider.overrideWith((ref) => Stream.value(push ?? _push())),
@@ -449,8 +471,8 @@ void main() {
     ) async {
       await _pump(tester, const NotificationSettingsScreen());
 
-      // The master push toggle, then the four events.
-      expect(find.byType(MostroToggle), findsNWidgets(5));
+      // The master push toggle, the four events, then Announcements.
+      expect(find.byType(MostroToggle), findsNWidgets(6));
       expect(find.text('Trade updates'), findsOneWidget);
       expect(find.text('Dispute updates'), findsOneWidget);
     });
@@ -619,8 +641,8 @@ void main() {
         findsOneWidget,
       );
       expect(_masterToggle, findsNothing);
-      // The in-app event rows still apply.
-      expect(find.byType(MostroToggle), findsNWidgets(4));
+      // The in-app event rows and Announcements still apply.
+      expect(find.byType(MostroToggle), findsNWidgets(5));
     });
 
     testWidgets('no banner while the system permission is granted', (
@@ -653,6 +675,9 @@ void main() {
         find.byType(MostroToggle),
       )) {
         if (toggle.semanticLabel == 'Push notifications') continue;
+        // Announcements post no system notification: the OS permission
+        // does not gate them.
+        if (toggle.semanticLabel == 'Announcements') continue;
         expect(toggle.onChanged, isNull);
       }
       // Turning push off still unregisters every trade from the server.
@@ -721,5 +746,47 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       expect(prefs.getBool(NotificationEvent.tradeUpdates.prefsKey), isFalse);
     });
+
+    // ── Announcements (specs/006 §7) ──────────────────────────────────────
+
+    testWidgets('shows the Announcements toggle with what Rust persisted', (
+      tester,
+    ) async {
+      await _pump(
+        tester,
+        const NotificationSettingsScreen(),
+        overrides: _overrides(
+          announcements: _RecordingAnnouncements(stored: false),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('Announcements'), findsOneWidget);
+      expect(
+        find.textContaining('signed by the Mostro project'),
+        findsOneWidget,
+      );
+      expect(find.textContaining('nothing about you is sent'), findsOneWidget);
+      expect(tester.widget<MostroToggle>(_announcementsToggle).value, isFalse);
+    });
+
+    testWidgets('turning Announcements off goes through Rust', (tester) async {
+      final bridge = _RecordingAnnouncements();
+      await _pump(
+        tester,
+        const NotificationSettingsScreen(),
+        overrides: _overrides(announcements: bridge),
+      );
+
+      await tester.tap(_announcementsToggle);
+      await tester.pumpAndSettle();
+
+      expect(bridge.asked, [false]);
+      expect(tester.widget<MostroToggle>(_announcementsToggle).value, isFalse);
+    });
   });
 }
+
+final _announcementsToggle = find.byWidgetPredicate(
+  (w) => w is MostroToggle && w.semanticLabel == 'Announcements',
+);

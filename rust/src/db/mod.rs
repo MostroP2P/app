@@ -62,6 +62,13 @@ pub mod settings_keys {
     /// the next identity.
     pub const PENDING_REPUTATION_ATTESTATION: &str = "pending_reputation_attestation";
 
+    /// When a stale sweep that may wipe first ran on a version that wipes the
+    /// finished trade rows without a node that no restore or daemon message
+    /// adopted (#813), unix seconds. They are wiped 72 h after it, not after
+    /// their own start: they are weeks old, and only those started before it.
+    /// Written once. Identity-scoped: the rows are that identity's.
+    pub const UNADOPTED_ROWS_SINCE: &str = "unadopted_rows_since";
+
     // ── Push notifications (docs/PUSH_NOTIFICATIONS.md §7.1, §8.1) ──────────
 
     /// The master toggle, `"true"` / `"false"`; absent reads as enabled.
@@ -77,6 +84,13 @@ pub mod settings_keys {
     /// Nodes the push server operator refused, JSON map of node (hex) →
     /// unix seconds of the `403`; each entry clears per §7.1.
     pub const PUSH_NODE_REFUSALS: &str = "push_node_refusals";
+
+    // ── Announcements (specs/006-announcement-channel §7) ────────────────────
+
+    /// The Announcements toggle, `"true"` / `"false"`; absent reads as
+    /// enabled. Device-scoped, like the push toggle: it says whether this
+    /// install opens the announcement subscription, not anything about a user.
+    pub const ANNOUNCEMENTS_ENABLED: &str = "announcements_enabled";
 
     /// User-added Mostro nodes, JSON array of `crate::api::nodes::CustomNode`.
     /// The trusted registry is compiled in (`crate::config::TRUSTED_MOSTRO_NODES`);
@@ -182,6 +196,20 @@ pub mod settings_keys {
     /// dispute solver. Persisted so a restart never offers to send it twice.
     pub fn dispute_key_shared(order_id: &str) -> String {
         format!("{DISPUTE_KEY_SHARED_PREFIX}{order_id}")
+    }
+
+    /// Every persisted key of `order_id`'s dispute: what
+    /// `api::disputes::clear_dispute_keys` deletes, and what rehydration
+    /// looks for on a finished order. One list, so a key added to it is both
+    /// cleared and swept.
+    pub fn dispute_keys(order_id: &str) -> [String; 5] {
+        [
+            dispute_admin(order_id),
+            dispute_admin_at(order_id),
+            dispute_node(order_id),
+            dispute_mine(order_id),
+            dispute_key_shared(order_id),
+        ]
     }
 
     /// Per-order status replay cursor — the `created_at` (unix seconds,
@@ -310,11 +338,12 @@ pub mod settings_keys {
     /// The single keys that describe the identity, not the device, dropped
     /// with [`IDENTITY_SCOPED_PREFIXES`] by
     /// [`super::Storage::clear_identity_data`].
-    pub const IDENTITY_SCOPED_KEYS: [&str; 4] = [
+    pub const IDENTITY_SCOPED_KEYS: [&str; 5] = [
         BOND_CLAIM_RETAINED_NODES,
         RESTORE_SNAPSHOT,
         MY_REPUTATION,
         PENDING_REPUTATION_ATTESTATION,
+        UNADOPTED_ROWS_SINCE,
     ];
 
     /// Build the settings key of the restore snapshot of `node` (hex).
@@ -378,6 +407,10 @@ pub trait Storage: Send + Sync {
     /// Notification recovery must not depend on a live chat subscription.
     async fn list_unread_messages(&self) -> Result<Vec<crate::api::types::ChatMessage>>;
     async fn mark_messages_read(&self, trade_id: &str) -> Result<()>;
+    /// Delete every chat message of the order `order_id` (`trade_id` holds
+    /// the order id): the peer's and the dispute's alike. Other orders'
+    /// messages stay. No-op when it has none.
+    async fn delete_messages_for_order(&self, order_id: &str) -> Result<()>;
 
     /// `true` if a message with this id was already accepted and stored.
     ///
@@ -583,6 +616,14 @@ pub trait Storage: Send + Sync {
     /// since the caller's read survives. A missing row stays missing, and an
     /// empty `node` matches nothing. Returns whether it changed the row.
     async fn forget_trade_node(&self, row_id: &str, node: &str) -> Result<bool>;
+
+    /// Give `node` to the trade rows of `order_id` whose node is unknown
+    /// (`""` or absent, under either name) and whose `trade_key_index` is
+    /// `trade_index`: a restore on `node` named that order with that index
+    /// (#813). The reverse of [`Self::forget_trade_node`]: only the node
+    /// changes, a row that knows its node is never moved, and an empty `node`
+    /// matches nothing. Returns whether it changed a row.
+    async fn adopt_trade_node(&self, order_id: &str, trade_index: u32, node: &str) -> Result<bool>;
 
     /// Persist the counterparty's trade pubkey on the trade identified by
     /// `order.id` (issue #334). Written when a daemon message reveals it, for

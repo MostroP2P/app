@@ -19,7 +19,9 @@ ProviderContainer tradeRowsContainer(
   List<BondClaim> claims = const [],
 }) => createContainer(
   overrides: [
-    rawTradesProvider.overrideWith((ref) async => trades),
+    // A list of its own on every read, as the bridge returns: a test that
+    // changes [trades] then sees the read before and the one after apart.
+    rawTradesProvider.overrideWith((ref) async => List.of(trades)),
     bondClaimsProvider.overrideWith((ref) async => claims),
     for (final t in trades)
       tradeStatusProvider(

@@ -14,7 +14,7 @@
 //! not scoped to the identity either: a new identity at the same mint waits
 //! for the old melt to end, which only delays.
 //!
-//! **Which path actually breaks.** On native, cdk 0.18.1 talks to a mint
+//! **Which path actually breaks.** On native, cdk 0.18.2 talks to a mint
 //! through `bitreq` 0.3, which keeps one connection per host for each wallet
 //! and sends one request at a time on it (`bitreq` `client.rs`,
 //! `connection.rs`). A status check from the *same* wallet therefore waits
@@ -28,7 +28,7 @@
 //!
 //! * A melt's own timeout. cdk bounds the request only at a mint that lists
 //!   the melt under NUT-19, to that cache's TTL (300 s when it states none);
-//!   then `execute_async` (`wallet/melt/saga/mod.rs`, cdk 0.18.1) asks the
+//!   then `execute_async` (`wallet/melt/saga/mod.rs`, cdk 0.18.2) asks the
 //!   mint and rolls back on `Unpaid` — inside this melt, under its mark.
 //! * A restart. The mark lives in memory, so the next connect resumes the
 //!   saga. cdk asks the mint first and rolls back only on `Unpaid` without a

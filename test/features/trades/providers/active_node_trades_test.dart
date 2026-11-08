@@ -155,6 +155,64 @@ void main() {
       expect(c.read(chatCountProvider), 6);
     });
 
+    test('the room of a row without a node stays out once the row is '
+        'gone', () async {
+      // A wiped legacy row: its room was hidden with it, and must not turn
+      // into a room whose trade is gone.
+      final trades = [
+        _needsAction('own', defaultMostroPubkey),
+        _needsAction('legacy', ''),
+      ];
+      final c = tradeRowsContainer(trades);
+      c.read(chatRoomsNotifierProvider.notifier)
+        ..upsertRoom(_room('order-own'))
+        ..upsertRoom(_room('order-legacy', unread: 3));
+      c.listen(activeNodeChatRoomsProvider, (_, _) {});
+      await loadTradeRows(c);
+      expect(c.read(activeNodeChatRoomsProvider).map((r) => r.orderId), [
+        'order-own',
+      ]);
+
+      trades.removeWhere((t) => t.order.id == 'order-legacy');
+      c.invalidate(rawTradesProvider);
+      await c.read(rawTradesProvider.future);
+      await pumpEventQueue();
+
+      expect(c.read(activeNodeChatRoomsProvider).map((r) => r.orderId), [
+        'order-own',
+      ]);
+      expect(c.read(chatCountProvider), 0);
+    });
+
+    test('the room of a row without a node stays out once the row is '
+        'gone, even when the Chats list was not open', () async {
+      // The rooms were filled (a resume's hydration) while no screen watched
+      // the trades nor the Chats list, and the row went before it was opened:
+      // only what the notifier itself listens to may notice.
+      final trades = [
+        _needsAction('own', defaultMostroPubkey),
+        _needsAction('legacy', ''),
+      ];
+      final c = tradeRowsContainer(trades);
+      c.read(chatRoomsNotifierProvider.notifier)
+        ..upsertRoom(_room('order-own'))
+        ..upsertRoom(_room('order-legacy', unread: 3));
+      await c.read(rawTradesProvider.future);
+
+      trades.removeWhere((t) => t.order.id == 'order-legacy');
+      c.invalidate(rawTradesProvider);
+      await c.read(rawTradesProvider.future);
+      await pumpEventQueue();
+
+      expect(c.read(chatRoomsNotifierProvider).map((r) => r.orderId), [
+        'order-own',
+      ]);
+      expect(c.read(activeNodeChatRoomsProvider).map((r) => r.orderId), [
+        'order-own',
+      ]);
+      expect(c.read(chatCountProvider), 0);
+    });
+
     test('no room shows before the trades load', () {
       final c = tradeRowsContainer([_needsAction('other', _otherNode)]);
       c

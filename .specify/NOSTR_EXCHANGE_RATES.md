@@ -65,6 +65,16 @@ The `content` field is a JSON-encoded string matching Yadio API format:
 
 **Example:** `"BTC": {"USD": 50000.0}` means 1 BTC = 50,000 USD.
 
+**Pegged codes:** a node that quotes stablecoins carries each at its fiat's
+price (`"USDT"` equals `"USD"`). A node that quotes bitcoin on other networks
+(MostroP2P/protocol, "Bitcoin on other networks") carries `BTC`, `LBTC` and
+`RBTC`, each it quotes, at `100000000`: 10⁸ units per BTC, a unit being a sat,
+because those codes count an order's amount in sats. On-chain bitcoin is
+therefore the inner `"BTC"` entry. The client keeps it when it is exactly
+`100000000` and drops any other value, including the `1` in the example above,
+which is a source's bitcoin-in-bitcoin self-rate and prices nothing
+(`parse_rates_content`, `rust/src/mostro/rates.rs`).
+
 ---
 
 ## Security Requirement: Pubkey Verification

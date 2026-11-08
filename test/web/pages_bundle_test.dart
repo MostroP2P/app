@@ -214,6 +214,20 @@ void main() {
       expect(yaml, contains('./scripts/build-web.sh --release'));
     });
 
+    test('creates the wasm-pack cache directory it points wasm-pack at', () {
+      // Arrange
+      final yaml = webBuild.readAsStringSync();
+      final dir = RegExp(
+        r'WASM_PACK_CACHE=([^"\s]+)',
+      ).firstMatch(yaml)?.group(1);
+
+      // Act / Assert — wasm-pack downloads nothing into a directory that does
+      // not exist: it falls back to `cargo install`, which the wasm RUSTFLAGS
+      // break, and actions/cache only creates the directory on a hit.
+      expect(dir, isNotNull);
+      expect(yaml, contains('mkdir -p "$dir"'));
+    });
+
     test('smoke-tests the release bundle it just built', () {
       // Arrange
       final yaml = webBuild.readAsStringSync();

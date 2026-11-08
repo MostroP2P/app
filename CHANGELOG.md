@@ -4,6 +4,108 @@ All notable changes to Mostro are documented here, newest first. This file is
 written by the release workflow (docs/RELEASING.md) — do not edit it by hand.
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [2.1.2] - 2026-10-28
+
+### ✨ Features
+
+- **trades:** ask for confirmations on bitcoin networks ([#912](https://github.com/MostroP2P/app/pull/912)) by @grunch
+- **currency:** add BTC, LBTC and RBTC to the catalogue ([#911](https://github.com/MostroP2P/app/pull/911)) by @grunch
+- **order:** show and enter BTC-pegged amounts right ([#910](https://github.com/MostroP2P/app/pull/910)) by @grunch
+- **stablecoins:** phase 3 — the trade names the network and the transaction ID ([#905](https://github.com/MostroP2P/app/pull/905)) by @grunch
+- **stablecoins:** phase 2 — payment methods name the network ([#904](https://github.com/MostroP2P/app/pull/904)) by @grunch
+- **stablecoins:** phase 1 — catalogue, coin mark, default currency and the Market lock ([#894](https://github.com/MostroP2P/app/pull/894)) by @grunch
+
+### 🐛 Bug Fixes
+
+- **order:** convert fiat to sats as mostrod does ([#909](https://github.com/MostroP2P/app/pull/909)) by @grunch
+- **rates:** keep on-chain BTC quoted at the peg ([#908](https://github.com/MostroP2P/app/pull/908)) by @grunch
+- **zapstore:** stop listing NIP-17 ([#898](https://github.com/MostroP2P/app/pull/898)) by @grunch
+
+### 📚 Documentation
+
+- **stablecoins:** NoRates also means an expired or unreadable rates event ([#903](https://github.com/MostroP2P/app/pull/903)) by @grunch
+
+### 👷 Build & CI
+
+- publish every release on Zapstore ([#906](https://github.com/MostroP2P/app/pull/906)) by @grunch
+- cache wasm-pack's downloads in the web build ([#899](https://github.com/MostroP2P/app/pull/899)) by @grunch
+
+### 🧹 Chores
+
+- **zapstore:** publish the store images as JPEG ([#902](https://github.com/MostroP2P/app/pull/902)) by @grunch
+
+## [2.1.1] - 2026-10-26
+
+### ✨ Features
+
+- **reputation:** name the source of an attestation before importing it ([#886](https://github.com/MostroP2P/app/pull/886)) by @grunch
+- **announcements:** add the project's announcement keys ([#892](https://github.com/MostroP2P/app/pull/892)) by @grunch
+- **announcements:** add the announce validator and the publishing doc ([#891](https://github.com/MostroP2P/app/pull/891)) by @grunch
+- **announcements:** show announcements in the notification surface ([#890](https://github.com/MostroP2P/app/pull/890)) by @grunch
+- **reputation:** sign a rebind authorisation for lnp2pBot ([#885](https://github.com/MostroP2P/app/pull/885)) by @grunch
+- **announcements:** bridge the cache to Dart and add the Announcements toggle ([#889](https://github.com/MostroP2P/app/pull/889)) by @grunch
+- **notifications:** switch to the trade's node from its card ([#879](https://github.com/MostroP2P/app/pull/879)) by @Catrya
+- **drawer:** the release-stage chip says BETA ([#876](https://github.com/MostroP2P/app/pull/876)) by @grunch
+
+### 🐛 Bug Fixes
+
+- **reputation:** import screen picks up capabilities that arrive late ([#888](https://github.com/MostroP2P/app/pull/888)) by @grunch
+- **reputation:** export failures no longer read as an invalid paste ([#887](https://github.com/MostroP2P/app/pull/887)) by @grunch
+- **orders:** don't serialize the node switch's relay fetches ([#877](https://github.com/MostroP2P/app/pull/877)) by @Catrya
+- **android:** opt out of Auto Backup and device transfer ([#874](https://github.com/MostroP2P/app/pull/874)) by @grunch
+
+### 📚 Documentation
+
+- **readme:** add screenshots and the download links of the website ([#878](https://github.com/MostroP2P/app/pull/878)) by @grunch
+
+### 👷 Build & CI
+
+- **web:** pin the web build to ubuntu-24.04 ([#896](https://github.com/MostroP2P/app/pull/896)) by @grunch
+
+### 🧹 Chores
+
+- **cashu:** bump cdk and cdk-sqlite to 0.18.2 ([#871](https://github.com/MostroP2P/app/pull/871)) by @Forte11Cuba
+
+## [2.1.0] - 2026-10-21
+
+### ✨ Features
+
+- **cashu:** C3b-1 — send to Lightning (melt) ([#855](https://github.com/MostroP2P/app/pull/855)) by @Forte11Cuba
+- **nodes:** restore on node switch and show only the active node's trades (phase 5a of 5) ([#858](https://github.com/MostroP2P/app/pull/858)) by @Catrya
+- **qr:** show the Mostro QR, with the order's node in its centre ([#852](https://github.com/MostroP2P/app/pull/852)) by @grunch
+- **l10n:** add Brazilian Portuguese and review every locale ([#840](https://github.com/MostroP2P/app/pull/840)) by @grunch
+- **nodes:** add Mostro México to the trusted node registry ([#838](https://github.com/MostroP2P/app/pull/838)) by @grunch
+
+### 🐛 Bug Fixes
+
+- **orders:** a pending older than the take does not reopen an own order ([#630](https://github.com/MostroP2P/app/pull/630)) by @Forte11Cuba
+- **cashu:** keep a Lightning payment in flight safe from reconnect and Sync, refuse a paid quote ([#867](https://github.com/MostroP2P/app/pull/867)) by @Forte11Cuba
+- **trades:** adopt or wipe the trades without a node (phase 5b of 5) ([#865](https://github.com/MostroP2P/app/pull/865)) by @Catrya
+- **reputation:** show a user's reputation the same way on every screen ([#862](https://github.com/MostroP2P/app/pull/862)) by @grunch
+- **trades:** a pending order's first step waits for a taker ([#861](https://github.com/MostroP2P/app/pull/861)) by @grunch
+- **qr:** let the QR take the width of its card ([#857](https://github.com/MostroP2P/app/pull/857)) by @grunch
+- **restore:** keep a restore snapshot per node (phase 4 of 5) ([#841](https://github.com/MostroP2P/app/pull/841)) by @Catrya
+- **notifications:** say the order was published once the bond locks ([#846](https://github.com/MostroP2P/app/pull/846)) by @grunch
+- **orders:** close a lapsed bond window at its deadline wherever the user is ([#850](https://github.com/MostroP2P/app/pull/850)) by @grunch
+- **trades:** show the buyer Mostro's payout as its own step ([#847](https://github.com/MostroP2P/app/pull/847)) by @grunch
+- **order-book:** show fixed-price orders' price per BTC instead of a 0% premium ([#816](https://github.com/MostroP2P/app/pull/816)) by @21Mill
+
+### ⚡ Performance
+
+- **nodes:** keep node pictures on the device so a QR shows its node at once ([#863](https://github.com/MostroP2P/app/pull/863)) by @grunch
+
+### 📚 Documentation
+
+- **release:** restrict the release environment to release tags ([#859](https://github.com/MostroP2P/app/pull/859)) by @grunch
+
+### 🧹 Chores
+
+- **zapstore:** add store images and stop listing NIP-59 ([#860](https://github.com/MostroP2P/app/pull/860)) by @grunch
+
+### 🔧 Other Changes
+
+- Feat/missing currencies ([#853](https://github.com/MostroP2P/app/pull/853)) by @Forte11Cuba
+
 ## [2.0.17] - 2026-10-16
 
 ### ✨ Features

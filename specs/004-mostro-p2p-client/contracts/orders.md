@@ -70,6 +70,27 @@ applies the first two before recording the event, and
   (`TradeActionListener`); its Notifications cards carry an amber node line
   and open nothing (`docs/PUSH_NOTIFICATIONS.md` §9.2). A row without a node
   counts as the active node's.
+- A row without a node is adopted by the restore that names it
+  ([identity](identity.md)), from the reply alone, and by a message from
+  the active node to its trade key that names the order (the history
+  replayed at start included), which privacy mode gets too; never by a
+  `CantDo`, which echoes the id of whatever it refuses. A finished one comes
+  back as history. The stale sweep, from its second run in a process (the
+  first comes 60 s in, while the replay may still be adopting), wipes the
+  others that are finished and started before it first ran on this rule
+  (`unadopted_rows_since`, identity-scoped, written once), 72 h after it:
+  their chat stops first (`messages::stop_chat_subscriptions`, under the
+  order's lock, so no task writes a cursor afterwards), then their chat
+  cursors and their chat messages go (`messages::forget_order_cursors`,
+  `Storage::delete_messages_for_order`: a failed delete keeps the row for
+  the next sweep, and a row kept that way still has its messages), then
+  the row, without a trade update, so no notice; then, best effort, the
+  cursors again, the chat the process holds and the session
+  (`messages::forget_order_chat`).
+  The chat-room notifier drops their room. A live one is never wiped by the
+  clock: it may run on a node other than the active one, and waits hidden
+  until its node names it. A later restore that names a wiped one rebuilds
+  it, lifts its tombstone and fetches its chat again (#813).
 - A trade's chat stays on its node: see [messages](messages.md) and
   [disputes](disputes.md).
 
@@ -199,7 +220,7 @@ if connected. Merges local cache with relay data.
 ```text
 OrderFilters {
   kind: OrderKind?          # Buy or Sell
-  fiat_code: String?        # ISO 4217 filter
+  fiat_code: String?        # Currency filter: ISO 4217 fiat or stablecoin code
   payment_method: String?   # Payment method filter
 }
 ```
@@ -260,7 +281,7 @@ NewOrderParams {
   fiat_amount: f64?           # Fixed amount in fiat (null if range)
   fiat_amount_min: f64?       # Min amount for range orders (null if fixed)
   fiat_amount_max: f64?       # Max amount for range orders (null if fixed)
-  fiat_code: String           # ISO 4217 code
+  fiat_code: String           # ISO 4217 fiat or stablecoin code (e.g. "USDT")
   payment_method: String      # Payment method description
   premium: f64                # Price premium/discount %
   amount_sats: u64?           # Optional fixed sat amount
@@ -273,14 +294,34 @@ NewOrderParams {
 - If range: `amount_sats` MUST be absent (not even `0`) — a range is priced at
   market when taken, and mostro-core refuses one with sats. Fails with
   `RangeOrderWithSats`.
-- `fiat_code` MUST be valid ISO 4217
-- `payment_method` MUST not be empty
+- `fiat_code` MUST be a currency code of 3 to 5 uppercase ASCII letters: an
+  ISO 4217 fiat, or a stablecoin code from the catalogue (`USDT`, `USDC`,
+  `DOC`; app#884). The node's accepted-currency list decides the rest.
+- A market-priced order (`amount_sats` absent, a range order always) in a
+  stablecoin needs the node to quote the coin: a node whose rates event
+  (`lookup_exchange_rate` → `ExchangeRateLookup::NotQuoted`) lists no price
+  for it refuses every market order in the coin (mostrod
+  `docs/PRICE_PROVIDERS.md` §11.8). The create-order screen locks Market —
+  and range mode with it — on `NotQuoted`, and holds Publish on a market
+  order while the lookup is pending — after a node change too, until the
+  new node answers: the previous node's answer says nothing about it.
+  `NoRates` (no event at all) and every fiat stay as before: the pre-check
+  fails open and the daemon decides.
+- `payment_method` MUST not be empty. The create-order picker suggests the
+  currency's list from `assets/data/payment_methods.json`, the `default` one
+  for a fiat without its own. A stablecoin always has its own, and every
+  entry names the network (`DOC (Rootstock)`, `USDT (Tron)`; app#884): a
+  coin sent on the wrong chain can be lost. A free-text method stays
+  possible.
 - The amount is checked against the node's advertised `min_order_amount` /
   `max_order_amount` before anything is sent: directly for a fixed
   `amount_sats` (#282), and for a market-price order by converting every fiat
   amount the daemon will price — both ends of a range order — at the rate the
-  node publishes (`fetch_exchange_rate` in `nostr.md`), truncating as the
-  daemon does (#337). The fiat amount is first normalised to the whole unit the
+  node publishes (`fetch_exchange_rate` in `nostr.md`), rounding to the
+  nearest sat as the daemon does since MostroP2P/mostro#1090 (#337). An
+  older daemon truncates instead, a sat lower at most, so an amount is
+  refused only when both conversions put it out of range. The fiat amount is
+  first normalised to the whole unit the
   wire carries (`new_order` casts it to `i64`), so the check judges the amount
   the daemon actually receives rather than the decimal the user typed
 
@@ -1098,12 +1139,25 @@ Covers cancellations whose daemon message the app never received (closed or
 offline when the daemon's waiting window expired). Runs 60s after the
 order subscription starts, then every 30 minutes: waiting trades past
 their window (`timeout_at`, else `started_at + 900`) are checked against
-the public book — `pending` republish wipes taker rows (handing the order
-back to the book, as the `Canceled` wipe does) and resyncs maker
-rows to `Pending`; an outright cancel wipes; absence from the book or the
-ambiguous `in-progress` marker changes nothing. Every action requires a
-positive daemon signal; the clock only triggers the check. The sweep also
-drops keyless in-memory sessions older than 24h and logs counters.
+the public book, or, when the book has no entry, against the newest revision
+the relays hold for that one order — `pending` republish wipes taker rows
+(handing the order back to the book, as the `Canceled` wipe does) and
+resyncs maker rows to `Pending`; an outright cancel wipes; absence from the
+book or the ambiguous `in-progress` marker changes nothing. Every action
+requires a positive daemon signal; the clock only triggers the check. The
+sweep also drops keyless in-memory sessions older than 24h and logs counters.
+
+A `pending` older than the take is not a republish (#628). Neither age gate
+protects against one: a maker's `started_at` is the order's creation, which
+a take does not move, and a taker's `timeout_at` is the client's take + 900 s
+while the daemon may still be waiting. So the book never holds one for a
+waiting trade of ours (*Public status vs. trade status*), and a revision
+fetched on a book miss is dated the same way: strictly older than the
+order's status cursor, it changes nothing.
+
+A `success` for a row still at `SettledHoldInvoice` completes it, dated by
+the revision that carried it (#642): the one already fetched on a book miss,
+otherwise one lookup, since the book keeps no time.
 
 `process_gift_wrap_rumor` MUST update **both** the in-memory order book
 (`order_book().update_order_status`) **and** the persisted trade row
@@ -1134,6 +1188,19 @@ ever learned from daemon messages, so:
   back to the public view (see *Daemon cancellation semantics*). A
   `canceled` that reaches a never-active trade of ours wipes it instead of
   being written to it (same section).
+- The book feed (`ingest_order_event`) lets a `pending` past that gate, so a
+  republish reaches the book. For an order of ours still waiting on its take
+  (`WaitingPayment`, `WaitingBuyerInvoice`, `InProgress`) it MUST date that
+  `pending` first (#628). Relays do not all hold an order's newest revision,
+  and after a cold start or on a refetch one that lags still serves the
+  `pending` from before the take. The order's status cursor dates the take:
+  it is the last daemon status this client accepted, in the node's clock,
+  like the event's `created_at`. A `pending` strictly older than it leaves
+  the entry at the local status. One from the same second or later applies,
+  and so does any `pending` without a cursor to compare. The bond windows
+  are not waiting steps: a `WaitingTakerBond` order publishes as `pending`.
+  The d-tag path needs no such check, since `wire_status_applies` never lets
+  a `pending` replace a waiting status there.
 - Both paths MUST accept only events authored by the active node: a d-tag is
   public, and a `canceled` deletes a trade row. The live book subscription
   and the refetch drop other authors before ingesting; `subscribe_single_order`

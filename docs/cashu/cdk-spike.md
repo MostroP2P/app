@@ -76,11 +76,11 @@ blocks (getrandom with `wasm32_unknown_unknown_js`, gloo-timers, a sync-only
 tokio). So the web gap really is storage alone — the protocol half would build
 today.
 
-## 4. The pin: `=0.18.1`, wallet feature only
+## 4. The pin: `=0.18.2`, wallet feature only
 
 ```toml
-cdk        = { version = "=0.18.1", default-features = false, features = ["wallet"] }
-cdk-sqlite = { version = "=0.18.1", default-features = false, features = ["wallet"] }
+cdk        = { version = "=0.18.2", default-features = false, features = ["wallet"] }
+cdk-sqlite = { version = "=0.18.2", default-features = false, features = ["wallet"] }
 ```
 
 Exact-pinned, not caret. cdk is pre-1.0: minor releases move the wallet API
@@ -115,6 +115,37 @@ When moving off the current pin:
 6. Add an entry to §5.
 
 ## 5. Upgrade log
+
+### 0.18.1 → 0.18.2 (#870)
+
+- **API:** none that the app uses. The `Wallet` trait gains
+  `fetch_mint_quote_with_key_search`, which matters only to custom
+  implementations of it; the app uses `cdk::Wallet` itself. That method can
+  recover a paid, unminted quote's NUT-20 key from the seed given the quote id;
+  nothing calls it yet (C10's backup, #854).
+- **Behaviour:** `check_mint_quote_status` and `check_melt_quote_status` reject
+  a mint answer that names another quote (`InvalidMintResponse`) before
+  touching the store, and return the quote as persisted — re-read after a
+  saga resume, with its current version and ownership — instead of the copy
+  they started from (cashubtc/cdk#2639). The race the per-mint issue mark
+  closes is still there: a concurrent check can still delete a live issue
+  saga and bump the quote's version.
+- **Unchanged:** every cdk file the comments in `rust/src/cashu/` cite —
+  `recover_failed_melt_confirm` in `wallet/melt/mod.rs` included, whose file
+  changed only around the status check. `cdk-http-client` and `bitreq` are
+  identical, so `in_flight.rs`' account of one request per connection holds.
+  `SendOptions` and `ReceiveOptions` keep their fields. `KeySet::verify_id`
+  lost a redundant check; it already required the full id to match.
+- **Wallet database:** no migration in `cdk-sql-common` or `cdk-sqlite`, so a
+  build on 0.18.1 still opens a store 0.18.2 wrote.
+- **Dependencies:** `lightning` 0.2.5 → 0.2.7, which cdk 0.18.2 requires.
+- **Not fixed:** cashubtc/cdk#2702 (a dropped keyset stays active and a
+  receive fails); #799 stays open.
+- **Verified:** `cargo test`, `cargo clippy`, `./scripts/build-web.sh`, and
+  all twelve `#[ignore]`d Cashu tests against `testnut.cashu.space` (a
+  `cdk-mintd` 0.18.1 mint). Against a regtest `cdk-mintd` 0.18.1 over LND,
+  connect and the quote status checks answer, and the tests that fund a
+  wallet stop at an unpaid quote, as they do without a FakeWallet mint.
 
 ### 0.17.3 → 0.18.1 (#757)
 

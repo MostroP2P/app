@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,9 +7,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/create_order_palette.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
+import 'package:mostro/features/order/providers/exchange_rate_provider.dart';
+import 'package:mostro/features/order/widgets/currency_section.dart';
 import 'package:mostro/features/order/providers/order_side_provider.dart';
 import 'package:mostro/features/order/widgets/price_section.dart';
+import 'package:mostro/features/settings/providers/mostro_nodes_provider.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/utils/fiat_currencies.dart';
+
+import '../../../support/catalogue_fixtures.dart';
 import '../../../support/provider_harness.dart';
 
 /// Pump [PriceSection] in Market mode with the premium provider seeded to
@@ -16,6 +24,7 @@ Future<ProviderContainer> _pump(
   WidgetTester tester, {
   required double premium,
   OrderType side = OrderType.sell,
+  List<Override> overrides = const [],
 }) async {
   tester.view.physicalSize = const Size(1200, 3000);
   tester.view.devicePixelRatio = 1.0;
@@ -24,6 +33,7 @@ Future<ProviderContainer> _pump(
     overrides: [
       premiumValueProvider.overrideWith((ref) => premium),
       orderSideProvider.overrideWith((ref) => side),
+      ...overrides,
     ],
   );
   await tester.pumpWidget(
@@ -256,6 +266,161 @@ void main() {
       await tester.tap(find.text('Fixed'));
       await tester.pumpAndSettle();
       expect(container.read(isMarketPriceProvider), isTrue);
+    });
+  });
+  group('PriceSection Market lock for a stablecoin (#884)', () {
+    const lockText =
+        "This node doesn't quote USDT at market price. Set a fixed amount in sats.";
+
+    Future<ProviderContainer> pumpWith(
+      WidgetTester tester, {
+      required String code,
+      required ExchangeRateLookup lookup,
+    }) => _pump(
+      tester,
+      premium: 0.0,
+      overrides: [
+        catalogueOverride(),
+        selectedFiatCodeProvider.overrideWith((ref) => code),
+        exchangeRateLookupProvider.overrideWith((ref, _) async => lookup),
+      ],
+    );
+
+    testWidgets(
+      'a rates event without the coin locks Market and moves to Fixed',
+      (tester) async {
+        final container = await pumpWith(
+          tester,
+          code: 'USDT',
+          lookup: const ExchangeRateLookup.notQuoted(),
+        );
+
+        expect(container.read(isMarketPriceProvider), isFalse);
+        expect(find.text(lockText), findsOneWidget);
+        final handle = tester.ensureSemantics();
+        expect(
+          tester.getSemantics(find.text('Market')),
+          isSemantics(isEnabled: false),
+        );
+        handle.dispose();
+      },
+    );
+
+    testWidgets('bitcoin on another network is locked like a coin (#907)', (
+      tester,
+    ) async {
+      final container = await _pump(
+        tester,
+        premium: 0.0,
+        overrides: [
+          catalogueOverride([
+            ...kTestCatalogue,
+            const FiatCurrency(code: 'RBTC', name: 'RBTC', peg: 'BTC'),
+          ]),
+          selectedFiatCodeProvider.overrideWith((ref) => 'RBTC'),
+          exchangeRateLookupProvider.overrideWith(
+            (ref, _) async => const ExchangeRateLookup.notQuoted(),
+          ),
+        ],
+      );
+
+      expect(container.read(isMarketPriceProvider), isFalse);
+      expect(
+        find.text(
+          "This node doesn't quote RBTC at market price. Set a fixed amount in sats.",
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a node that publishes no rates event leaves Market as today', (
+      tester,
+    ) async {
+      final container = await pumpWith(
+        tester,
+        code: 'USDT',
+        lookup: const ExchangeRateLookup.noRates(),
+      );
+
+      expect(container.read(isMarketPriceProvider), isTrue);
+      expect(find.text(lockText), findsNothing);
+    });
+
+    testWidgets('a fiat the node does not quote is never locked', (
+      tester,
+    ) async {
+      final container = await pumpWith(
+        tester,
+        code: 'USD',
+        lookup: const ExchangeRateLookup.notQuoted(),
+      );
+
+      expect(container.read(isMarketPriceProvider), isTrue);
+      expect(find.textContaining('at market price'), findsNothing);
+    });
+
+    test('the quote is pending until the lookup answers, for a coin only',
+        () async {
+      // Arrange: a lookup that has not answered yet.
+      final quote = Completer<ExchangeRateLookup>();
+      final container = createContainer(
+        overrides: [
+          catalogueOverride(),
+          selectedFiatCodeProvider.overrideWith((ref) => 'USDT'),
+          exchangeRateLookupProvider.overrideWith(
+            (ref, code) => code == 'USDT'
+                ? quote.future
+                : Future.value(const ExchangeRateLookup.noRates()),
+          ),
+        ],
+      );
+      await container.read(fiatCurrenciesProvider.future);
+      final pending = container.listen(marketQuotePendingProvider, (_, _) {});
+
+      // Assert: pending while nothing answered, settled once it has; a
+      // fiat is never pending.
+      expect(pending.read(), isTrue);
+      quote.complete(const ExchangeRateLookup.quoted(rate: 100000.0));
+      await container.read(exchangeRateLookupProvider('USDT').future);
+      expect(pending.read(), isFalse);
+      container.read(selectedFiatCodeProvider.notifier).state = 'USD';
+      expect(pending.read(), isFalse);
+    });
+
+    test('a node change holds the quote pending until the new node answers',
+        () async {
+      // Arrange: node A quotes the coin; node B has not answered yet.
+      const nodeA = 'aa';
+      const nodeB = 'bb';
+      final quotes = {
+        nodeA: Completer<ExchangeRateLookup>()
+          ..complete(const ExchangeRateLookup.quoted(rate: 100000.0)),
+        nodeB: Completer<ExchangeRateLookup>(),
+      };
+      final container = createContainer(
+        overrides: [
+          catalogueOverride(),
+          selectedFiatCodeProvider.overrideWith((ref) => 'USDT'),
+          mostroPubkeyProvider.overrideWith((ref) => nodeA),
+          exchangeRateLookupProvider.overrideWith(
+            (ref, _) => quotes[ref.watch(mostroPubkeyProvider)]!.future,
+          ),
+        ],
+      );
+      await container.read(fiatCurrenciesProvider.future);
+      final pending = container.listen(marketQuotePendingProvider, (_, _) {});
+      await container.read(exchangeRateLookupProvider('USDT').future);
+      expect(pending.read(), isFalse);
+
+      // Act: the user switches node. Riverpod keeps node A's answer while
+      // node B's lookup loads.
+      container.read(mostroPubkeyProvider.notifier).state = nodeB;
+
+      // Assert: node A's quote says nothing about node B.
+      expect(pending.read(), isTrue);
+      quotes[nodeB]!.complete(const ExchangeRateLookup.quoted(rate: 1.0));
+      await container.read(exchangeRateLookupProvider('USDT').future);
+      expect(pending.read(), isFalse);
     });
   });
 }

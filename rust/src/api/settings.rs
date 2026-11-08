@@ -86,14 +86,16 @@ fn validate_locale(locale: &str) -> Result<()> {
     }
 }
 
-/// Validates an ISO 4217 fiat code: exactly 3 uppercase ASCII letters.
+/// Validates a currency code: 3 to 5 uppercase ASCII letters. Three for an
+/// ISO 4217 fiat; a stablecoin code from the protocol book's list (`USDT`,
+/// `USDC`, `DOC`, later `EURC`) runs to four (app#884).
 fn validate_fiat_code(code: &str) -> Result<()> {
-    let valid = code.len() == 3 && code.chars().all(|c| c.is_ascii_uppercase());
+    let valid = (3..=5).contains(&code.len()) && code.chars().all(|c| c.is_ascii_uppercase());
     if valid {
         Ok(())
     } else {
         bail!(
-            "InvalidFiatCode: '{}' must be exactly 3 uppercase ASCII letters (ISO 4217)",
+            "InvalidFiatCode: '{}' must be 3 to 5 uppercase ASCII letters (ISO 4217 or a stablecoin code)",
             code
         )
     }
@@ -155,7 +157,8 @@ pub async fn set_language(locale: String) -> Result<()> {
 
 /// Set or clear the default fiat currency code.
 ///
-/// **Errors**: `InvalidFiatCode` if `code` is Some but not exactly 3 uppercase letters (ISO 4217).
+/// **Errors**: `InvalidFiatCode` if `code` is Some but not 3 to 5 uppercase letters (an ISO 4217
+/// fiat or a stablecoin code).
 pub async fn set_default_fiat_code(code: Option<String>) -> Result<()> {
     if let Some(ref c) = code {
         validate_fiat_code(c)?;
@@ -383,6 +386,19 @@ mod tests {
             .await
             .unwrap_err();
         assert!(err.to_string().contains("InvalidFiatCode"));
+    }
+
+    /// A stablecoin code is four letters (`USDT`, `EURC`); the rule stays
+    /// upper-case letters only and refuses anything over five.
+    #[test]
+    fn fiat_code_accepts_stablecoin_codes() {
+        for code in ["USD", "DOC", "USDT", "USDC", "EURC", "ABCDE"] {
+            assert!(validate_fiat_code(code).is_ok(), "{code}");
+        }
+        for code in ["", "US", "usdt", "USD1", "USDT ", "ABCDEF"] {
+            let err = validate_fiat_code(code).unwrap_err();
+            assert!(err.to_string().contains("InvalidFiatCode"), "{code}");
+        }
     }
 
     #[tokio::test]

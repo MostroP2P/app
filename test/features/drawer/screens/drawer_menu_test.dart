@@ -97,7 +97,7 @@ void main() {
 
       expect(find.text('Mostro'), findsOneWidget);
       expect(find.text('P2P EXCHANGE'), findsOneWidget);
-      expect(find.text('ALPHA'), findsOneWidget);
+      expect(find.text('BETA'), findsOneWidget);
     });
 
     testWidgets('footer shows the app version', (tester) async {
@@ -211,7 +211,7 @@ void main() {
         tester.getSemantics(_semantic(AutomationIds.drawerSettings)),
         isSemantics(isSelected: false),
       );
-      expect(find.text('ALPHA'), findsOneWidget);
+      expect(find.text('BETA'), findsOneWidget);
       semantics.dispose();
     });
   });

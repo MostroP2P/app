@@ -45,6 +45,7 @@ Future<ProviderContainer> _pump(
   Map<String, Completer<List<String>>>? acceptedByNode,
   List<String> Function()? cachedList,
   int? bondEstimate,
+  Future<ExchangeRateLookup> Function(String code)? lookup,
 }) async {
   tester.view.physicalSize = const Size(400, 1600);
   tester.view.devicePixelRatio = 1.0;
@@ -65,10 +66,15 @@ Future<ProviderContainer> _pump(
           _ => null,
         },
       ),
+      if (lookup != null)
+        exchangeRateLookupProvider.overrideWith((ref, code) => lookup(code)),
       fiatCurrenciesProvider.overrideWith(
-        (ref) async => const [
-          FiatCurrency(code: 'USD', name: 'US Dollar', flag: '🇺🇸'),
-          FiatCurrency(code: 'ARS', name: 'Argentine Peso', flag: '🇦🇷'),
+        (ref) async => [
+          const FiatCurrency(code: 'USD', name: 'US Dollar', flag: '🇺🇸'),
+          const FiatCurrency(code: 'ARS', name: 'Argentine Peso', flag: '🇦🇷'),
+          // A stablecoin only for the tests that stub its quote.
+          if (lookup != null)
+            const FiatCurrency(code: 'USDT', name: 'Tether USD', peg: 'USD'),
         ],
       ),
       paymentMethodsDataProvider.overrideWith(
@@ -312,6 +318,57 @@ void main() {
         'You sell BTC for 5,000 – 25,000 USD at market price · active 24 h',
       );
       expect(_publishButton(tester).onPressed, isNotNull);
+    });
+
+    testWidgets('holds Publish on a market order until the stablecoin is quoted',
+        (tester) async {
+      // #884: the lock lands only once the lookup answers. Until then a
+      // market order in the coin would reach a node that may refuse it.
+      final quote = Completer<ExchangeRateLookup>();
+      final container = await _pump(
+        tester,
+        lookup: (code) =>
+            code == 'USDT' ? quote.future : Future.value(const ExchangeRateLookup.noRates()),
+      );
+      container.read(selectedFiatCodeProvider.notifier).state = 'USDT';
+      container.read(selectedPaymentMethodsProvider.notifier).state = ['Zelle'];
+      await tester.enterText(_amountField(), '50');
+      await tester.pumpAndSettle();
+      expect(container.read(isMarketPriceProvider), isTrue);
+      expect(_publishButton(tester).onPressed, isNull);
+
+      quote.complete(const ExchangeRateLookup.quoted(rate: 100000.0));
+      await tester.pumpAndSettle();
+      expect(_publishButton(tester).onPressed, isNotNull);
+    });
+
+    testWidgets('a stablecoin the node does not quote locks range mode out',
+        (tester) async {
+      // A range order is priced at market: when the lock lands on a range in
+      // progress the form leaves range mode, and Range stays disabled.
+      final quote = Completer<ExchangeRateLookup>();
+      final container = await _pump(
+        tester,
+        lookup: (code) =>
+            code == 'USDT' ? quote.future : Future.value(const ExchangeRateLookup.noRates()),
+      );
+      container.read(selectedFiatCodeProvider.notifier).state = 'USDT';
+      await tester.enterText(_amountField(), '50');
+      await tester.tap(find.text('Range'));
+      await tester.pumpAndSettle();
+      expect(container.read(isRangeOrderProvider), isTrue);
+
+      quote.complete(const ExchangeRateLookup.notQuoted());
+      await tester.pumpAndSettle();
+      expect(container.read(isRangeOrderProvider), isFalse);
+      expect(container.read(isMarketPriceProvider), isFalse);
+      // The amount came back to the single field.
+      expect(tester.widget<TextField>(_amountField()).controller!.text, '50');
+
+      await tester.tap(find.text('Range'));
+      await tester.pumpAndSettle();
+      expect(container.read(isRangeOrderProvider), isFalse);
+      expect(container.read(isMarketPriceProvider), isFalse);
     });
 
     testWidgets('quick chips fill the amount field', (tester) async {

@@ -749,7 +749,7 @@ class AppLocalizationsEs extends AppLocalizations {
   String get drawerTagline => 'Exchange P2P';
 
   @override
-  String get drawerStageBadge => 'Alfa';
+  String get drawerStageBadge => 'Beta';
 
   @override
   String drawerVersion(String version) {
@@ -870,7 +870,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get fiatSentFailed =>
-      'Error al marcar el fiat como enviado. Por favor, inténtalo de nuevo.';
+      'Error al marcar el pago como enviado. Por favor, inténtalo de nuevo.';
 
   @override
   String get releaseFailed =>
@@ -1375,6 +1375,33 @@ class AppLocalizationsEs extends AppLocalizations {
       'Acciones de los resolutores y resoluciones de disputas';
 
   @override
+  String get notifAnnouncementsTitle => 'Anuncios';
+
+  @override
+  String get notifAnnouncementsSubtitle =>
+      'Versiones, caídas y cambios de relays, firmados por el proyecto Mostro';
+
+  @override
+  String get announcementsGroupSubtitle =>
+      'Los anuncios se leen de los relays y nunca se responden: no se envía nada sobre ti.';
+
+  @override
+  String get announcementLevelInfo => 'Anuncio';
+
+  @override
+  String get announcementLevelWarning => 'Aviso';
+
+  @override
+  String get announcementLevelCritical => 'Actualización de seguridad';
+
+  @override
+  String get announcementOpenLink => 'Abrir enlace';
+
+  @override
+  String get notificationsBellCritical =>
+      'Notificaciones, hay una actualización de seguridad sin leer';
+
+  @override
   String get searchCurrenciesHint => 'Buscar monedas…';
 
   @override
@@ -1449,7 +1476,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get tradeInstructionFiatSentBuyer =>
-      'Pago fiat marcado como enviado. Esperando que el vendedor confirme la recepción y libere tus sats.';
+      'Pago marcado como enviado. Esperando que el vendedor confirme la recepción y libere tus sats.';
 
   @override
   String get tradeInstructionActiveSeller =>
@@ -1457,7 +1484,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get tradeInstructionFiatSentSeller =>
-      'El comprador confirmó que envió el pago fiat. Una vez que verifiques la recepción, libera los sats.';
+      'El comprador confirmó que envió el pago. Una vez que verifiques la recepción, libera los sats.';
 
   @override
   String get tradeInstructionDisputed =>
@@ -1571,10 +1598,10 @@ class AppLocalizationsEs extends AppLocalizations {
   String get tradeStepInvoiceSeller => 'Bloqueas los sats';
 
   @override
-  String get tradeStepFiatBuyer => 'Envías el pago fiat';
+  String get tradeStepFiatBuyer => 'Envías el pago';
 
   @override
-  String get tradeStepFiatSeller => 'El comprador envía el pago fiat';
+  String get tradeStepFiatSeller => 'El comprador envía el pago';
 
   @override
   String get tradeStepReleaseBuyer => 'El vendedor libera tus sats';
@@ -2394,7 +2421,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get tradeBodyWaitingPaymentBuyer =>
-      'Está pagando la factura. Cuando los sats estén bloqueados, te toca pagar el fiat.';
+      'Está pagando la factura. Cuando los sats estén bloqueados, te toca pagar.';
 
   @override
   String tradeBodyActiveSeller(String method) {
@@ -2409,6 +2436,41 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String tradeBodyFiatSentSeller(String method) {
     return 'El comprador marcó el pago como enviado. Revisa tu cuenta de $method antes de liberar.';
+  }
+
+  @override
+  String tradeBodyActiveBuyerStablecoin(String method) {
+    return 'Envíalo por $method, a la dirección que te pasó por el chat: por otra red se puede perder. Luego pega el ID de la transacción en el chat (es tu prueba en una disputa) y márcalo abajo.';
+  }
+
+  @override
+  String tradeBodyActiveSellerStablecoin(String method) {
+    return 'Pásale tu dirección de $method por el chat de arriba.';
+  }
+
+  @override
+  String tradeBodyFiatSentSellerStablecoin(String method) {
+    return 'El comprador marcó el pago como enviado. Antes de liberar, comprueba que llegó a tu dirección de $method, con el ID de la transacción del chat.';
+  }
+
+  @override
+  String tradeBodyActiveBuyerBtcPegged(String method) {
+    return 'Envíalo por $method, a la dirección que te pasó por el chat, con una comisión suficiente para que confirme pronto: el vendedor libera solo cuando esté confirmado. Luego pega el ID de la transacción en el chat (es tu prueba en una disputa) y márcalo abajo.';
+  }
+
+  @override
+  String tradeBodyActiveBuyerLiquid(String method) {
+    return 'Envíalo por $method, a la dirección que te pasó por el chat. Luego pega en el chat el enlace desbloqueado de la transacción: Liquid oculta el monto, y el enlace se lo muestra al vendedor y, en una disputa, al resolutor. Márcalo abajo.';
+  }
+
+  @override
+  String tradeBodyFiatSentSellerBtcPegged(String method) {
+    return 'El comprador marcó el pago como enviado. Libera solo cuando esté confirmado en $method: compruébalo con el ID de la transacción del chat.';
+  }
+
+  @override
+  String tradeBodyFiatSentSellerLiquid(String method) {
+    return 'El comprador marcó el pago como enviado. Libera solo cuando esté confirmado en $method: comprueba el monto con el enlace desbloqueado del chat.';
   }
 
   @override
@@ -3664,14 +3726,14 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get tradeCardActiveMessage =>
-      'Los sats están bloqueados. El comprador ya puede enviar el pago fiat.';
+      'Los sats están bloqueados. El comprador ya puede enviar el pago.';
 
   @override
-  String get tradeCardFiatSentTitle => 'Fiat marcado como enviado';
+  String get tradeCardFiatSentTitle => 'Pago marcado como enviado';
 
   @override
   String get tradeCardFiatSentMessage =>
-      'El comprador marcó el pago fiat como enviado.';
+      'El comprador marcó el pago como enviado.';
 
   @override
   String get tradeCardSettledHoldInvoiceTitle => 'Sats liberados';
@@ -4568,7 +4630,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get tradeBodyWaitingPaymentBuyerCashu =>
-      'Está bloqueando los sats en la custodia. Cuando estén bloqueados, te toca pagar el fiat.';
+      'Está bloqueando los sats en la custodia. Cuando estén bloqueados, te toca pagar.';
 
   @override
   String get shareChatKeyAction =>
@@ -4804,8 +4866,28 @@ class AppLocalizationsEs extends AppLocalizations {
       'La reputación importada se suma a la que tienes aquí; tus contrapartes las ven juntas.';
 
   @override
+  String get reputationExportFailed =>
+      'Este Mostro no pudo exportar tu reputación. Inténtalo más tarde.';
+
+  @override
+  String get reputationExportUnexpectedIssuer =>
+      'Este Mostro firmó la respuesta con una clave distinta de la que anunció. Cambia a otro Mostro y vuelve para actualizar su información, y luego inténtalo de nuevo.';
+
+  @override
   String get reputationOpenLnp2pbotFailed =>
       'No se pudo abrir Telegram. Abre lnp2pBot en Telegram por tu cuenta y pega aquí lo que te envíe.';
+
+  @override
+  String get reputationIssuedByLnp2pbot => 'Emitida por lnp2pBot';
+
+  @override
+  String reputationIssuedByMostro(String name) {
+    return 'Emitida por el Mostro $name';
+  }
+
+  @override
+  String get reputationIssuedByUnknownKey =>
+      'Emitida por una clave que esta app no conoce:';
 
   @override
   String get reputationIdentityHint =>
@@ -4849,14 +4931,31 @@ class AppLocalizationsEs extends AppLocalizations {
       'Tu reputación está lista. Cambia al Mostro donde la quieres e impórtala; es válida durante 7 días.';
 
   @override
+  String get reputationRebindTitle => 'Mudarse a una identidad nueva';
+
+  @override
   String get reputationRebindBody =>
-      '¿Te mudas a una identidad nueva? Firma aquí una autorización para ella, con la identidad a la que está ligada tu reputación ahora. Luego, desde la identidad nueva, pégala en el campo de autorización de arriba y exporta.';
+      'Firma una autorización para la identidad nueva con la identidad a la que está ligada tu reputación ahora: para este Mostro, o para lnp2pBot si la obtuviste allí.';
 
   @override
   String get reputationNewIdentityHint => 'Identidad nueva (npub o hex)';
 
   @override
+  String get reputationRebindSignNode => 'Firmar para este Mostro';
+
+  @override
+  String get reputationRebindSignBot => 'Firmar para lnp2pBot';
+
+  @override
   String get reputationRebindSign => 'Firmar autorización';
+
+  @override
+  String get reputationRebindSignedForNode =>
+      'Desde la identidad nueva, pégala en el campo de autorización de la tarjeta de exportar y exporta.';
+
+  @override
+  String get reputationRebindSignedForBot =>
+      'lnp2pBot solo acepta esto después de que la identidad nueva le haya pedido tu reputación: si aún no lo hiciste, abre lnp2pBot desde la identidad nueva con «Obtenerla de lnp2pBot» en la pantalla de importar, y no abras después ningún otro enlace al bot. Luego pega esto en ese chat y confirma. Vale una hora.';
 
   @override
   String get reputationInvalidIdentity =>
@@ -4872,6 +4971,11 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String reputationRebindConfirmBody(String npub) {
     return 'Quien tenga esta identidad podrá exportar tu reputación de este Mostro, y tu identidad actual ya no podrá:\n\n$npub\n\nFirma solo para una identidad que sea tuya.';
+  }
+
+  @override
+  String reputationRebindConfirmBodyBot(String npub) {
+    return 'Quien tenga esta identidad podrá exportar tu reputación de lnp2pBot, y tu identidad actual ya no podrá:\n\n$npub\n\nFirma solo para una identidad que sea tuya.';
   }
 
   @override
@@ -5070,7 +5174,18 @@ class AppLocalizationsEs extends AppLocalizations {
   String get otherNodeCardDialogTitle => 'Operación en otro nodo';
 
   @override
-  String otherNodeCardOpenHint(String nodeName) {
-    return 'Esta operación es del nodo $nodeName. Para operarla, cambia a ese nodo en Configuración.';
+  String otherNodeCardSwitchPrompt(String nodeName) {
+    return '¿Quieres cambiar al nodo $nodeName?';
+  }
+
+  @override
+  String get stablecoinsGroupHeader => 'Stablecoins';
+
+  @override
+  String get bitcoinNetworksGroupHeader => 'Bitcoin en otras redes';
+
+  @override
+  String marketPriceNotQuotedByNode(String code) {
+    return 'Este nodo no cotiza $code a precio de mercado. Indica un monto fijo en sats.';
   }
 }

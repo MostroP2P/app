@@ -326,6 +326,7 @@ class AutomationIds {
   static const String reputationRebindInput = 'reputation.export.rebind';
   static const String reputationRebindIdentity = 'reputation.rebind.identity';
   static const String reputationRebindSign = 'reputation.rebind.sign';
+  static const String reputationRebindSignBot = 'reputation.rebind.sign_bot';
   static const String reputationRebindConfirm = 'reputation.rebind.confirm';
   static const String reputationRebindResult = 'reputation.rebind.result';
   static const String reputationImportIdentity = 'reputation.import.identity';
@@ -333,5 +334,6 @@ class AutomationIds {
   static const String reputationImportInput = 'reputation.import.input';
   static const String reputationImportCheck = 'reputation.import.check';
   static const String reputationImportFigures = 'reputation.import.figures';
+  static const String reputationImportSource = 'reputation.import.source';
   static const String reputationImportConfirm = 'reputation.import.confirm';
 }

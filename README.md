@@ -1,29 +1,57 @@
+<div align="center">
+
+<img src="assets/images/launcher-icon.png" alt="Mostro" width="120">
+
 # Mostro App
 
-> Non-custodial, peer-to-peer Bitcoin ↔ fiat exchange on Lightning Network — powered by the Mostro protocol over Nostr.
+**Non-custodial P2P Bitcoin exchange on Lightning Network & Nostr**
 
-[![Flutter](https://img.shields.io/badge/Flutter-3.x-blue?logo=flutter)](https://flutter.dev)
-[![Rust](https://img.shields.io/badge/Rust-1.94+-orange?logo=rust)](https://www.rust-lang.org)
+Buy and sell Bitcoin for your local currency, directly with other people.<br>
+No accounts, no KYC, and nobody ever holds your funds.
+
+[![Latest release](https://img.shields.io/github/v/release/MostroP2P/app?label=release&color=8CC63F)](https://github.com/MostroP2P/app/releases/latest)
+[![CI](https://github.com/MostroP2P/app/actions/workflows/ci.yml/badge.svg)](https://github.com/MostroP2P/app/actions/workflows/ci.yml)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPLv3-blue.svg)](LICENSE)
-[![Platforms](https://img.shields.io/badge/platforms-Android%20%7C%20iOS%20%7C%20Web%20%7C%20macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](#supported-platforms)
+[![Flutter](https://img.shields.io/badge/Flutter-3.x-02569B?logo=flutter)](https://flutter.dev)
+[![Rust](https://img.shields.io/badge/Rust-1.94+-orange?logo=rust)](https://www.rust-lang.org)
+
+<br>
+
+<a href="https://zapstore.dev/apps/foundation.mostro.app"><img src="docs/readme/zapstore-badge.png" alt="Get it on Zapstore" height="56"></a>
+
+<sub><b>OR DOWNLOAD IT FROM GITHUB</b></sub>
+
+<a href="https://github.com/MostroP2P/app/releases/latest"><img src="docs/readme/android.svg" alt="Android" height="40"></a>
+<a href="https://github.com/MostroP2P/app/releases/latest"><img src="docs/readme/windows.svg" alt="Windows" height="40"></a>
+<a href="https://github.com/MostroP2P/app/releases/latest"><img src="docs/readme/macos.svg" alt="macOS" height="40"></a>
+<a href="https://github.com/MostroP2P/app/releases/latest"><img src="docs/readme/linux.svg" alt="Linux" height="40"></a>
+
+<sub>Nothing to install? <a href="https://mostro.network/app/">Open it in your browser</a> · On iOS, <a href="#install-the-app">sideload the release build</a></sub>
+
+<br>
+
+<img src="docs/zapstore/01_hero.jpg" width="33%" alt="The Mostro order book"><img src="docs/zapstore/02_hero.jpg" width="33%" alt="An encrypted chat with the other trader"><img src="docs/zapstore/03_hero.jpg" width="33%" alt="The hold invoice that locks the seller's sats">
+
+</div>
 
 ---
 
 ## Table of Contents
 
 1. [What is Mostro App?](#what-is-mostro-app)
-2. [Progress Overview](#progress-overview)
-3. [What is Mostro?](#what-is-mostro)
-4. [The Mostro Protocol](#the-mostro-protocol)
-5. [Architecture & Fundamentals](#architecture--fundamentals)
-6. [Supported Platforms](#supported-platforms)
-7. [Getting Started (Users)](#getting-started-users)
-8. [Getting Started (Developers)](#getting-started-developers)
-9. [Project Structure](#project-structure)
-10. [Contributing](#contributing)
-11. [Internationalization](#internationalization)
-12. [Security](#security)
-13. [License](#license)
+2. [Screenshots](#screenshots)
+3. [Progress Overview](#progress-overview)
+4. [What is Mostro?](#what-is-mostro)
+5. [The Mostro Protocol](#the-mostro-protocol)
+6. [Architecture & Fundamentals](#architecture--fundamentals)
+7. [Supported Platforms](#supported-platforms)
+8. [Getting Started (Users)](#getting-started-users)
+9. [Getting Started (Developers)](#getting-started-developers)
+10. [Project Structure](#project-structure)
+11. [Contributing](#contributing)
+12. [Internationalization](#internationalization)
+13. [Security](#security)
+14. [License](#license)
 
 ---
 
@@ -39,6 +67,21 @@ Mostro App is the official cross-platform client for the [Mostro](https://mostro
 - **Censorship-resistant** — Built on the Nostr network; no central server or domain to block.
 - **Multi-platform** — Single codebase targets Android, iOS, Web (PWA), macOS, Windows, and Linux.
 - **Open source** — AGPLv3 licensed. Fully auditable, no proprietary components.
+
+---
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/zapstore/04_book.jpg" width="30%" alt="Order book: buy and sell Bitcoin, peer to peer">
+  <img src="docs/zapstore/05_create.jpg" width="30%" alt="Create orders: your price, your payment methods">
+  <img src="docs/zapstore/06_escrow.jpg" width="30%" alt="Lightning escrow: sats locked in a hold invoice until the trade settles">
+</p>
+<p align="center">
+  <img src="docs/zapstore/07_chat.jpg" width="30%" alt="Private chat: encrypted over Nostr, no phone number">
+  <img src="docs/zapstore/08_trades.jpg" width="30%" alt="My trades: know what each trade needs next">
+  <img src="docs/zapstore/09_nodes.jpg" width="30%" alt="Choose your node: no central server to shut down">
+</p>
 
 ---
 
@@ -70,6 +113,7 @@ Status of the client's features across the Rust core and the Flutter UI.
 - [x] Range orders (create / take a slice / remainder republished)
 - [x] Cooperative cancellation (request / accept, with a notice for each side)
 - [x] In-app notifications (trade, dispute and chat events)
+- [x] Announcements — signed notices from the project (kind `38387`) in Notifications, with an off switch; see `docs/ANNOUNCEMENTS.md`
 - [x] Anti-abuse bond
 - [x] Multi-language (en, de, es, fr, it, nl, pt)
 - [x] Log report (Rust core logs, shared as a sanitized text report)
@@ -178,7 +222,7 @@ Mostro App uses a **split-architecture** model: all cryptography, protocol logic
 │                  Rust Core                  │
 │                                             │
 │  nostr-sdk 0.45   →  relay pool, NIP-44     │
-│  mostro-core 0.16.0 →  protocol FSM, types,   │
+│  mostro-core 0.17 →  protocol FSM, types,   │
 │                      transport              │
 │  bip32 / bip39    →  HD key derivation      │
 │  k256             →  secp256k1 ECDH         │
@@ -207,7 +251,7 @@ Mostro App uses a **split-architecture** model: all cryptography, protocol logic
 | State Management | Riverpod | 2.6.1 |
 | Routing | GoRouter | 14.8.1 |
 | Nostr Protocol | nostr-sdk | 0.45 |
-| Mostro Types / FSM / Transport | mostro-core | 0.14.6 |
+| Mostro Types / FSM / Transport | mostro-core | 0.17.3 |
 | UI-layer Persistence | Sembast | 3.8.2 |
 | Protocol Persistence (native) | SQLite via sqlx | 0.8 |
 | Protocol Persistence (web) | IndexedDB | 0.4 |
@@ -222,14 +266,14 @@ Mostro App uses a **split-architecture** model: all cryptography, protocol logic
 
 ## Supported Platforms
 
-| Platform | Status |
-|----------|--------|
-| Android 5.0+ | Supported |
-| iOS 14+ | Supported |
-| Web (PWA) | Supported (WASM) |
-| macOS 10.15+ | Supported |
-| Windows 10+ | Supported |
-| Linux (GTK) | Supported |
+| Platform | Runs on | Get it |
+|----------|---------|--------|
+| Android | 7.0 or later | [Zapstore](https://zapstore.dev/apps/foundation.mostro.app) or an APK from the [latest release](https://github.com/MostroP2P/app/releases/latest) |
+| iOS | 14 or later | Unsigned `.ipa` to sideload, from the [latest release](https://github.com/MostroP2P/app/releases/latest) |
+| Web (PWA) | A modern browser, over HTTPS | [mostro.network/app](https://mostro.network/app/) |
+| macOS | 10.15 or later, Apple Silicon and Intel | `.zip` from the [latest release](https://github.com/MostroP2P/app/releases/latest) |
+| Windows | 10 or later, x86-64 | `.zip` from the [latest release](https://github.com/MostroP2P/app/releases/latest) |
+| Linux | x86-64, glibc 2.35 or later (GTK 3) | `.tar.gz` from the [latest release](https://github.com/MostroP2P/app/releases/latest) |
 
 ---
 
@@ -239,11 +283,73 @@ Mostro App uses a **split-architecture** model: all cryptography, protocol logic
 
 **Android**
 
-Download the latest APK from the [Releases](../../releases) page and install it, or build from source (see the Developer section below).
+Install it from [Zapstore](https://zapstore.dev/apps/foundation.mostro.app), which also keeps it
+up to date, or download an APK from the [latest release](https://github.com/MostroP2P/app/releases/latest):
+`arm64-v8a` for any modern phone, `armeabi-v7a` for old or entry-level phones that run a 32-bit
+Android. If unsure, try `arm64-v8a` first.
+
+**Windows · macOS · Linux**
+
+Download the build for your system from the [latest release](https://github.com/MostroP2P/app/releases/latest).
+They are not signed by Microsoft or notarized by Apple yet, so the first launch takes one extra step:
+
+<details>
+<summary><b>Windows</b> — unzip and run <code>mostro.exe</code></summary>
+
+Unzip the whole folder and start `mostro.exe` from inside it; the DLLs and `data\` next to it
+are part of the app. The build carries no Authenticode signature, so **SmartScreen** shows
+*"Windows protected your PC"*: choose **More info → Run anyway**.
+
+</details>
+
+<details>
+<summary><b>macOS</b> — allow an app Apple has not notarized</summary>
+
+The app is ad-hoc signed and **not notarized**, so Gatekeeper refuses it on a double click
+(*"cannot be opened"* or *"is damaged"*). Unzip it, move `mostro.app` to Applications and clear
+the quarantine flag once:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/mostro.app
+```
+
+</details>
+
+<details>
+<summary><b>Linux</b> — unpack and run</summary>
+
+```bash
+mkdir mostro && tar -xzf mostro-*-linux-x64.tar.gz -C mostro && ./mostro/mostro
+```
+
+Keep the folder together: the `mostro` binary loads `lib/` and `data/` from next to itself. It
+needs GTK 3 and **libsecret** with a running keyring (GNOME Keyring, KWallet), which is where your
+keys are stored. To add Mostro to your application menu, with its icon, run `./mostro/install.sh`
+once (`--uninstall` removes it).
+
+</details>
+
+Every release lists its files in `SHA256SUMS.txt`. Check a download against it, from the folder
+that holds both:
+
+```bash
+# Linux
+sha256sum -c SHA256SUMS.txt --ignore-missing
+# macOS
+grep macos-universal SHA256SUMS.txt | shasum -a 256 -c
+```
+
+```powershell
+# Windows (PowerShell): the Hash it prints must match the zip's line in SHA256SUMS.txt
+Get-FileHash .\mostro-*-windows-x64.zip
+```
 
 **iOS**
 
-Available via TestFlight (link in Releases) or build from source with Xcode.
+There is no App Store or TestFlight build yet. Each release carries an **unsigned** `.ipa`, meant
+to be sideloaded with a tool that re-signs it with your own Apple ID (AltStore, Sideloadly or
+Xcode). Apps signed with a free Apple ID expire after 7 days, and push notifications do not work
+in a re-signed build. You can also build it from source with Xcode.
 
 **Web**
 
@@ -256,10 +362,6 @@ The very first visit reloads itself once while it installs the service worker th
 the cross-origin isolation headers the Rust core needs; that is expected. Two requirements
 follow from it: the page must be loaded over **HTTPS** (a service worker needs a secure
 context), and a browser with service workers disabled cannot run the web client.
-
-**Desktop (macOS / Windows / Linux)**
-
-Download the binary for your platform from the [Releases](../../releases) page.
 
 ### First Run
 

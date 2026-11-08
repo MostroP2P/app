@@ -3,6 +3,7 @@ import 'package:flutter/semantics.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:mostro/core/activity_palette.dart';
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/l10n/app_localizations.dart';
@@ -12,10 +13,14 @@ import 'package:mostro/features/notifications/models/notification_view_rules.dar
 import 'package:mostro/features/notifications/providers/notifications_provider.dart';
 import 'package:mostro/features/notifications/widgets/bond_slashed_dialog.dart';
 import 'package:mostro/features/notifications/widgets/notification_group_card.dart';
+import 'package:mostro/features/notifications/widgets/other_node_switch_dialog.dart';
 import 'package:mostro/features/notifications/widgets/system_notification_banner.dart';
 import 'package:mostro/features/cashu/seller_funding_route.dart';
 import 'package:mostro/features/settings/providers/escrow_mode_provider.dart';
+import 'package:mostro/features/settings/services/node_switch.dart';
 import 'package:mostro/features/trades/providers/trade_rows_provider.dart';
+import 'package:mostro/shared/widgets/redesign_app_bar.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Notifications screen — Route `/notifications`.
 ///
@@ -37,16 +42,26 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   /// the dismissed card leaves the tree, and deleted only if not undone.
   final Set<String> _hidden = {};
 
+  /// Set while a switch to another node's trade is offered or running, so
+  /// a second tap cannot open a second dialog.
+  bool _switching = false;
+
   @override
   Widget build(BuildContext context) {
     final backupActive = ref.watch(backupReminderProvider);
     final notifications = ref.watch(notificationsProvider);
+    final book = OrderBookPalette.of(context);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text(AppLocalizations.of(context).notificationsScreenTitle),
+      backgroundColor: book.bg,
+      appBar: redesignAppBar(
+        context,
+        title: AppLocalizations.of(context).notificationsScreenTitle,
+        onBack:
+            () => context.canPop() ? context.pop() : context.go(AppRoute.home),
         actions: [
           PopupMenuButton<_MenuAction>(
+            icon: Icon(Icons.more_vert, color: book.textSecondary),
             onSelected: (action) {
               switch (action) {
                 case _MenuAction.markAllRead:
@@ -69,6 +84,8 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                   ),
                 ],
           ),
+          // The menu's IconButton pads itself by 8 (redesignAppBar).
+          const SizedBox(width: redesignSidePadding - 8),
         ],
       ),
       body: RefreshIndicator(
@@ -123,6 +140,7 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
           isDisputeGroup: events.first.orderId == null,
           onTapNotification: (n) => _handleTap(context, n),
           onGoToTrade: () => _goToTrade(context, events),
+          onOtherNode: _openOnItsNode,
         ),
       ),
       NoticeSystemEntry(:final notification) => _Swipeable(
@@ -131,6 +149,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         child: SystemNotificationBanner(
           notification: notification,
           onTap: () => _handleTap(context, notification),
+          onOpenLink: switch (notification.announcementUrl) {
+            null => null,
+            final url => () => _openLink(context, notification, url),
+          },
         ),
       ),
     };
@@ -148,6 +170,12 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
       children: [
         if (backupActive) ...[
           const _BackupReminderBanner(),
+          const SizedBox(height: AppSpacing.sm),
+        ],
+        // Security updates come before the trades that need action: the
+        // user reads them before continuing one (specs/006 §3.4).
+        for (final entry in sections.critical) ...[
+          entryCard(entry),
           const SizedBox(height: AppSpacing.sm),
         ],
         if (pinned) _SectionHeader(l10n.tradesGroupNeedsAction),
@@ -170,6 +198,12 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
   /// the screen. The notifier outlives the screen, so the delete still runs.
   void _dismiss(List<NotificationModel> events) {
     final ids = {for (final n in events) n.id};
+    // What was swiped, for an announcement: a correction that lands while
+    // the snack bar is open is not it, and must not be dismissed in its place.
+    final revisions = {
+      for (final n in events)
+        if (n.announcementRevision case final revision?) n.id: revision,
+    };
     setState(() => _hidden.addAll(ids));
     final notifier = ref.read(notificationsProvider.notifier);
     final l10n = AppLocalizations.of(context);
@@ -192,12 +226,49 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         .closed
         .then((reason) async {
           if (reason != SnackBarClosedReason.action) {
-            await Future.wait([for (final id in ids) notifier.delete(id)]);
+            await Future.wait([
+              for (final id in ids)
+                notifier.delete(id, announcementRevision: revisions[id]),
+            ]);
           }
           // Ids can come back (a chat card is re-created by the next
           // message), so none stays hidden once settled.
           if (mounted) setState(() => _hidden.removeAll(ids));
         });
+  }
+
+  /// A way into a trade on another node (#811): switch to that node if the
+  /// user says so, restore the account there as any switch does, then
+  /// [open] what was tapped. Run from the screen, not the card: once the
+  /// node is the active one the card is rebuilt without its amber line.
+  Future<void> _openOnItsNode(
+    String node,
+    String nodeName,
+    VoidCallback open,
+  ) async {
+    if (_switching) return;
+    _switching = true;
+    try {
+      final switched = await showOtherNodeSwitchDialog(
+        context,
+        nodeName: nodeName,
+        onSwitch: () => switchActiveNode(ref, node),
+      );
+      if (switched == null || !mounted) return;
+      if (!switched) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(AppLocalizations.of(context).errorSwitchingNode),
+          ),
+        );
+        return;
+      }
+      await afterNodeSwitch(context, ref, nodeName);
+      if (!mounted) return;
+      open();
+    } finally {
+      _switching = false;
+    }
   }
 
   /// Footer action of a group card — open the trade (or dispute) detail.
@@ -236,6 +307,10 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         ),
       );
     }
+
+    // An announcement opens nothing: the card is the whole message, and its
+    // link has its own button (specs/006 §6.2).
+    if (n.isAnnouncement) return;
 
     switch (n.type) {
       case NotificationType.ratingReceived:
@@ -279,14 +354,52 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
             : noId();
     }
   }
+
+  /// The announcement's one link (specs/006 §6.2): opened externally, never
+  /// in the app. Reads the card too — the user is acting on it.
+  Future<void> _openLink(
+    BuildContext context,
+    NotificationModel n,
+    String url,
+  ) async {
+    if (!n.isRead) ref.read(notificationsProvider.notifier).markAsRead(n.id);
+    final messenger = ScaffoldMessenger.of(context);
+    final l10n = AppLocalizations.of(context);
+    var launched = false;
+    try {
+      launched = await launchUrl(
+        Uri.parse(url),
+        mode: LaunchMode.externalApplication,
+      );
+    } catch (_) {
+      // A platform without a browser throws instead of returning false.
+      launched = false;
+    }
+    if (!launched) {
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text(l10n.unableToOpenNotification),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
 }
 
 enum _MenuAction { markAllRead, clearAll }
+
+/// A card's corners (DS-CMP-8).
+const _cardRadius = 18.0;
+
+/// A tile inside a card (guide §4).
+const _tileRadius = 12.0;
 
 // ── Swipe to delete ───────────────────────────────────────────────────────────
 
 /// A card the user can swipe away, either way, to delete it. Screen readers
 /// get the same through a custom action, since a swipe is not one they make.
+///
+/// Its background has the radius of the card it sits behind (DS-CMP-8).
 class _Swipeable extends StatelessWidget {
   const _Swipeable({
     required super.key,
@@ -299,14 +412,14 @@ class _Swipeable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColors>();
-    final red = colors?.destructiveRed ?? const Color(0xFFD84D4D);
+    // The red of a destructive action, as the modals use it.
+    final red = OrderBookPalette.of(context).sell;
     Widget background(Alignment alignment) => Container(
       alignment: alignment,
       padding: const EdgeInsets.symmetric(horizontal: AppSpacing.lg),
       decoration: BoxDecoration(
         color: red.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(AppRadius.card),
+        borderRadius: BorderRadius.circular(_cardRadius),
       ),
       child: Icon(Icons.delete_outline_rounded, color: red),
     );
@@ -337,7 +450,8 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColors>();
+    // The header My Trades gives its groups, the pinned one included.
+    final pal = ActivityPalette.of(context);
     return Padding(
       padding: const EdgeInsets.only(
         top: AppSpacing.sm,
@@ -347,7 +461,7 @@ class _SectionHeader extends StatelessWidget {
       child: Text(
         label.toUpperCase(),
         style: Theme.of(context).textTheme.bodySmall!.copyWith(
-          color: colors?.textSecondary ?? const Color(0xFFB0B3C6),
+          color: pal.groupHeader,
           fontSize: 11,
           fontWeight: FontWeight.w700,
           letterSpacing: 0.8,
@@ -364,9 +478,8 @@ class _BackupReminderBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColors>();
-    final cardBg = colors?.backgroundCard ?? const Color(0xFF1E2230);
-    final amber = colors?.warningAmber ?? const Color(0xFFE89C3C);
+    final book = OrderBookPalette.of(context);
+    final pal = ActivityPalette.of(context);
 
     return GestureDetector(
       onTap: () => context.push(AppRoute.keyManagement),
@@ -376,9 +489,9 @@ class _BackupReminderBanner extends StatelessWidget {
           vertical: AppSpacing.sm + 2,
         ),
         decoration: BoxDecoration(
-          color: cardBg,
-          borderRadius: BorderRadius.circular(AppRadius.card),
-          border: Border.all(color: amber.withValues(alpha: 0.3), width: 1),
+          color: book.surface,
+          borderRadius: BorderRadius.circular(_cardRadius),
+          border: Border.all(color: pal.chipWaitBorder),
         ),
         child: Row(
           children: [
@@ -386,10 +499,14 @@ class _BackupReminderBanner extends StatelessWidget {
               width: 32,
               height: 32,
               decoration: BoxDecoration(
-                color: amber.withValues(alpha: 0.15),
-                borderRadius: BorderRadius.circular(AppRadius.chip),
+                color: pal.chipWaitBg,
+                borderRadius: BorderRadius.circular(_tileRadius),
               ),
-              child: Icon(Icons.warning_amber_rounded, color: amber, size: 18),
+              child: Icon(
+                Icons.warning_amber_rounded,
+                color: pal.chipWaitInk,
+                size: 18,
+              ),
             ),
             const SizedBox(width: AppSpacing.md),
             Expanded(
@@ -401,20 +518,21 @@ class _BackupReminderBanner extends StatelessWidget {
                     style: Theme.of(context).textTheme.bodyMedium!.copyWith(
                       fontWeight: FontWeight.w600,
                       fontSize: 13,
-                      color: Colors.white,
+                      color: book.textPrimary,
                     ),
                   ),
                   const SizedBox(height: 2),
                   Text(
                     AppLocalizations.of(context).tapToViewAndSaveSecretWords,
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodySmall!.copyWith(fontSize: 11),
+                    style: Theme.of(context).textTheme.bodySmall!.copyWith(
+                      fontSize: 11,
+                      color: book.textSecondary,
+                    ),
                   ),
                 ],
               ),
             ),
-            const Icon(Icons.chevron_right, size: 20),
+            Icon(Icons.chevron_right, size: 20, color: book.textSecondary),
           ],
         ),
       ),
@@ -427,21 +545,22 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final book = OrderBookPalette.of(context);
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          const Icon(
+          Icon(
             Icons.notifications_off_outlined,
             size: 48,
-            color: Colors.white38,
+            color: book.textTertiary,
           ),
           const SizedBox(height: AppSpacing.md),
           Text(
             AppLocalizations.of(context).noNotifications,
             style: Theme.of(
               context,
-            ).textTheme.bodyMedium!.copyWith(color: Colors.white38),
+            ).textTheme.bodyMedium!.copyWith(color: book.textTertiary),
           ),
         ],
       ),

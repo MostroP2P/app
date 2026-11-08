@@ -203,7 +203,7 @@ impl CashuWallet {
     ///
     /// Safe for escrow and exported tokens: cdk compensates only a send still
     /// in `ProofsReserved` — no token exists yet — and never revokes one in
-    /// `TokenCreated` (`wallet/send/saga/resume.rs`, cdk 0.18.1). That
+    /// `TokenCreated` (`wallet/send/saga/resume.rs`, cdk 0.18.2). That
     /// reclaim stays C10's. Melts in flight are resumed here too, so connect
     /// does not call [`Self::finalize_pending_melts`] on top.
     ///
@@ -350,7 +350,7 @@ impl CashuWallet {
     ///
     /// DLEQ (NUT-12) is verified **here**, before the swap, rather than left to
     /// `cdk`: its receive path verifies a proof only `if proof.dleq.is_some()`
-    /// (`wallet/receive/saga/mod.rs`, cdk 0.18.1), so a token whose proofs carry
+    /// (`wallet/receive/saga/mod.rs`, cdk 0.18.2), so a token whose proofs carry
     /// none is accepted on trust. That is the softer guarantee NUT-12 is a hard
     /// connect requirement to avoid — [`Wallet::verify_token_dleq`] rejects the
     /// missing proof instead of skipping it.
@@ -656,7 +656,7 @@ impl CashuWallet {
     ///
     /// **Housekeeping, not recovery — nothing comes back from this call.** Two
     /// facts about `cdk`'s `check_all_pending_proofs` (`wallet/proofs.rs`,
-    /// cdk 0.18.1) decide that:
+    /// cdk 0.18.2) decide that:
     ///
     /// * it looks only at proofs no operation owns
     ///   (`p.used_by_operation.is_none()`), and `prepare_send` reserves
@@ -881,7 +881,7 @@ const MELT_WAIT: Duration = Duration::from_secs(30);
 /// the proof store.
 ///
 /// By then cdk has run `recover_failed_melt_confirm` (`wallet/melt/mod.rs`,
-/// cdk 0.18.1), which returns the original error whether it rolled the melt
+/// cdk 0.18.2), which returns the original error whether it rolled the melt
 /// back or left it unresolved. Whether the melt's saga is still on record
 /// tells the two apart; see [`confirm_error_outcome`]. A store that cannot be
 /// read proves nothing, so it counts as still recorded.
@@ -967,7 +967,7 @@ fn melt_refusal(
 ) -> Option<anyhow::Error> {
     // cdk loads the quote by id from a store shared by every mint and does
     // not check whose it is (`initialize_melt` in `wallet/melt/saga/mod.rs`,
-    // cdk 0.18.1): a quote taken at another mint would have this mint's
+    // cdk 0.18.2): a quote taken at another mint would have this mint's
     // proofs sent to pay it.
     if !quote_is_for(quote.mint_url.as_ref(), wallet_mint) {
         return Some(anyhow!(
@@ -978,7 +978,7 @@ fn melt_refusal(
     // finalized as paid has had its reservation released, so it prepares
     // again. If the mint then refuses the melt with anything but
     // `RequestAlreadyPaid`, cdk reads the quote paid and marks the *new*
-    // proofs spent (`execute_async`, `wallet/melt/saga/mod.rs`, cdk 0.18.1).
+    // proofs spent (`execute_async`, `wallet/melt/saga/mod.rs`, cdk 0.18.2).
     if quote.state != MeltQuoteState::Unpaid {
         return Some(anyhow!("CashuMeltFailed: the quote is no longer unpaid"));
     }
@@ -997,7 +997,7 @@ fn melt_refusal(
 
 /// [`MeltQuoteInfo`] of a prepared melt.
 ///
-/// cdk 0.18.1 (`wallet/melt/saga/mod.rs`): the proofs are chosen to cover
+/// cdk 0.18.2 (`wallet/melt/saga/mod.rs`): the proofs are chosen to cover
 /// `amount + fee_reserve`, and the input fee, plus the swap fee when they must
 /// be swapped to fit, comes on top — [`PreparedMelt::total_fee`]. Only
 /// [`PreparedMelt::amount`] is not what its name may suggest: it is the
@@ -1150,7 +1150,7 @@ fn unix_now() -> Duration {
 ///
 /// An amount with a fraction of a sat is refused, not rounded: the wallet
 /// holds whole sats, and cdk checks the mint's quote against the invoice's
-/// msat amount *floored* to sats (`wallet/melt/bolt11.rs`, cdk 0.18.1), so
+/// msat amount *floored* to sats (`wallet/melt/bolt11.rs`, cdk 0.18.2), so
 /// a mint that rounds up — as it must to pay the invoice in full — has its
 /// quote refused anyway, after a round trip. Same rule as
 /// [`crate::api::invoice::whole_sats`].
@@ -1997,7 +1997,7 @@ mod tests {
 
     #[test]
     fn the_confirmed_total_is_amount_plus_reserve_plus_input_fees() {
-        // Pins the reading of cdk 0.18.1 behind it: `prepare_melt` selects
+        // Pins the reading of cdk 0.18.2 behind it: `prepare_melt` selects
         // proofs for `amount + fee_reserve`, and `total_fee()` (input fee,
         // plus the swap's when one is needed) comes on top. This is the most
         // the balance can drop; nothing is left out of it.

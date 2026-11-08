@@ -8,6 +8,7 @@ import 'package:mostro/shared/utils/fiat_currencies.dart';
 import 'package:mostro/shared/widgets/order_filter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../support/catalogue_fixtures.dart';
 import '../../support/fake_orders.dart';
 
 /// Opens the Filters dialog over a stored selection, with [book] as the
@@ -16,8 +17,12 @@ Future<ProviderContainer> _open(
   WidgetTester tester,
   OrderFilters stored, {
   List<OrderItem> book = const [],
+  List<String> currencies = const ['USD', 'EUR'],
+  Size size = const Size(420, 1400),
+  Locale locale = const Locale('en'),
+  double textScale = 1.0,
 }) async {
-  tester.view.physicalSize = const Size(420, 1400);
+  tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1.0;
   addTearDown(tester.view.reset);
   SharedPreferences.setMockInitialValues({});
@@ -25,12 +30,19 @@ Future<ProviderContainer> _open(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
-        availableCurrencyCodesProvider.overrideWithValue(const ['USD', 'EUR']),
+        catalogueOverride(),
+        availableCurrencyCodesProvider.overrideWithValue(currencies),
         orderBookProvider.overrideWith((ref) => Stream.value(book)),
       ],
       child: MaterialApp(
         theme: buildDarkTheme(),
-        locale: const Locale('en'),
+        locale: locale,
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(
+            context,
+          ).copyWith(textScaler: TextScaler.linear(textScale)),
+          child: child!,
+        ),
         localizationsDelegates: AppLocalizations.localizationsDelegates,
         supportedLocales: AppLocalizations.supportedLocales,
         home: Builder(
@@ -59,6 +71,24 @@ FilterChip _chip(WidgetTester tester, String label) => tester.widget(
 );
 
 void main() {
+  // DS-A11Y-4: the stablecoins section (#884) is a header and a second
+  // Wrap inside the modal; at 320 dp and 2x text in German nothing overflows.
+  testWidgets('fits at 320 dp and 2x text in German with stablecoins', (
+    tester,
+  ) async {
+    await _open(
+      tester,
+      const OrderFilters(),
+      currencies: const ['USD', 'EUR', 'USDT'],
+      size: const Size(320, 640),
+      locale: const Locale('de'),
+      textScale: 2.0,
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('USDT'), findsOneWidget);
+  });
+
   testWidgets('a stored value the catalogue does not list is shown, selected', (
     tester,
   ) async {

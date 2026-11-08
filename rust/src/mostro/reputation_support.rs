@@ -62,6 +62,21 @@ pub(crate) fn set_from_tags(node: &str, tags: &[Vec<String>]) {
         .insert(node.to_lowercase(), parse_tags(tags));
 }
 
+/// The one node whose last capability fetch announced `issuer` as its
+/// `reputation_issuer`, lowercase hex; nothing when no fetched node does, or
+/// when more than one does (the key then names no node for sure).
+pub(crate) fn node_with_issuer(issuer: &str) -> Option<String> {
+    let issuer = issuer.to_lowercase();
+    let live = LIVE.read().unwrap_or_else(|e| e.into_inner());
+    let mut announcing = live
+        .as_ref()?
+        .iter()
+        .filter(|(_, support)| support.issuer.as_deref() == Some(issuer.as_str()))
+        .map(|(node, _)| node.clone());
+    let node = announcing.next()?;
+    announcing.next().is_none().then_some(node)
+}
+
 /// What `node` offers, as of its last capability fetch; nothing when it was
 /// never fetched.
 pub(crate) fn get(node: &str) -> ReputationSupport {
@@ -109,5 +124,23 @@ mod tests {
         set_from_tags(&node, &[]);
         assert_eq!(get(&node), ReputationSupport::default());
         assert_eq!(get(&"e".repeat(64)), ReputationSupport::default());
+    }
+
+    #[test]
+    fn names_the_node_that_announces_an_issuer_key() {
+        let node = "f".repeat(64);
+        let issuer = "1".repeat(64);
+        set_from_tags(&node, &tags(&[&["reputation_issuer", &issuer]]));
+        assert_eq!(node_with_issuer(&issuer), Some(node.clone()));
+        assert_eq!(node_with_issuer(&issuer.to_uppercase()), Some(node));
+        assert_eq!(node_with_issuer(&"2".repeat(64)), None);
+    }
+
+    #[test]
+    fn a_key_two_nodes_announce_names_neither() {
+        let issuer = "3".repeat(64);
+        set_from_tags(&"4".repeat(64), &tags(&[&["reputation_issuer", &issuer]]));
+        set_from_tags(&"5".repeat(64), &tags(&[&["reputation_issuer", &issuer]]));
+        assert_eq!(node_with_issuer(&issuer), None);
     }
 }

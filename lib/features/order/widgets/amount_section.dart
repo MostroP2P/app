@@ -11,6 +11,7 @@ import 'package:mostro/features/order/widgets/currency_section.dart';
 import 'package:mostro/features/order/widgets/price_section.dart';
 import 'package:mostro/features/order/widgets/underline_amount_field.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/utils/btc_pegged.dart';
 import 'package:mostro/shared/widgets/pill_segmented.dart';
 
 /// The locale's thousands and decimal separators.
@@ -32,6 +33,7 @@ class AmountSection extends ConsumerWidget {
     required this.quickAmounts,
     required this.onChanged,
     required this.onRangeChanged,
+    this.canRange = true,
     this.hasError = false,
   });
 
@@ -50,6 +52,10 @@ class AmountSection extends ConsumerWidget {
   final VoidCallback onChanged;
   final ValueChanged<bool> onRangeChanged;
 
+  /// Whether a range order can be written: a range is priced at market, so
+  /// it is locked out while Market is ([marketLockedCodeProvider]).
+  final bool canRange;
+
   /// Paints the amount underline(s) coral: the amount is what the validation
   /// message in the preview bar refers to.
   final bool hasError;
@@ -60,12 +66,30 @@ class AmountSection extends ConsumerWidget {
     final l10n = AppLocalizations.of(context);
     final side = ref.watch(orderSideProvider);
     final isRange = ref.watch(isRangeOrderProvider);
+    // A BTC-pegged code is entered in sats, which are whole: they are what
+    // goes on the wire as the order's amount (#907).
+    final inSats = isBtcPeggedCode(ref.watch(selectedFiatCodeProvider));
+    // Moving between a fiat and a BTC-pegged code changes the unit of what is
+    // typed (whole units or sats): 12.5 USD would become 12 sats, 100000 sats
+    // 100,000 USD. Clear it rather than reread it in the new unit.
+    ref.listen<String>(selectedFiatCodeProvider, (previous, next) {
+      if (previous == null ||
+          isBtcPeggedCode(previous) == isBtcPeggedCode(next)) {
+        return;
+      }
+      amountController.clear();
+      minController.clear();
+      maxController.clear();
+      onChanged();
+    });
     final formatters = [
       ThousandsInputFormatter(
         groupSeparator: symbols.group,
         decimalSeparator: symbols.decimal,
+        allowDecimals: !inSats,
       ),
     ];
+    final satsUnit = inSats ? _SatsUnit(l10n.satsUnitLabel) : null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -99,6 +123,7 @@ class AmountSection extends ConsumerWidget {
                   value: true,
                   label: l10n.amountModeRange,
                   automationId: AutomationIds.orderCreateAmountRange,
+                  enabled: canRange,
                 ),
               ],
               onSelected: onRangeChanged,
@@ -118,6 +143,7 @@ class AmountSection extends ConsumerWidget {
                   valueFontSize: 19,
                   hasError: hasError,
                   inputFormatters: formatters,
+                  trailing: satsUnit,
                   onChanged: (_) => onChanged(),
                 ).withAutomationId(AutomationIds.orderCreateFiatMin),
               ),
@@ -141,6 +167,7 @@ class AmountSection extends ConsumerWidget {
                   valueFontSize: 19,
                   hasError: hasError,
                   inputFormatters: formatters,
+                  trailing: satsUnit,
                   onChanged: (_) => onChanged(),
                 ).withAutomationId(AutomationIds.orderCreateFiatMax),
               ),
@@ -156,15 +183,25 @@ class AmountSection extends ConsumerWidget {
             hintText: '0',
             hasError: hasError,
             inputFormatters: formatters,
-            trailing: const CurrencyInlineSelector(),
+            trailing:
+                satsUnit == null
+                    ? const CurrencyInlineSelector()
+                    : Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        satsUnit,
+                        const SizedBox(width: 8),
+                        const CurrencyInlineSelector(),
+                      ],
+                    ),
             onChanged: (_) => onChanged(),
             automationId: AutomationIds.orderCreateFiatAmount,
           ),
           if (quickAmounts.isNotEmpty) ...[
             const SizedBox(height: 10),
             Wrap(
-              spacing: 7,
-              runSpacing: 7,
+              spacing: 8,
+              runSpacing: 8,
               children: [
                 for (final amount in quickAmounts)
                   _QuickAmountChip(
@@ -179,6 +216,27 @@ class AmountSection extends ConsumerWidget {
           ],
         ],
       ],
+    );
+  }
+}
+
+/// The `sats` beside an amount field for a BTC-pegged code, whose amount is
+/// typed in sats (#907).
+class _SatsUnit extends StatelessWidget {
+  const _SatsUnit(this.label);
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = OrderBookPalette.of(context);
+    return Text(
+      label,
+      style: TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+        color: palette.textMuted,
+      ),
     );
   }
 }

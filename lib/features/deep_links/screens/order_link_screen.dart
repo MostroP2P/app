@@ -7,16 +7,14 @@ import 'package:go_router/go_router.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
-import 'package:mostro/features/account/restore/restore_after_switch.dart';
 import 'package:mostro/features/deep_links/models/order_link_rules.dart';
 import 'package:mostro/features/deep_links/providers/order_link_providers.dart';
 import 'package:mostro/features/deep_links/widgets/order_link_node_dialog.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/order/providers/trade_state_provider.dart';
-import 'package:mostro/features/order/widgets/order_detail_cards.dart'
-    show showOrderDetailSnackBar;
 import 'package:mostro/features/settings/models/node_display.dart';
 import 'package:mostro/features/settings/providers/mostro_nodes_provider.dart';
+import 'package:mostro/features/settings/services/node_switch.dart';
 import 'package:mostro/features/trades/providers/trades_providers.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/mascot/mostro_mascot.dart';
@@ -143,26 +141,14 @@ class _OrderLinkScreenState extends ConsumerState<OrderLinkScreen> {
     }
 
     setState(() => _changingTo = nodeName);
-    try {
-      // The Settings path: persists the choice and re-targets every
-      // subscription before it returns.
-      await ref
-          .read(mostroNodesProvider.notifier)
-          .selectNode(target.nodePubkey);
-    } catch (e) {
-      debugPrint('[order-link] node change failed: $e');
+    if (!await switchActiveNode(ref, target.nodePubkey)) {
       _fail(OrderLinkFailure.nodeChangeFailed);
       return;
     }
     if (!mounted) return;
-    showOrderDetailSnackBar(
-      context,
-      AppLocalizations.of(context).nodeSwitchedSuccess(nodeName),
-    );
     setState(() => _changingTo = null);
-    // The account on the new node first, as a switch from Settings does
-    // (#813); the order opens once the restore sheet closes.
-    await ref.read(restoreAfterNodeSwitchProvider)(context);
+    // The order opens once the restore sheet closes.
+    await afterNodeSwitch(context, ref, nodeName);
     if (!mounted) return;
     await _open(afterNodeChange: true);
   }

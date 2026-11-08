@@ -1417,6 +1417,9 @@ mod tests {
         async fn mark_messages_read(&self, _trade_id: &str) -> Result<()> {
             unimplemented!()
         }
+        async fn delete_messages_for_order(&self, _order_id: &str) -> Result<()> {
+            unimplemented!()
+        }
         async fn message_exists(&self, _id: &str) -> Result<bool> {
             unimplemented!()
         }
@@ -1454,6 +1457,14 @@ mod tests {
             unimplemented!()
         }
         async fn forget_trade_node(&self, _row_id: &str, _node: &str) -> Result<bool> {
+            unimplemented!()
+        }
+        async fn adopt_trade_node(
+            &self,
+            _order_id: &str,
+            _trade_index: u32,
+            _node: &str,
+        ) -> Result<bool> {
             unimplemented!()
         }
         async fn mark_trade_completed(&self, _order_id: &str, _completed_at: i64) -> Result<()> {

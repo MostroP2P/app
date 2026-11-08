@@ -164,6 +164,31 @@ pub(crate) fn forget_node(trade: &mut Value, node: &str) -> Result<bool> {
     Ok(true)
 }
 
+/// When the trade does not know its node (`$.order.node_pubkey`, else the
+/// legacy `$.order.creator_pubkey`, absent or `""`) and its
+/// `$.trade_key_index` is `trade_index`, set its node to `node` and drop the
+/// legacy name. Returns whether it changed the document; an empty `node`
+/// changes nothing.
+pub(crate) fn adopt_node(trade: &mut Value, trade_index: u32, node: &str) -> Result<bool> {
+    let order = trade.get("order");
+    let current = order
+        .and_then(|o| o.get("node_pubkey"))
+        .or_else(|| order.and_then(|o| o.get("creator_pubkey")))
+        .and_then(Value::as_str);
+    let index = trade.get("trade_key_index").and_then(Value::as_u64);
+    if node.is_empty()
+        || current.is_some_and(|c| !c.is_empty())
+        || index != Some(u64::from(trade_index))
+    {
+        return Ok(false);
+    }
+    *field(trade, &["order", "node_pubkey"])? = Value::String(node.to_owned());
+    if let Some(order) = trade.get_mut("order").and_then(Value::as_object_mut) {
+        order.remove("creator_pubkey");
+    }
+    Ok(true)
+}
+
 /// The mutable slot at `path`, creating missing intermediate objects the way
 /// `json_set` does. Fails when a segment exists but is not an object.
 fn field<'a>(trade: &'a mut Value, path: &[&str]) -> Result<&'a mut Value> {
@@ -344,6 +369,61 @@ mod tests {
         );
         let mut bad = json!({"order": "not an object"});
         assert!(rename_order_id(&mut bad, "x").is_err());
+    }
+
+    #[test]
+    fn adopt_node_gives_an_unknown_node_and_nothing_else() {
+        let mut t = trade();
+        t["order"]["node_pubkey"] = json!("");
+        t["trade_key_index"] = json!(7);
+        t["rated_at"] = json!(1234);
+        assert!(adopt_node(&mut t, 7, "abcd").unwrap());
+        assert_eq!(t["order"]["node_pubkey"], json!("abcd"));
+        assert_eq!(t["rated_at"], json!(1234));
+        assert_eq!(t["order"]["status"], json!("Pending"));
+        assert!(!adopt_node(&mut t, 7, "ef01").unwrap(), "done once");
+    }
+
+    #[test]
+    fn adopt_node_takes_a_row_with_an_empty_legacy_name_or_none() {
+        let mut legacy = trade();
+        legacy["order"]["creator_pubkey"] = json!("");
+        legacy["trade_key_index"] = json!(7);
+        assert!(adopt_node(&mut legacy, 7, "abcd").unwrap());
+        assert_eq!(legacy["order"]["node_pubkey"], json!("abcd"));
+        assert!(
+            legacy["order"].get("creator_pubkey").is_none(),
+            "one name only"
+        );
+
+        let mut absent = trade();
+        absent["trade_key_index"] = json!(7);
+        assert!(adopt_node(&mut absent, 7, "abcd").unwrap());
+    }
+
+    #[test]
+    fn adopt_node_leaves_a_known_node_another_index_or_no_node_alone() {
+        let mut known = trade();
+        known["order"]["node_pubkey"] = json!("node");
+        known["trade_key_index"] = json!(7);
+        assert!(!adopt_node(&mut known, 7, "abcd").unwrap());
+        assert_eq!(known["order"]["node_pubkey"], json!("node"));
+
+        let mut legacy_known = trade();
+        legacy_known["order"]["creator_pubkey"] = json!("node");
+        legacy_known["trade_key_index"] = json!(7);
+        assert!(!adopt_node(&mut legacy_known, 7, "abcd").unwrap());
+
+        let mut other_index = trade();
+        other_index["order"]["node_pubkey"] = json!("");
+        other_index["trade_key_index"] = json!(8);
+        assert!(!adopt_node(&mut other_index, 7, "abcd").unwrap());
+
+        let mut unknown = trade();
+        unknown["order"]["node_pubkey"] = json!("");
+        unknown["trade_key_index"] = json!(7);
+        assert!(!adopt_node(&mut unknown, 7, "").unwrap());
+        assert_eq!(unknown["order"]["node_pubkey"], json!(""));
     }
 
     #[test]

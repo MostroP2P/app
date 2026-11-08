@@ -198,10 +198,33 @@ class ChatRoomsNotifier extends StateNotifier<List<ChatRoomState>> {
 /// Source-of-truth provider for the list of chat rooms.
 ///
 /// Sorted order is provided by [sortedChatRoomsProvider].
+///
+/// A row without a node goes when no restore adopted it (#813), and its room
+/// goes with it: hidden with the row, it must not come back as the room of a
+/// trade that is gone. Watched here, where every room enters, so the row's
+/// going is seen whether or not the Chats list is open (PR #865 review).
 final chatRoomsNotifierProvider =
-    StateNotifierProvider<ChatRoomsNotifier, List<ChatRoomState>>(
-      (_) => ChatRoomsNotifier(),
-    );
+    StateNotifierProvider<ChatRoomsNotifier, List<ChatRoomState>>((ref) {
+      final notifier = ChatRoomsNotifier();
+      // The trade list the rooms are built from, not its rows: nothing of a
+      // row's live state is needed to tell that it went.
+      ref.listen<AsyncValue<List<rust_types.TradeInfo>>>(rawTradesProvider, (
+        previous,
+        next,
+      ) {
+        final before = previous?.valueOrNull;
+        final after = next.valueOrNull;
+        if (before == null || after == null) return;
+        final kept = {for (final trade in after) trade.order.id};
+        for (final trade in before) {
+          if (trade.order.nodePubkey.isEmpty &&
+              !kept.contains(trade.order.id)) {
+            notifier.removeRoom(trade.order.id);
+          }
+        }
+      });
+      return notifier;
+    });
 
 /// Chat rooms sorted by [ChatRoomState.lastMessageAt] descending (newest first).
 final sortedChatRoomsProvider = Provider<List<ChatRoomState>>((ref) {
@@ -214,8 +237,10 @@ final sortedChatRoomsProvider = Provider<List<ChatRoomState>>((ref) {
 /// The rooms the Chats list shows: those of the active node's trades
 /// (#813). The notifier keeps every room live; a room of another node's
 /// trade waits for a switch to that node. A room whose trade row is gone
-/// stays, as before. Until the trades load nothing is shown, so another
-/// node's rooms never flash in; a failed load shows every room.
+/// stays, as before, except the room of a row that did not know its node,
+/// which the notifier drops with the row. Until the trades load nothing is
+/// shown, so another node's rooms never flash in; a failed load shows every
+/// room.
 final activeNodeChatRoomsProvider = Provider<List<ChatRoomState>>((ref) {
   final rooms = ref.watch(chatRoomsNotifierProvider);
   final trades = ref.watch(tradeRowsProvider);

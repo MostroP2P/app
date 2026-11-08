@@ -384,6 +384,15 @@ impl Storage for IndexedDbStorage {
         Ok(())
     }
 
+    async fn delete_messages_for_order(&self, order_id: &str) -> Result<()> {
+        // No index on the order id: the store is read whole, as
+        // `list_messages` does. A message that no longer decodes is left.
+        for msg in self.list_messages(order_id).await? {
+            self.delete_key(MESSAGES_STORE, &msg.id).await?;
+        }
+        Ok(())
+    }
+
     async fn message_exists(&self, id: &str) -> Result<bool> {
         // Fail closed: an `Err` here makes the chat pipeline DROP the event.
         Ok(self.get_string(MESSAGES_STORE, id).await?.is_some())
@@ -765,6 +774,29 @@ impl Storage for IndexedDbStorage {
         self.put_string(TRADES_STORE, row_id, &doc.to_string())
             .await?;
         Ok(true)
+    }
+
+    async fn adopt_trade_node(&self, order_id: &str, trade_index: u32, node: &str) -> Result<bool> {
+        // The whole read-modify-write inside the trades' exclusive section,
+        // like every patch: no write can land between the check and the put.
+        let _section = self.exclusive(TRADES_LOCK).await;
+        let mut adopted = false;
+        for mut doc in self.trade_documents().await? {
+            if trade_json::order_id_of(&doc) != Some(order_id)
+                || !trade_json::adopt_node(&mut doc, trade_index, node)?
+            {
+                continue;
+            }
+            let key = doc
+                .get("id")
+                .and_then(serde_json::Value::as_str)
+                .ok_or_else(|| anyhow!("trade document without an id"))?
+                .to_owned();
+            self.put_string(TRADES_STORE, &key, &doc.to_string())
+                .await?;
+            adopted = true;
+        }
+        Ok(adopted)
     }
 
     async fn update_trade_counterparty(

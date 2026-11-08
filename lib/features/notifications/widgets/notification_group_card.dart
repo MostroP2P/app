@@ -14,7 +14,6 @@ import 'package:mostro/features/trades/models/trades_list_rules.dart';
 import 'package:mostro/features/trades/providers/trade_rows_provider.dart';
 import 'package:mostro/features/trades/widgets/trade_card.dart';
 import 'package:mostro/l10n/app_localizations.dart';
-import 'package:mostro/shared/widgets/mostro_modal.dart';
 
 /// Collapsible card grouping all notifications that reference the same
 /// trade (order id) or dispute (issue #610).
@@ -27,16 +26,18 @@ import 'package:mostro/shared/widgets/mostro_modal.dart';
 /// trade to go to. The card has no per-event menu: the screen deletes it with
 /// a swipe.
 ///
-/// A card of a trade on another node (#811) says so in an amber line, and
-/// opens nothing: a tap only says that the trade is acted on from its node,
-/// switched to in Settings. Whether the node is another one is read as the
-/// card is shown, so the line leaves once the user is on that node.
+/// A card of a trade on another node (#811) says so in an amber line, and a
+/// tap on it, or on Go to trade, goes through [onOtherNode] instead, which
+/// offers to switch to that node first. Whether the node is another one is
+/// read as the card is shown, so the line leaves once the user is on that
+/// node.
 class NotificationGroupCard extends ConsumerStatefulWidget {
   const NotificationGroupCard({
     super.key,
     required this.notifications,
     required this.onTapNotification,
     required this.onGoToTrade,
+    required this.onOtherNode,
     this.tradeRow,
     this.isDisputeGroup = false,
   });
@@ -45,6 +46,11 @@ class NotificationGroupCard extends ConsumerStatefulWidget {
   final List<NotificationModel> notifications;
   final ValueChanged<NotificationModel> onTapNotification;
   final VoidCallback onGoToTrade;
+
+  /// A way into a trade on another node: [open] is what it would have done
+  /// on the trade's own node, [node] and [nodeName] that node.
+  final void Function(String node, String nodeName, VoidCallback open)
+  onOtherNode;
 
   /// The trade as My Trades shows it; null while the trades load, or once
   /// the row is gone (wiped or deleted), when the header falls back to the
@@ -115,29 +121,13 @@ class _NotificationGroupCardState extends ConsumerState<NotificationGroupCard> {
         elsewhere
             ? nodeNameOf(node, ref.watch(mostroNodesProvider).valueOrNull ?? [])
             : null;
-    void sayWhereToOpen(String name) => showMostroDialog<void>(
-      context: context,
-      builder:
-          (dialogContext) => MostroDialog(
-            icon: Icons.swap_horiz_rounded,
-            title: l10n.otherNodeCardDialogTitle,
-            body: l10n.otherNodeCardOpenHint(name),
-            primary: ModalAction(
-              label: l10n.okButtonLabel,
-              onPressed: () => Navigator.of(dialogContext).pop(),
-            ),
-          ),
-    );
-    VoidCallback open(NotificationModel n) =>
+    VoidCallback onItsNode(VoidCallback open) =>
         nodeName != null
-            ? () => sayWhereToOpen(nodeName)
-            : () => widget.onTapNotification(n);
-    final onGoToTrade =
-        tradeGone
-            ? null
-            : nodeName != null
-            ? () => sayWhereToOpen(nodeName)
-            : widget.onGoToTrade;
+            ? () => widget.onOtherNode(node!, nodeName, open)
+            : open;
+    VoidCallback open(NotificationModel n) =>
+        onItsNode(() => widget.onTapNotification(n));
+    final onGoToTrade = tradeGone ? null : onItsNode(widget.onGoToTrade);
     final needsAction = row?.state.needsAction ?? false;
     final isDispute =
         widget.isDisputeGroup ||

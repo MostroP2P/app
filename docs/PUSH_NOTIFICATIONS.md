@@ -916,9 +916,15 @@ The trade and chat cards come from `lib/features/notifications/services/event_ca
   keeps its row, and its cancel (the escrow deadline, a hold invoice canceled while
   active) raises its card. On screen, a group card whose node is not the active one
   shows an amber line naming it, read as the card is shown, so it leaves once the user
-  is on that node. Tapping it opens nothing: an informative dialog, answered only with
-  OK, says the trade is acted on from its node, switched to in Settings
-  (`NotificationGroupCard`). A card that recorded no node reads as the active node's.
+  is on that node. Tapping it, or its Go to trade, asks whether to switch to that node
+  (`OtherNodeSwitchDialog`): Cancel leaves everything as it was. Change node runs the
+  switch with the dialog open, as Settings does, then restores the account on that node
+  and opens what was tapped, the chat or the trade (`NotificationsScreen`, through
+  `lib/features/settings/services/node_switch.dart`). No warning about a trade left on
+  the current node and no block on an unreachable node: the user is going to a trade of
+  their own there. A node missing from the registry is offered too, named by its short
+  key. A failed switch says so and opens nothing. A card that recorded no node reads as
+  the active node's.
 
 ### 9.3 The OS notification
 

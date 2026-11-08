@@ -464,7 +464,11 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
     final node = ref.watch(mostroNodeProvider).valueOrNull;
     final rate =
         ref.watch(exchangeRateProvider(trade.order.fiatCode)).valueOrNull;
-    final fiat = bondFiatEquivalent(sats: amountSats, rate: rate);
+    final fiat = bondFiatEquivalent(
+      sats: amountSats,
+      rate: rate,
+      fiatCode: trade.order.fiatCode,
+    );
     final fiatLine =
         fiat == null
             ? l10n.bondComesBack

@@ -42,7 +42,7 @@ A buy or sell offer on the Mostro network.
 | fiat_amount | f64? | Fixed amount in fiat (null if range order) |
 | fiat_amount_min | f64? | Min fiat amount for range orders (null if fixed) |
 | fiat_amount_max | f64? | Max fiat amount for range orders (null if fixed) |
-| fiat_code | String | ISO 4217 currency code (e.g., "USD", "EUR") |
+| fiat_code | String | Currency code: an ISO 4217 fiat (e.g., "USD", "EUR") or a stablecoin code from the catalogue (e.g., "USDT"; app#884) |
 | payment_method | String | Fiat payment method description |
 | premium | f64 | Price premium/discount percentage |
 | node_pubkey | String | The Mostro node that issued the order: the Kind 38383 author on a book order, the node that sent the daemon message a trade row was built from. Empty when unknown. Rows persisted before the rename name it `creator_pubkey` |
@@ -57,7 +57,7 @@ A buy or sell offer on the Mostro network.
 | maker_since | i64? | The maker's first trade (`since`): Unix seconds, truncated to the UTC day start. Null from daemons that predate it. The UI shows the age computed at display time (now − `maker_since`, whole days, never negative) and falls back to `days_active` |
 
 **Validation rules**:
-- `fiat_code` MUST be a valid ISO 4217 code.
+- `fiat_code` MUST be a currency code of 3 to 5 uppercase ASCII letters: a valid ISO 4217 code, or a stablecoin code the catalogue lists (`USDT`, `USDC`, `DOC`).
 - Either `fiat_amount` OR both `fiat_amount_min` and `fiat_amount_max` MUST be provided, but NOT both. If `fiat_amount` is present, `fiat_amount_min` and `fiat_amount_max` MUST be absent; if `fiat_amount_min`/`fiat_amount_max` are present, `fiat_amount` MUST be absent.
 - If range: `fiat_amount_min` MUST be > 0 and < `fiat_amount_max`.
 - `premium` is a signed float (negative = discount).

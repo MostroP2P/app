@@ -179,6 +179,12 @@ is the number its range check will use. The node's own event is the source, not
 a third-party API — any other quote would be a different price, and asking for
 one would disclose which currency the user is about to trade.
 
+For a code pegged to bitcoin (`BTC`, `LBTC`, `RBTC`) the price is `100000000`:
+the node quotes 10⁸ units per BTC, a unit being a sat, since those codes count
+an order's amount in sats. `BTC` is the inner `"BTC"` entry of the payload, so
+it is returned only when that entry is exactly `100000000`; a `1` there is a
+source's self-rate and is never returned (see `.specify/NOSTR_EXCHANGE_RATES.md`).
+
 **Returns**: the rate, or `null` whenever the node has no usable one to give:
 it publishes no rates event (publishing is optional for an operator), the event
 served by the relay has expired per its NIP-40 `expiration` tag, its payload is

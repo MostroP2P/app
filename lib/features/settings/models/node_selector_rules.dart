@@ -1,6 +1,7 @@
 import 'package:intl/intl.dart';
 
 import 'package:mostro/shared/utils/abbreviated_figure.dart';
+import 'package:mostro/shared/utils/btc_pegged.dart';
 import 'package:mostro/src/rust/api/node_stats.dart';
 import 'package:mostro/src/rust/api/types.dart';
 
@@ -189,12 +190,17 @@ String formatFeePct(double pct, String locale) {
 
 /// `≈ 1.800 – 720.000` for the sats range at [btcPrice] (fiat per BTC), or
 /// `null` when there is no rate or no range — the line is then omitted.
+///
+/// Also `null` for a BTC-pegged [fiatCode]: its amounts are sats, so the
+/// line would only repeat the range beside it (#907).
 String? fiatEquivalent(
   BigInt? min,
   BigInt? max,
   double? btcPrice,
   String locale,
+  String fiatCode,
 ) {
+  if (isBtcPeggedCode(fiatCode)) return null;
   if (min == null || max == null || btcPrice == null || btcPrice <= 0) {
     return null;
   }
