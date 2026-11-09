@@ -40,7 +40,7 @@ jobs:
         env:
           SHA: ${{ github.sha }}
         run: |
-          printf '{"sha": "%s", "mortsom_ref": "%s"}\n' "$SHA" "c47547072b74c8b1240ceac3e858d82304aaa4bf" > meta.json
+          printf '{"sha": "%s", "mortsom_ref": "%s"}\n' "$SHA" "86d468c310eb896757da5e9d10fe7b7994219bd3" > meta.json
           cat meta.json
       - uses: actions/upload-artifact@v4
         with:
@@ -50,20 +50,20 @@ jobs:
 
   plain:
     needs: select
-    uses: MostroP2P/mortsom/.github/workflows/app-e2e.yml@c47547072b74c8b1240ceac3e858d82304aaa4bf
+    uses: MostroP2P/mortsom/.github/workflows/app-e2e.yml@86d468c310eb896757da5e9d10fe7b7994219bd3
     with:
       app_ref: main
       scenarios: ${{ needs.select.outputs.plain }}
       bond: false
-      mortsom_ref: c47547072b74c8b1240ceac3e858d82304aaa4bf
+      mortsom_ref: 86d468c310eb896757da5e9d10fe7b7994219bd3
       artifact_name: mortsom-baseline-plain
 
   bond:
     needs: select
-    uses: MostroP2P/mortsom/.github/workflows/app-e2e.yml@c47547072b74c8b1240ceac3e858d82304aaa4bf
+    uses: MostroP2P/mortsom/.github/workflows/app-e2e.yml@86d468c310eb896757da5e9d10fe7b7994219bd3
     with:
       app_ref: main
       scenarios: ${{ needs.select.outputs.bond }}
       bond: true
-      mortsom_ref: c47547072b74c8b1240ceac3e858d82304aaa4bf
+      mortsom_ref: 86d468c310eb896757da5e9d10fe7b7994219bd3
       artifact_name: mortsom-baseline-bond

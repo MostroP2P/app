@@ -237,6 +237,13 @@ whose two stacks built different commits is discarded), within
 **reference**; the `stability_window` most recent are the **history**.
 None: `inconclusive`, reason `no-baseline`.
 
+After `mortsom_ref` changes on `main`, baselines measured with the old pin
+no longer count. Every pull request is `no-baseline` until the baseline
+that the bump triggers finishes; a pull request branched before the bump
+stays so until it is updated onto a `main` with a new-pin baseline, since
+the walk only looks back from its merge-base. A finished baseline does not
+re-run verdicts: push, or add `mortsom:run`, to get one.
+
 ### 7.2 Classifying each scenario
 
 For each scenario of the **trusted selection** (recomputed with `main`'s
@@ -262,7 +269,7 @@ First match wins.
 
 | Verdict | When | Label |
 |---|---|---|
-| `not-applicable` | mode `none` | none; previous `mortsom:*` verdict labels removed |
+| `not-applicable` | mode `none`, or `mortsom:skip` | none; previous `mortsom:*` verdict labels and the verdict comment removed |
 | `inconclusive` | selection error, gate files modified by the pull request (§9), app build failed, incomplete run, no baseline, or every failure is `harness` | `mortsom:inconclusive` |
 | `would-close` | `eligible ≥ min_scenarios` and `ratio ≥ close_ratio`, and no cap applies | `mortsom:would-close` |
 | `regression` | a `would-close` condition held but `mortsom:expected-break` caps it, or at least one `regression` | `mortsom:regression` |

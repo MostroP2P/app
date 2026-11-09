@@ -6,7 +6,7 @@
 # MostroP2P/mortsom commit the gate runs. Also the `uses:` ref of
 # mortsom-pr.yml and mortsom-baseline.yml (checked by mortsom-map.yml), and
 # the commit `scenarios.json` was printed by (`mortsom list --json`).
-mortsom_ref = "c47547072b74c8b1240ceac3e858d82304aaa4bf"
+mortsom_ref = "86d468c310eb896757da5e9d10fe7b7994219bd3"
 # Tags every non-ignored selection runs.
 always_tags = ["smoke"]
 # Eligible scenarios needed before `would-close` is possible.
