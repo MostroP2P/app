@@ -1,5 +1,6 @@
 """Tests for size_check.py: classification, counting and the verdict."""
 
+import re
 import sys
 import unittest
 from pathlib import Path
@@ -43,6 +44,7 @@ class TestClassify(unittest.TestCase):
             "lib/features/order/widget_test.dart": "tests",
             "rust/tests/restore.rs": "tests",
             ".github/quality/tests/test_size_check.py": "tests",
+            "rust/src/mostro/test_fixtures.rs": "tests",
             "lib/l10n/app_pt.arb": "translations",
             "docs/RELAYS.md": "docs",
             "README.md": "docs",
@@ -56,6 +58,29 @@ class TestClassify(unittest.TestCase):
         for path, want in cases.items():
             with self.subTest(path=path):
                 self.assertEqual(size_check.classify(path, SIZE), want)
+
+
+GATED_MOD = re.compile(
+    r"#\[cfg\(([^\]]*)\)\]\s*(?:#\[[^\]]*\]\s*)*(?:pub(?:\([^)]*\))?\s+)?mod\s+(\w+)\s*;"
+)
+
+
+class TestGatedModules(unittest.TestCase):
+    def test_every_cfg_test_module_file_is_listed_as_tests(self):
+        root = QUALITY_DIR.parents[1] / "rust" / "src"
+        if not root.is_dir():
+            self.skipTest("no rust/src in this checkout")
+        missing = []
+        for f in root.rglob("*.rs"):
+            for m in GATED_MOD.finditer(f.read_text()):
+                if "test" not in m.group(1) or "not(test)" in m.group(1):
+                    continue
+                base = f.parent if f.name in ("mod.rs", "lib.rs") else f.with_suffix("")
+                for cand in (base / f"{m.group(2)}.rs", base / m.group(2) / "mod.rs"):
+                    rel = cand.relative_to(root.parents[1]).as_posix()
+                    if cand.exists() and size_check.classify(rel, SIZE) != "tests":
+                        missing.append(rel)
+        self.assertEqual(missing, [], "add these #[cfg(test)] module files to [size].tests in config.toml")
 
 
 class TestCount(unittest.TestCase):

@@ -27,6 +27,12 @@ tests = [
   "**/*_test.dart",
   "rust/tests/**",
   ".github/**/tests/**",
+  # Out-of-line modules declared with `#[cfg(test)] mod name;`: the file
+  # itself carries no test attribute. tests/test_size_check.py fails when a
+  # new one is missing here.
+  "rust/src/source_guard.rs",
+  "rust/src/mostro/cashu_wire.rs",
+  "rust/src/mostro/test_fixtures.rs",
 ]
 
 # Documentation and specs.

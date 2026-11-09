@@ -472,7 +472,9 @@ contributor limit of §7.1.
 What does not count, all listed in `.github/quality/config.toml` `[size]`:
 
 - **Tests:** `test/**`, `integration_test/**`, `test_driver/**`,
-  `*_test.dart`, `rust/tests/**`, `.github/**/tests/**`, and, line by line, the `#[cfg(test)]`
+  `*_test.dart`, `rust/tests/**`, `.github/**/tests/**`, the out-of-line
+  modules declared with `#[cfg(test)] mod name;` (listed in `config.toml`,
+  kept complete by a unit test that scans `rust/src`), and, line by line, the `#[cfg(test)]`
   items and `#[test]` / `#[tokio::test]` functions inside `rust/src/**/*.rs`.
 - **Generated files:** the list of §7.4.
 - **Documentation:** `*.md`, `docs/**`, `specs/**`, `.specify/**`.
