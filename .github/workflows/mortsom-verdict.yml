@@ -1,0 +1,37 @@
+name: Mortsom verdict
+
+# The Mortsom gate's verdict (docs/MORTSOM_PR_E2E_SPEC.md § 7). workflow_run
+# runs this definition and its scripts from main, with a write token. That
+# is safe only because nothing here checks out or runs pull request code:
+# the run's artifacts are parsed as data, and the pull request, its files
+# and the baselines come from the API. Shadow mode: labels and one comment.
+
+on:
+  workflow_run:
+    workflows: ["Mortsom PR"]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  verdict:
+    name: Verdict
+    if: github.event.workflow_run.event == 'pull_request'
+    concurrency:
+      group: mortsom-verdict-${{ github.event.workflow_run.head_sha }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Verdict
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/mortsom/run_verdict.py
