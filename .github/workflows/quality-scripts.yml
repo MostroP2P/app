@@ -1,0 +1,35 @@
+name: Quality scripts
+
+# Unit tests of the quality bar's scripts. quality-size.yml runs the version
+# on `main`, so a change to them is only exercised here before it merges. It
+# also runs on Rust changes: one test checks that every `#[cfg(test)]`
+# out-of-line module is listed as tests in config.toml.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/quality/**"
+      - ".github/workflows/quality-scripts.yml"
+      # A new `#[cfg(test)] mod name;` must be listed in config.toml.
+      - "rust/src/**"
+  pull_request:
+    paths:
+      - ".github/quality/**"
+      - ".github/workflows/quality-scripts.yml"
+      # A new `#[cfg(test)] mod name;` must be listed in config.toml.
+      - "rust/src/**"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Quality scripts tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit tests
+        # ubuntu-latest ships Python 3.12 (tomllib); no third-party packages.
+        run: python3 -m unittest discover -s .github/quality/tests -v

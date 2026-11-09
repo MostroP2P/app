@@ -206,7 +206,8 @@ bridged by flutter_rust_bridge.
 - **Before opening a PR, read and follow `CONTRIBUTING.md § Contribution quality bar`**
   (summarised in `AGENTS.md § Before opening a pull request`): accepted issue, every section
   of `.github/pull_request_template.md`, Manual testing a person actually ran, screenshots for
-  visible changes, and for a fix a `test:` commit that fails on `main`, first after any
+  visible changes, at most 1,500 changed lines not counting tests, generated files, docs and translations
+  (`size:exempt` is a maintainer's call), and for a fix a `test:` commit that fails on `main`, first after any
   `refactor:` seam commits. Exemptions (Markdown-only, maintainers, bots, `quality:exempt`) and the
   `quality:no-red-test` waiver are in that section.
 
