@@ -237,18 +237,19 @@ def main():
     event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
     run = event["workflow_run"]
     gh = GitHub(os.environ["GITHUB_REPOSITORY"], os.environ["GITHUB_TOKEN"])
-    if run.get("conclusion") in ("skipped", "cancelled"):
-        # Draft, Dependabot, an unrelated label event, or a run a newer push
-        # cancelled: the current verdict stands.
-        print(f"The pull request run was {run['conclusion']}; the verdict is unchanged.")
-        return 0
     pull = find_pull(gh, run)
     if pull is None:
         print(f"No open pull request has head {run['head_sha']}; nothing to report.")
         return 0
+    labels = tuple(label["name"] for label in pull.get("labels", []))
+    if run.get("conclusion") in ("skipped", "cancelled") and "mortsom:skip" not in labels:
+        # Draft, Dependabot, an unrelated label event, or a run a newer push
+        # cancelled: the current verdict stands. With mortsom:skip the run is
+        # skipped too, and the verdict labels are cleared below.
+        print(f"The pull request run was {run['conclusion']}; the verdict is unchanged.")
+        return 0
     selection, v, ctx = evaluate(gh, run, pull)
     body = verdict.render_comment(v, selection, ctx)
-    labels = tuple(label["name"] for label in pull.get("labels", []))
     apply(gh, pull["number"], labels, v, body)
     report = f"## Mortsom verdict for #{pull['number']}: {v.verdict}\n\n{body}\n"
     print(report)

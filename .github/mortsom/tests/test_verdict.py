@@ -125,6 +125,12 @@ class TestComment(unittest.TestCase):
                 before = line[:line.index("@victim")]
                 self.assertEqual(before.count("`") % 2, 1, f"@victim outside a code span: {line}")
 
+    def test_a_long_not_covered_list_is_capped(self):
+        selection = sel("a") | {"unmapped_files": [f"lib/x{i}.dart" for i in range(400)]}
+        body = v.render_comment(v.decide(selection, {"a": ok()}, {"a": ok()}, [], SETTINGS), selection, {})
+        self.assertIn("- and 350 more", body)
+        self.assertLess(len(body), 65536)
+
     def test_not_covered_files_are_listed(self):
         selection = sel("a") | {"uncovered_files": {"lib/features/chat/x.dart": "no chat scenario"}}
         res = v.decide(selection, {"a": ok()}, {"a": ok()}, [], SETTINGS)

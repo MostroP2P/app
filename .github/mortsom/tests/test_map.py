@@ -17,7 +17,8 @@ CATALOG = s.load_catalog(GATE / "scenarios.json")
 
 def tracked():
     try:
-        return subprocess.check_output(["git", "-C", str(ROOT), "ls-files"], text=True).split()
+        out = subprocess.check_output(["git", "-C", str(ROOT), "ls-files", "-z"], text=True)
+        return [p for p in out.split("\0") if p]
     except (OSError, subprocess.CalledProcessError):
         return []
 

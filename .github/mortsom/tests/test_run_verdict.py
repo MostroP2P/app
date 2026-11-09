@@ -127,5 +127,49 @@ class TestApply(unittest.TestCase):
         self.assertEqual(posted_labels, [])
 
 
+
+class TestMain(unittest.TestCase):
+    def run_main(self, conclusion, labels):
+        import json, os, tempfile
+        calls = []
+
+        class GH(FakeGitHub):
+            def __init__(self, *a, **k):
+                super().__init__()
+
+            def request(self, method, path, body=None, params=None):
+                calls.append((method, path))
+                if path.endswith("/pulls/7"):
+                    return {"number": 7, "state": "open", "head": {"sha": "h"},
+                            "labels": [{"name": n} for n in labels]}
+                return []
+
+        event = {"workflow_run": {"id": 1, "head_sha": "h", "conclusion": conclusion,
+                                  "pull_requests": [{"number": 7}], "html_url": "u"}}
+        with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+            json.dump(event, f)
+        env = {"GITHUB_EVENT_PATH": f.name, "GITHUB_REPOSITORY": "MostroP2P/app", "GITHUB_TOKEN": "t"}
+        old_gh, old_eval, old_apply = rv.GitHub, rv.evaluate, rv.apply
+        applied = []
+        rv.GitHub = GH
+        rv.evaluate = lambda gh, run, pull: ({"mode": "subset"}, verdict.Verdict("not-applicable", "mortsom:skip"), {})
+        rv.apply = lambda gh, n, labels, v, body: applied.append(v.verdict)
+        try:
+            os.environ.update(env)
+            rv.main()
+        finally:
+            rv.GitHub, rv.evaluate, rv.apply = old_gh, old_eval, old_apply
+            for k in env:
+                os.environ.pop(k, None)
+            os.unlink(f.name)
+        return applied
+
+    def test_a_skipped_run_leaves_the_verdict_alone(self):
+        self.assertEqual(self.run_main("skipped", ["mortsom:pass"]), [])
+
+    def test_a_skipped_run_with_mortsom_skip_clears_the_verdict(self):
+        self.assertEqual(self.run_main("skipped", ["mortsom:skip", "mortsom:regression"]), ["not-applicable"])
+
+
 if __name__ == "__main__":
     unittest.main()

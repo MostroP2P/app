@@ -13,6 +13,9 @@ MARKER = "<!-- mortsom-verdict -->"
 APP_CATEGORIES = ("product", "automation-contract")
 VERDICT_LABELS = ("mortsom:pass", "mortsom:regression", "mortsom:inconclusive", "mortsom:would-close")
 DETAIL_MAX = 200
+# Files listed as not covered; the rest are counted, so a large pull request
+# cannot push the comment past GitHub's 65,536-character limit.
+LIST_MAX = 50
 
 
 @dataclass
@@ -177,8 +180,11 @@ def render_comment(v, selection, ctx):
     unmapped = selection.get("unmapped_files", [])
     if uncovered or unmapped:
         lines += ["", "**Not covered by any scenario** (this verdict says nothing about them):"]
-        lines += [f"- {_safe(p)}: {why}" for p, why in uncovered.items()]
-        lines += [f"- {_safe(p)}: no rule in `.github/mortsom/map.toml`" for p in unmapped]
+        entries = [(p, why) for p, why in uncovered.items()]
+        entries += [(p, "no rule in `.github/mortsom/map.toml`") for p in unmapped]
+        lines += [f"- {_safe(p)}: {why}" for p, why in entries[:LIST_MAX]]
+        if len(entries) > LIST_MAX:
+            lines.append(f"- and {len(entries) - LIST_MAX} more")
     if ctx.get("run_url"):
         lines += ["", f"[Pull request run]({ctx['run_url']})"
                   + (f" · [baseline run]({ctx['baseline_url']})" if ctx.get("baseline_url") else "")]
