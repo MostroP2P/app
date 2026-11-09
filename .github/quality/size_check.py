@@ -149,6 +149,12 @@ def _split_rust(f, fetch_old, fetch_new):
     old_tests = rust_tests.rust_test_lines(old_text) if deleted else set()
     new_tests = rust_tests.rust_test_lines(new_text) if added else set()
     inline = sum(ln in old_tests for ln in deleted) + sum(ln in new_tests for ln in added)
+    if f.patch is None:
+        # difflib can align lines differently from Git: keep GitHub's total
+        # and apply only the test share of the local diff to it.
+        total, diffed = f.additions + f.deletions, len(deleted) + len(added)
+        inline = round(inline * total / diffed) if diffed else 0
+        return total - inline, inline
     return len(deleted) + len(added) - inline, inline
 
 

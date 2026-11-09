@@ -118,6 +118,25 @@ class TestCount(unittest.TestCase):
         b = size_check.count([f], SIZE, lambda p: old, lambda p: new)
         self.assertEqual((b.counted, b.inline_tests, b.unparsed), (1, 2, []))
 
+    def test_missing_patch_keeps_githubs_totals(self):
+        # Repetitive lines: difflib aligns them differently from Git, so its
+        # count differs from GitHub's. GitHub's additions/deletions win.
+        old = "\n".join(f"    values.push({i % 3});" for i in range(1000))
+        new = "\n".join(f"    values.push({(i + 1) % 3});" for i in range(1000))
+        diffed = sum(map(len, size_check.diff_lines(old, new)))
+        self.assertNotEqual(diffed, 1004)
+        f = ChangedFile("rust/src/api/orders.rs", 502, 502, patch=None)
+        b = size_check.count([f], SIZE, lambda p: old, lambda p: new)
+        self.assertEqual((b.counted, b.tests), (1004, 0))
+
+    def test_missing_patch_scales_test_share_to_githubs_totals(self):
+        old = "fn a() {}\n#[cfg(test)]\nmod tests {\n    fn t() {}\n}\n"
+        new = "fn a() {}\nfn b() {}\n#[cfg(test)]\nmod tests {\n    fn t() {}\n    fn u() {}\n    fn v() {}\n}\n"
+        # difflib sees 1 prod + 2 test lines; GitHub reports 6 changed lines.
+        f = ChangedFile("rust/src/api/orders.rs", 6, 0, patch=None)
+        b = size_check.count([f], SIZE, lambda p: old, lambda p: new)
+        self.assertEqual((b.counted, b.tests), (2, 4))
+
     def test_missing_patch_and_unreadable_source_counts_every_line(self):
         f = ChangedFile("rust/src/api/orders.rs", 2000, 10, patch=None)
         b = size_check.count([f], SIZE, lambda p: None, lambda p: None)

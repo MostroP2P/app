@@ -487,7 +487,9 @@ the same safety model: `pull_request_target`, scripts from `main`, no pull
 request code checked out or run. It reads the changed files and their
 patches from the API, and for a changed Rust source the file at the merge
 base and at the head, to tell test lines apart. When GitHub omits the
-patch of a very large file, the check diffs those two versions itself. When
+patch of a very large file, the check diffs those two versions itself and
+applies the share of test lines it finds to GitHub's own line counts, so
+the total always matches what GitHub reports. When
 a source cannot be read, every line of that file counts, and the comment
 says so.
 
