@@ -133,25 +133,40 @@ def first_parents(gh, sha, depth):
     return out
 
 
+BASELINE_RUNS = 20
+
+
+def measured_baselines(gh, settings):
+    """{app commit: (run, results)} of recent baselines with the pinned
+    Mortsom. A baseline builds `main` by name, which may have moved since
+    the run was queued, so it is keyed by the commit Mortsom recorded as
+    built, not by the workflow's head; a run whose two stacks built
+    different commits is discarded."""
+    runs = gh.paginate(f"/repos/{gh.repo}/actions/workflows/{BASELINE_WORKFLOW}/runs", key="workflow_runs",
+                       params={"branch": "main", "status": "completed"}, limit=BASELINE_RUNS)
+    by_rev = {}
+    for run in runs[:BASELINE_RUNS]:
+        arts = gh.run_artifacts(run["id"])
+        meta_files = gh.artifact_json(arts["mortsom-baseline-meta"]) if "mortsom-baseline-meta" in arts else {}
+        meta = next(iter(meta_files.values()), {})
+        if not isinstance(meta, dict) or meta.get("mortsom_ref") != settings["mortsom_ref"]:
+            continue
+        docs = summaries(gh, arts, ["mortsom-baseline-plain", "mortsom-baseline-bond"])
+        revs = verdict.built_revisions(docs)
+        results = verdict.normalize(docs)
+        if len(revs) == 1 and results:
+            by_rev.setdefault(revs.pop(), (run, results))
+    return by_rev
+
+
 def baselines(gh, merge_base, settings):
     """(reference results, history, meta) of § 7.1."""
     walk = first_parents(gh, merge_base, settings["baseline_max_distance"])
-    runs = gh.paginate(f"/repos/{gh.repo}/actions/workflows/{BASELINE_WORKFLOW}/runs", key="workflow_runs",
-                       params={"branch": "main", "status": "completed"}, limit=60)
-    by_sha = {}
-    for r in runs:
-        by_sha.setdefault(r["head_sha"], r)
+    by_rev = measured_baselines(gh, settings)
     found = []
     for distance, sha in enumerate(walk):
-        if sha not in by_sha or len(found) >= settings["stability_window"]:
-            continue
-        run = by_sha[sha]
-        arts = gh.run_artifacts(run["id"])
-        meta = next(iter(gh.artifact_json(arts["mortsom-baseline-meta"]).values()), {}) if "mortsom-baseline-meta" in arts else {}
-        if meta.get("mortsom_ref") != settings["mortsom_ref"]:
-            continue
-        results = verdict.normalize(summaries(gh, arts, ["mortsom-baseline-plain", "mortsom-baseline-bond"]))
-        if results:
+        if sha in by_rev and len(found) < settings["stability_window"]:
+            run, results = by_rev[sha]
             found.append({"sha": sha, "distance": distance, "url": run["html_url"], "results": results})
     if not found:
         return None, [], {}

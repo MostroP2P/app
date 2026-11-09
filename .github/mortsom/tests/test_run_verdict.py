@@ -12,8 +12,11 @@ SETTINGS = {"baseline_max_distance": 3, "stability_window": 2, "mortsom_ref": "p
             "min_scenarios": 4, "close_ratio": 0.5}
 
 
-def summary(**outcomes):
-    return {"results": [{"name": n, "attempts": 1, "outcome": {"outcome": o}} for n, o in outcomes.items()]}
+def summary(rev=None, **outcomes):
+    doc = {"results": [{"name": n, "attempts": 1, "outcome": {"outcome": o}} for n, o in outcomes.items()]}
+    if rev:
+        doc["app_build"] = {"remote_selection": {"revision": rev}}
+    return doc
 
 
 class FakeGitHub:
@@ -76,15 +79,25 @@ class TestFindPull(unittest.TestCase):
 
 
 class TestBaselines(unittest.TestCase):
-    def gh(self, meta_ref="pin"):
+    def gh(self, meta_ref="pin", bond_rev=None):
         commits = {"m0": "m1", "m1": "m2", "m2": "m3"}
-        runs = [{"id": 11, "head_sha": "m1", "html_url": "u11"}, {"id": 12, "head_sha": "m2", "html_url": "u12"},
-                {"id": 13, "head_sha": "zz", "html_url": "u13"}]
+        # Run 11 was triggered by m9 but built m1 (main moved while queued).
+        runs = [{"id": 11, "head_sha": "m9", "html_url": "u11"}, {"id": 12, "head_sha": "m2", "html_url": "u12"}]
         artifacts = {}
-        for rid, outcome in ((11, "passed"), (12, "failed")):
+        for rid, rev, outcome in ((11, "m1", "passed"), (12, "m2", "failed")):
             artifacts[(rid, "mortsom-baseline-meta")] = {"meta.json": {"sha": "x", "mortsom_ref": meta_ref}}
-            artifacts[(rid, "mortsom-baseline-plain")] = {"r.json": summary(a=outcome)}
+            artifacts[(rid, "mortsom-baseline-plain")] = {"r.json": summary(rev=rev, a=outcome)}
+        if bond_rev:
+            artifacts[(11, "mortsom-baseline-bond")] = {"b.json": summary(rev=bond_rev, b="passed")}
         return FakeGitHub(commits=commits, runs=runs, artifacts=artifacts)
+
+    def test_baselines_are_keyed_by_the_built_commit(self):
+        ref, history, base = rv.baselines(self.gh(), "m0", SETTINGS)
+        self.assertEqual((base["sha"], base["url"]), ("m1", "u11"))
+
+    def test_a_run_whose_stacks_built_different_commits_is_discarded(self):
+        ref, history, base = rv.baselines(self.gh(bond_rev="m7"), "m0", SETTINGS)
+        self.assertEqual(base["sha"], "m2")
 
     def test_most_recent_baseline_on_the_first_parent_walk_is_the_reference(self):
         ref, history, base = rv.baselines(self.gh(), "m0", SETTINGS)

@@ -60,6 +60,18 @@ def normalize(summaries):
     return out
 
 
+def built_revisions(summaries):
+    """App commits Mortsom recorded as built (`app_build.remote_selection.revision`)."""
+    revs = set()
+    for doc in summaries:
+        build = doc.get("app_build") if isinstance(doc, dict) else None
+        sel = build.get("remote_selection") if isinstance(build, dict) else None
+        rev = sel.get("revision") if isinstance(sel, dict) else None
+        if isinstance(rev, str) and rev:
+            revs.add(rev)
+    return revs
+
+
 def _stable(name, reference, history):
     ref = reference.get(name)
     if not ref or ref["outcome"] != "passed":

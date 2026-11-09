@@ -228,9 +228,12 @@ artifact as untrusted data and never checks out or runs pull request code.
 
 The merge-base comes from the API
 (`compare/main...<head_sha>` → `merge_base_commit.sha`). Candidates are
-successful-enough `mortsom-baseline.yml` runs on `main` whose `meta.sha`
-is within `baseline_max_distance` first-parent commits of the merge-base
-and whose `mortsom_ref` equals `main`'s pin. The most recent is the
+recent `mortsom-baseline.yml` runs on `main` whose `mortsom_ref` equals
+`main`'s pin, keyed by the app commit Mortsom recorded as built
+(`app_build.remote_selection.revision` in the summaries; a baseline builds
+`main` by name, which may have moved since the run was queued, and a run
+whose two stacks built different commits is discarded), within
+`baseline_max_distance` first-parent commits of the merge-base. The most recent is the
 **reference**; the `stability_window` most recent are the **history**.
 None: `inconclusive`, reason `no-baseline`.
 
