@@ -95,7 +95,7 @@ class TestSelect(unittest.TestCase):
             (d / "map.toml").write_text('[settings]\nalways_tags = ["smoke"]\n'
                                         '[[rule]]\nname = "t"\npaths = ["lib/**"]\ntags = ["happy-path"]\n')
             (d / "c.json").write_text(json.dumps(CATALOG))
-            (d / "f.txt").write_text("lib/a.dart\n")
+            (d / "f.txt").write_text("lib/a.dart\0")
             out = d / "github_output"
             import os
             os.environ["GITHUB_OUTPUT"] = str(out)

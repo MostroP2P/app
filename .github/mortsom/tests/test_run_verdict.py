@@ -53,12 +53,26 @@ class FakeGitHub:
 class TestRunComplete(unittest.TestCase):
     def test_finished_suite_jobs_are_complete(self):
         gh = FakeGitHub(jobs=[{"name": "plain / mobile-v2 on Linux (x)", "conclusion": "failure"}])
-        self.assertTrue(rv.run_complete(gh, 1, {"plain": ["a"], "bond": []}))
+        self.assertTrue(rv.run_complete(gh, 1, {"plain": ["a"], "bond": []}, {"plain": {"a": {}}}))
+
+    def test_a_failed_job_without_results_is_incomplete(self):
+        gh = FakeGitHub(jobs=[{"name": "plain / mobile-v2 on Linux (x)", "conclusion": "failure"}])
+        self.assertFalse(rv.run_complete(gh, 1, {"plain": ["a"], "bond": []}, {"plain": {}}))
 
     def test_cancelled_or_absent_suite_job_is_incomplete(self):
         gh = FakeGitHub(jobs=[{"name": "plain / mobile-v2 on Linux (x)", "conclusion": "cancelled"}])
-        self.assertFalse(rv.run_complete(gh, 1, {"plain": ["a"], "bond": []}))
-        self.assertFalse(rv.run_complete(FakeGitHub(), 1, {"plain": [], "bond": ["b"]}))
+        self.assertFalse(rv.run_complete(gh, 1, {"plain": ["a"], "bond": []}, {"plain": {"a": {}}}))
+        self.assertFalse(rv.run_complete(FakeGitHub(), 1, {"plain": [], "bond": ["b"]}, {"bond": {"b": {}}}))
+
+
+class TestFindPull(unittest.TestCase):
+    def test_a_run_of_an_older_head_finds_no_pull_request(self):
+        class GH(FakeGitHub):
+            def request(self, method, path, body=None, params=None):
+                if path.endswith("/pulls/7"):
+                    return {"number": 7, "state": "open", "head": {"sha": "new"}}
+                return []
+        self.assertIsNone(rv.find_pull(GH(), {"head_sha": "old", "pull_requests": [{"number": 7}]}))
 
 
 class TestBaselines(unittest.TestCase):

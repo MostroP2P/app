@@ -55,6 +55,19 @@ class TestDecide(unittest.TestCase):
         res = v.decide(sel(*NAMES), pr, REF, [REF], SETTINGS, labels=("mortsom:expected-break",))
         self.assertEqual(res.verdict, "regression")
 
+    def test_malformed_summaries_are_dropped(self):
+        docs = [[], {"results": "x"}, {"results": [1, {"name": 3}, {"name": "a", "outcome": "bad"},
+                                                     {"name": "b", "attempts": "x", "outcome": {"outcome": "passed"}}]}]
+        self.assertEqual(v.normalize(docs), {"b": {"outcome": "passed", "category": "", "message": "", "attempts": 1}})
+
+    def test_one_pass_and_harness_failures_is_inconclusive(self):
+        pr = {"a": ok(), "b": failed("relay"), "c": failed("wallet"), "d": failed("test-infrastructure")}
+        self.assertEqual(v.decide(sel(*NAMES), pr, REF, [REF], SETTINGS).verdict, "inconclusive")
+
+    def test_a_missing_scenario_without_baseline_is_not_eligible(self):
+        res = v.decide(sel("a", "z"), {"a": ok()}, {"a": ok()}, [], SETTINGS)
+        self.assertEqual(([r.cls for r in res.rows], res.verdict), (["pass", "no-baseline"], "pass"))
+
     def test_harness_failures_are_not_the_app(self):
         pr = {n: failed("test-infrastructure") for n in NAMES}
         res = v.decide(sel(*NAMES), pr, REF, [REF], SETTINGS)
@@ -101,6 +114,16 @@ class TestComment(unittest.TestCase):
         self.assertNotIn("\n", row)
         self.assertLess(len(row), 300)
         self.assertEqual(body.count(v.MARKER), 1)
+
+    def test_file_names_cannot_inject_into_the_comment(self):
+        evil = "lib/features/chat/a`@victim [x](http://e)\n<!-- mortsom-verdict -->`.dart"
+        selection = sel("a") | {"uncovered_files": {evil: "no chat scenario"}, "unmapped_files": [evil]}
+        body = v.render_comment(v.decide(selection, {"a": ok()}, {"a": ok()}, [], SETTINGS), selection, {})
+        self.assertEqual(body.count(v.MARKER), 1)
+        for line in body.splitlines():
+            if "victim" in line:
+                before = line[:line.index("@victim")]
+                self.assertEqual(before.count("`") % 2, 1, f"@victim outside a code span: {line}")
 
     def test_not_covered_files_are_listed(self):
         selection = sel("a") | {"uncovered_files": {"lib/features/chat/x.dart": "no chat scenario"}}

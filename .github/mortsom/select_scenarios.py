@@ -156,12 +156,12 @@ def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     p.add_argument("--map", required=True)
     p.add_argument("--catalog", required=True)
-    p.add_argument("--files", help="file with one changed path per line")
+    p.add_argument("--files", help="file of NUL-separated changed paths (git diff -z)")
     p.add_argument("--out", required=True)
     p.add_argument("--full", action="store_true", help="select everything (the baseline)")
     p.add_argument("--no-cap", action="store_true")
     args = p.parse_args(argv)
-    files = Path(args.files).read_text().split() if args.files else []
+    files = [f for f in Path(args.files).read_text().split("\0") if f.strip()] if args.files else []
     try:
         selection = select(files, load_map(args.map), load_catalog(args.catalog),
                            full=args.full, cap=not args.no_cap)

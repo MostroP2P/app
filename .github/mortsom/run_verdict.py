@@ -23,6 +23,9 @@ GATE = Path(__file__).resolve().parent
 BOT_LOGIN = "github-actions[bot]"
 PER_PAGE = 100
 MAX_JSON = 2_000_000
+MAX_ARTIFACT = 50_000_000
+MAX_FILES = 500
+API_FILE_LIMIT = 3000
 GATE_PATHS = (".github/mortsom/", ".github/workflows/mortsom-")
 BASELINE_WORKFLOW = "mortsom-baseline.yml"
 
@@ -56,16 +59,25 @@ class GitHub:
         return items
 
     def artifact_json(self, artifact):
-        """{filename: parsed JSON} of one artifact; oversized files are skipped."""
-        raw = self._open(artifact["archive_download_url"])
+        """{filename: parsed JSON} of one artifact. It comes from a run of
+        untrusted code: oversized artifacts and files are skipped, and a file
+        that fails to parse is dropped, never raised."""
+        if artifact.get("size_in_bytes", 0) > MAX_ARTIFACT:
+            print(f"::warning::artifact {artifact['name']} is too large; ignored", file=sys.stderr)
+            return {}
         out = {}
-        with zipfile.ZipFile(io.BytesIO(raw)) as z:
-            for info in z.infolist():
-                if info.filename.endswith(".json") and info.file_size <= MAX_JSON:
+        try:
+            raw = self._open(artifact["archive_download_url"])
+            with zipfile.ZipFile(io.BytesIO(raw)) as z:
+                for info in z.infolist()[:MAX_FILES]:
+                    if not info.filename.endswith(".json") or info.file_size > MAX_JSON:
+                        continue
                     try:
                         out[info.filename] = json.loads(z.read(info))
-                    except (ValueError, UnicodeDecodeError):
-                        print(f"::warning::unparsable {info.filename} in {artifact['name']}", file=sys.stderr)
+                    except Exception as e:  # noqa: BLE001 - untrusted content
+                        print(f"::warning::unparsable {info.filename}: {type(e).__name__}", file=sys.stderr)
+        except (zipfile.BadZipFile, OSError) as e:
+            print(f"::warning::cannot read artifact {artifact['name']}: {e}", file=sys.stderr)
         return out
 
     def run_artifacts(self, run_id):
@@ -74,11 +86,13 @@ class GitHub:
 
 
 def find_pull(gh, run):
-    """The open pull request whose head is the run's head commit."""
-    for pr in run.get("pull_requests") or []:
-        return gh.request("GET", f"/repos/{gh.repo}/pulls/{pr['number']}")
-    for pr in gh.request("GET", f"/repos/{gh.repo}/commits/{run['head_sha']}/pulls") or []:
-        if pr["head"]["sha"] == run["head_sha"] and pr["state"] == "open":
+    """The open pull request whose head is still the run's head commit; a
+    run of an older head must not overwrite the newer verdict."""
+    candidates = [gh.request("GET", f"/repos/{gh.repo}/pulls/{pr['number']}")
+                  for pr in run.get("pull_requests") or []]
+    candidates += gh.request("GET", f"/repos/{gh.repo}/commits/{run['head_sha']}/pulls") or []
+    for pr in candidates:
+        if pr and pr["head"]["sha"] == run["head_sha"] and pr["state"] == "open":
             return pr
     return None
 
@@ -91,14 +105,18 @@ def summaries(gh, artifacts, names):
     return docs
 
 
-def run_complete(gh, run_id, selection):
-    """Every suite job that had scenarios finished with results."""
+def run_complete(gh, run_id, selection, results_by_stack):
+    """Every suite job that had scenarios finished and left results. A job
+    that failed before its run step (toolchain, app build, stack) leaves no
+    summaries: that is an incomplete run, not a set of regressions."""
     jobs = gh.paginate(f"/repos/{gh.repo}/actions/runs/{run_id}/jobs", key="jobs")
     for stack in ("plain", "bond"):
         if not selection.get(stack):
             continue
         mine = [j for j in jobs if j["name"].startswith(f"{stack} /")]
         if not mine or any(j.get("conclusion") not in ("success", "failure") for j in mine):
+            return False
+        if not results_by_stack.get(stack):
             return False
     return True
 
@@ -169,7 +187,11 @@ def evaluate(gh, run, pull):
     catalog = select_scenarios.load_catalog(GATE / "scenarios.json")
     settings = gate_map["settings"]
     files = []
-    for f in gh.paginate(f"/repos/{gh.repo}/pulls/{pull['number']}/files", limit=3000):
+    listed = gh.paginate(f"/repos/{gh.repo}/pulls/{pull['number']}/files", limit=API_FILE_LIMIT)
+    if len(listed) >= API_FILE_LIMIT:
+        selection = {"mode": "error", "error": "the API lists at most 3,000 changed files", "plain": [], "bond": []}
+        return selection, verdict.decide(selection, {}, None, [], settings), {}
+    for f in listed:
         files.append(f["filename"])
         if f.get("previous_filename"):
             files.append(f["previous_filename"])
@@ -183,13 +205,14 @@ def evaluate(gh, run, pull):
     if selection["mode"] in ("none", "error"):
         return selection, verdict.decide(selection, {}, None, [], settings, labels=labels), {}
     artifacts = gh.run_artifacts(run["id"])
-    pr_results = verdict.normalize(summaries(gh, artifacts, ["mortsom-pr-plain", "mortsom-pr-bond"]))
+    by_stack = {s: verdict.normalize(summaries(gh, artifacts, [f"mortsom-pr-{s}"])) for s in ("plain", "bond")}
+    pr_results = by_stack["plain"] | by_stack["bond"]
     merge_base = gh.request("GET", f"/repos/{gh.repo}/compare/main...{run['head_sha']}")["merge_base_commit"]["sha"]
     reference, history, base = baselines(gh, merge_base, settings)
     v = verdict.decide(
         selection, pr_results, reference, history, settings, labels=labels,
         gate_modified=any(p.startswith(GATE_PATHS) for p in files),
-        run_complete=run_complete(gh, run["id"], selection))
+        run_complete=run_complete(gh, run["id"], selection, by_stack))
     ctx = {"head_sha": run["head_sha"], "mortsom_ref": settings["mortsom_ref"], "run_url": run["html_url"],
            "baseline_sha": base.get("sha", ""), "distance": base.get("distance"), "baseline_url": base.get("url")}
     return selection, v, ctx
@@ -199,12 +222,15 @@ def main():
     event = json.loads(Path(os.environ["GITHUB_EVENT_PATH"]).read_text())
     run = event["workflow_run"]
     gh = GitHub(os.environ["GITHUB_REPOSITORY"], os.environ["GITHUB_TOKEN"])
+    if run.get("conclusion") in ("skipped", "cancelled"):
+        # Draft, Dependabot, an unrelated label event, or a run a newer push
+        # cancelled: the current verdict stands.
+        print(f"The pull request run was {run['conclusion']}; the verdict is unchanged.")
+        return 0
     pull = find_pull(gh, run)
     if pull is None:
         print(f"No open pull request has head {run['head_sha']}; nothing to report.")
         return 0
-    if run.get("conclusion") == "skipped":
-        print("The pull request run was skipped (draft, Dependabot or mortsom:skip).")
     selection, v, ctx = evaluate(gh, run, pull)
     body = verdict.render_comment(v, selection, ctx)
     labels = tuple(label["name"] for label in pull.get("labels", []))

@@ -37,17 +37,25 @@ class Verdict:
         return None if self.verdict == "not-applicable" else f"mortsom:{self.verdict}"
 
 
+def _attempts(value):
+    return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else 1
+
+
 def normalize(summaries):
-    """`summary.json` documents -> {name: result}."""
+    """`summary.json` documents -> {name: result}. The documents come from a
+    run of untrusted code: anything malformed is dropped, never raised."""
     out = {}
     for doc in summaries:
-        for r in doc.get("results", []) or []:
-            o = r.get("outcome") or {}
-            out[str(r.get("name"))] = {
-                "outcome": o.get("outcome"),
-                "category": o.get("category") or "",
-                "message": o.get("message") or o.get("reason") or "",
-                "attempts": int(r.get("attempts") or 1),
+        results = doc.get("results") if isinstance(doc, dict) else None
+        for r in results if isinstance(results, list) else []:
+            o = r.get("outcome") if isinstance(r, dict) else None
+            if not isinstance(o, dict) or not isinstance(r.get("name"), str):
+                continue
+            out[r["name"]] = {
+                "outcome": o.get("outcome") if isinstance(o.get("outcome"), str) else None,
+                "category": o.get("category") if isinstance(o.get("category"), str) else "",
+                "message": str(o.get("message") or o.get("reason") or ""),
+                "attempts": _attempts(r.get("attempts")),
             }
     return out
 
@@ -63,16 +71,16 @@ def _stable(name, reference, history):
 
 
 def classify(name, pr, reference, history):
-    """One row of § 7.2. `pr` is the pull request result or None."""
-    if pr is None:
-        return Row(name, "missing")
-    detail = pr.get("message", "")
-    if pr["outcome"] == "skipped":
-        return Row(name, "skipped", detail=detail)
+    """One row of § 7.2, in the table's order. `pr` is the result or None."""
+    if pr is not None and pr["outcome"] == "skipped":
+        return Row(name, "skipped", detail=pr.get("message", ""))
     if name not in reference:
         return Row(name, "no-baseline")
     if not _stable(name, reference, history):
         return Row(name, "unstable-on-main")
+    if pr is None:
+        return Row(name, "missing")
+    detail = pr.get("message", "")
     if pr["outcome"] == "passed":
         return Row(name, "pass", attempts=pr.get("attempts", 1))
     category = pr.get("category", "")
@@ -99,7 +107,7 @@ def decide(selection, pr_results, reference, history, settings, *,
     eligible = reg + sum(r.cls == "pass" for r in rows)
     v = Verdict("pass", rows=rows, eligible=eligible, regressions=reg)
     failures = [r for r in rows if r.cls in ("regression", "missing", "harness")]
-    if failures and all(r.cls == "harness" for r in failures) and not eligible:
+    if failures and all(r.cls == "harness" for r in failures):
         v.verdict, v.reason = "inconclusive", "every failure is the harness, not the app"
         return v
     would_close = eligible >= settings["min_scenarios"] and reg / eligible >= settings["close_ratio"] if eligible else False
@@ -112,7 +120,7 @@ def decide(selection, pr_results, reference, history, settings, *,
 
 def _safe(text):
     one = " ".join(str(text).split())[:DETAIL_MAX]
-    one = one.replace("`", "'").replace("<!--", "<! --")
+    one = one.replace("`", "'").replace("<!--", "<! --").replace("|", "/")
     return f"`{one}`" if one else ""
 
 
@@ -139,7 +147,7 @@ def render_comment(v, selection, ctx):
     if regs:
         lines += ["", "| Scenario | Category | Detail |", "|---|---|---|"]
         for r in regs:
-            lines.append(f"| `{r.name}` | {r.category or r.cls} | {_safe(r.detail) or '-'} |")
+            lines.append(f"| {_safe(r.name)} | {_safe(r.category or r.cls)} | {_safe(r.detail) or '-'} |")
     groups = [
         ("Passed", _names(v.rows, "pass")),
         ("Harness failures (not the app)", _names(v.rows, "harness")),
@@ -152,13 +160,13 @@ def render_comment(v, selection, ctx):
     for title, names in groups:
         if names:
             lines += ["", f"<details><summary>{title} ({len(names)})</summary>", "",
-                      ", ".join(f"`{n}`" for n in names), "</details>"]
+                      ", ".join(_safe(n) for n in names), "</details>"]
     uncovered = selection.get("uncovered_files", {})
     unmapped = selection.get("unmapped_files", [])
     if uncovered or unmapped:
         lines += ["", "**Not covered by any scenario** (this verdict says nothing about them):"]
-        lines += [f"- `{p}`: {why}" for p, why in uncovered.items()]
-        lines += [f"- `{p}`: no rule in `.github/mortsom/map.toml`" for p in unmapped]
+        lines += [f"- {_safe(p)}: {why}" for p, why in uncovered.items()]
+        lines += [f"- {_safe(p)}: no rule in `.github/mortsom/map.toml`" for p in unmapped]
     if ctx.get("run_url"):
         lines += ["", f"[Pull request run]({ctx['run_url']})"
                   + (f" · [baseline run]({ctx['baseline_url']})" if ctx.get("baseline_url") else "")]

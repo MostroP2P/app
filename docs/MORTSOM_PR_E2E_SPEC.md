@@ -306,6 +306,11 @@ by `github-actions[bot]`, edited in place:
   that changes `.github/mortsom/**` or the gate workflows gets
   `inconclusive`, reason `gate-modified`, because its run used its own
   gate.
+- **Results are only as trustworthy as the job that wrote them.** The
+  app code runs in the same job that writes `summary.json`, so a pull
+  request can forge its own results. In shadow mode that only affects a
+  label; before Phase 4 (enforcement) the summaries must come from a step
+  the app process cannot write to.
 - **Artifacts are data.** The verdict parses JSON with size limits and
   never executes anything from them; text that reaches the comment is
   escaped (§7.4).
