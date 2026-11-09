@@ -183,6 +183,12 @@ def apply(gh, number, labels, v, body):
         remove_label(gh, number, "mortsom:run")
     mine = [c for c in gh.paginate(f"/repos/{gh.repo}/issues/{number}/comments")
             if c["user"]["login"] == BOT_LOGIN and c["body"].startswith(verdict.MARKER)]
+    if v.verdict == "not-applicable":
+        # Nothing the gate maps changed (or mortsom:skip): no comment, and a
+        # previous one would only describe a run that no longer applies.
+        for c in mine:
+            gh.request("DELETE", f"/repos/{gh.repo}/issues/comments/{c['id']}")
+        return
     if not mine:
         gh.request("POST", f"/repos/{gh.repo}/issues/{number}/comments", {"body": body})
     elif mine[0]["body"] != body:

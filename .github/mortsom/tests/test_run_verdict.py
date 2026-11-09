@@ -120,11 +120,13 @@ class TestApply(unittest.TestCase):
         self.assertIn(("POST", "labels"), methods)
         self.assertIn(("PATCH", "5"), methods)
 
-    def test_not_applicable_only_removes_labels(self):
-        gh = FakeGitHub()
+    def test_not_applicable_removes_labels_and_the_comment_and_posts_nothing(self):
+        mine = {"id": 5, "user": {"login": "github-actions[bot]"}, "body": verdict.MARKER + "\nold"}
+        gh = FakeGitHub(comments=[mine])
         rv.apply(gh, 9, ("mortsom:regression",), verdict.Verdict("not-applicable"), verdict.MARKER)
-        posted_labels = [c for c in gh.calls if c[0] == "POST" and c[1].endswith("/labels")]
-        self.assertEqual(posted_labels, [])
+        self.assertEqual([c for c in gh.calls if c[0] == "POST"], [])
+        self.assertIn(("DELETE", "/repos/MostroP2P/app/issues/comments/5", None), gh.calls)
+        self.assertIn(("DELETE", "/repos/MostroP2P/app/issues/9/labels/mortsom%3Aregression", None), gh.calls)
 
 
 

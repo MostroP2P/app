@@ -262,7 +262,7 @@ First match wins.
 
 | Verdict | When | Label |
 |---|---|---|
-| `not-applicable` | mode `none` | none; previous `mortsom:*` verdict labels removed |
+| `not-applicable` | mode `none`, or `mortsom:skip` | none; previous `mortsom:*` verdict labels and the verdict comment removed |
 | `inconclusive` | selection error, gate files modified by the pull request (§9), app build failed, incomplete run, no baseline, or every failure is `harness` | `mortsom:inconclusive` |
 | `would-close` | `eligible ≥ min_scenarios` and `ratio ≥ close_ratio`, and no cap applies | `mortsom:would-close` |
 | `regression` | a `would-close` condition held but `mortsom:expected-break` caps it, or at least one `regression` | `mortsom:regression` |
