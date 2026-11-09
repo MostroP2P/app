@@ -14,8 +14,15 @@ on:
 permissions:
   contents: read
 
+# A new push or a gate label cancels the run in flight. Any other label
+# event lands in a group of its own (its run id), so it cannot cancel a
+# suite that is running; its select job is then skipped.
 concurrency:
-  group: mortsom-pr-${{ github.event.pull_request.number }}
+  group: >-
+    mortsom-pr-${{ github.event.pull_request.number }}-${{
+    ((github.event.action == 'labeled' || github.event.action == 'unlabeled')
+    && !contains(fromJSON('["mortsom:run","mortsom:skip","mortsom:expected-break"]'), github.event.label.name))
+    && github.run_id || 'suite' }}
   cancel-in-progress: true
 
 jobs:
