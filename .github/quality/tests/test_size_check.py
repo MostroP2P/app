@@ -42,6 +42,8 @@ class TestClassify(unittest.TestCase):
             "test/features/order/order_test.dart": "tests",
             "lib/features/order/widget_test.dart": "tests",
             "rust/tests/restore.rs": "tests",
+            ".github/quality/tests/test_size_check.py": "tests",
+            "lib/l10n/app_pt.arb": "translations",
             "docs/RELAYS.md": "docs",
             "README.md": "docs",
             "specs/004-mostro-p2p-client/plan.md": "docs",
@@ -63,10 +65,11 @@ class TestCount(unittest.TestCase):
             ChangedFile("test/a_test.dart", 300, 0),
             ChangedFile("lib/src/rust/api/x.dart", 900, 50),
             ChangedFile("docs/X.md", 40, 2),
+            ChangedFile("lib/l10n/app_es.arb", 30, 10),
         ]
         b = size_check.count(files, SIZE, no_source, no_source)
-        self.assertEqual((b.counted, b.tests, b.generated, b.docs), (120, 300, 950, 42))
-        self.assertEqual(b.total, 1412)
+        self.assertEqual((b.counted, b.tests, b.generated, b.docs, b.translations), (120, 300, 950, 42, 40))
+        self.assertEqual(b.total, 1452)
 
     def test_inline_rust_tests_count_as_tests(self):
         old = "fn a() {}\n#[cfg(test)]\nmod tests {\n    fn t() {}\n}\n"

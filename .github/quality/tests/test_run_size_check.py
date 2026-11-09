@@ -96,6 +96,18 @@ class TestApplyResult(unittest.TestCase):
         self.assertIn(("remove", "quality:too-large"), gh.calls)
 
 
+class TestFileText(unittest.TestCase):
+    def test_network_errors_return_none(self):
+        import urllib.error
+        for err in (urllib.error.URLError("down"), TimeoutError("slow")):
+            gh = run_size_check.GitHub("MostroP2P/app", "token")
+            def boom(*a, _err=err, **k):
+                raise _err
+            gh.request = boom
+            with self.subTest(err=type(err).__name__):
+                self.assertIsNone(gh.file_text("rust/src/x.rs", "abcdef123456"))
+
+
 class TestMeasure(unittest.TestCase):
     def test_reads_rust_sources_at_merge_base_and_head(self):
         patch = "@@ -0,0 +1,3 @@\n+fn a() {}\n+#[test]\n+fn t() {}"

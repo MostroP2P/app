@@ -76,7 +76,8 @@ If you are an AI agent preparing a pull request, follow
   scripts, tooling, tests only), on the command or workflow it changes.
   Do not present steps nobody ran as results.
 - Keep the pull request under 1,500 changed lines, not counting tests,
-  generated files and documentation (`CONTRIBUTING.md § Pull request size`).
+  generated files, documentation and translations
+  (`CONTRIBUTING.md § Pull request size`).
   If the work is larger, split it into pull requests that each build and
   pass the tests on their own.
 - Any visible change carries before and after screenshots; write

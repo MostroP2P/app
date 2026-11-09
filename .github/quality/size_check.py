@@ -1,7 +1,8 @@
 """Pull request size check (docs/CONTRIBUTION_QUALITY_SPEC.md § 7.6).
 
 A pull request has at most `[size].max_lines` changed lines (additions plus
-deletions), not counting tests, generated files and documentation. Lines
+deletions), not counting tests, generated files, documentation and
+translations. Lines
 inside `#[cfg(test)]` items of `rust/src` count as tests.
 
 Pure functions over data the runner (run_size_check.py) fetches from the
@@ -23,7 +24,7 @@ import rust_tests
 MARKER = "<!-- quality-size -->"
 
 # Order matters: a golden image under test/ is generated, not a test.
-CLASSES = ("generated", "tests", "docs")
+CLASSES = ("generated", "tests", "docs", "translations")
 
 
 @dataclass(frozen=True)
@@ -50,6 +51,7 @@ class Breakdown:
     tests: int = 0
     generated: int = 0
     docs: int = 0
+    translations: int = 0
     inline_tests: int = 0
     # Rust files whose test lines could not be told apart (a source that
     # could not be read): every line was counted.
@@ -57,7 +59,7 @@ class Breakdown:
 
     @property
     def total(self):
-        return self.counted + self.tests + self.generated + self.docs
+        return self.counted + self.tests + self.generated + self.docs + self.translations
 
 
 @dataclass(frozen=True)
@@ -105,7 +107,7 @@ def matches(path, patterns):
 
 
 def classify(path, size_cfg):
-    """`generated`, `tests`, `docs` or `counted`."""
+    """`generated`, `tests`, `docs`, `translations` or `counted`."""
     for name in CLASSES:
         if matches(path, size_cfg.get(name, [])):
             return name
@@ -202,6 +204,7 @@ def table(breakdown):
         f"| of which `#[cfg(test)]` items in `rust/src` | {_fmt(breakdown.inline_tests)} |",
         f"| Generated | {_fmt(breakdown.generated)} |",
         f"| Docs and specs | {_fmt(breakdown.docs)} |",
+        f"| Translations (`.arb`) | {_fmt(breakdown.translations)} |",
         f"| Total (as GitHub shows it) | {_fmt(breakdown.total)} |",
     ]
     return "\n".join(rows)
@@ -213,7 +216,7 @@ def render_comment(result, exempt_label):
         MARKER,
         f"**This pull request has {_fmt(b.counted)} changed lines, over the limit of "
         f"{_fmt(result.max_lines)}** (CONTRIBUTING.md § Pull request size). Tests, "
-        "generated files and docs do not count.",
+        "generated files, docs and translations do not count.",
         "",
         table(b),
         "",

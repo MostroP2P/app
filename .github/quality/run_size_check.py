@@ -60,6 +60,9 @@ class GitHub:
         except urllib.error.HTTPError as e:
             print(f"::warning::could not read {path} at {ref[:12]}: HTTP {e.code}", file=sys.stderr)
             return None
+        except (urllib.error.URLError, TimeoutError) as e:
+            print(f"::warning::could not read {path} at {ref[:12]}: {e}", file=sys.stderr)
+            return None
 
     def merge_base(self, base_sha, head_sha):
         data = self.request("GET", f"/repos/{self.repo}/compare/{base_sha}...{head_sha}")

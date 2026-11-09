@@ -112,7 +112,8 @@ If you are an AI agent preparing a pull request, follow
   scripts, tooling, tests only), on the command or workflow it changes.
   Do not present steps nobody ran as results.
 - Keep the pull request under 1,500 changed lines, not counting tests,
-  generated files and documentation (`CONTRIBUTING.md § Pull request size`).
+  generated files, documentation and translations
+  (`CONTRIBUTING.md § Pull request size`).
   If the work is larger, split it into pull requests that each build and
   pass the tests on their own.
 - Any visible change carries before and after screenshots; write
@@ -462,8 +463,8 @@ comments that the pull request **would** have been closed.
 ### 7.6 Pull request size — `quality-size.yml`
 
 Every pull request has at most `max_lines` (default 1,500) changed lines,
-additions plus deletions, **not counting** tests, generated files and
-documentation. The point is a change a reviewer can read whole: the review
+additions plus deletions, **not counting** tests, generated files,
+documentation and translations. The point is a change a reviewer can read whole: the review
 of a large diff is shallower, and the bugs of large changes surface later.
 It applies to everyone but bots, in addition to the first-time
 contributor limit of §7.1.
@@ -471,10 +472,11 @@ contributor limit of §7.1.
 What does not count, all listed in `.github/quality/config.toml` `[size]`:
 
 - **Tests:** `test/**`, `integration_test/**`, `test_driver/**`,
-  `*_test.dart`, `rust/tests/**`, and, line by line, the `#[cfg(test)]`
+  `*_test.dart`, `rust/tests/**`, `.github/**/tests/**`, and, line by line, the `#[cfg(test)]`
   items and `#[test]` / `#[tokio::test]` functions inside `rust/src/**/*.rs`.
 - **Generated files:** the list of §7.4.
 - **Documentation:** `*.md`, `docs/**`, `specs/**`, `.specify/**`.
+- **Translations:** `lib/l10n/*.arb`.
 
 The check ships ahead of the triage bot as its own workflow and script
 (`run_size_check.py`, pure logic in `size_check.py`, the Rust test-item
@@ -488,7 +490,8 @@ a source cannot be read, every line of that file counts, and the comment
 says so.
 
 - Over the limit: label `quality:too-large` and one comment, edited in
-  place, with the breakdown (counted, tests, generated, docs, total).
+  place, with the breakdown (counted, tests, generated, docs,
+  translations, total).
 - Within the limit, or exempt: the label and the comment are removed.
 - The check run `Pull request size` is `neutral` over the limit and
   `success` otherwise, never `failure`: it does not block a merge.

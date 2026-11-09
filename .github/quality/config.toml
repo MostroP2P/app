@@ -26,6 +26,7 @@ tests = [
   "test_driver/**",
   "**/*_test.dart",
   "rust/tests/**",
+  ".github/**/tests/**",
 ]
 
 # Documentation and specs.
@@ -35,6 +36,9 @@ docs = [
   "specs/**",
   ".specify/**",
 ]
+
+# Translations (the generated Dart is in `generated`).
+translations = ["lib/l10n/*.arb"]
 
 # Rust sources whose `#[cfg(test)]` items and `#[test]` functions count as
 # tests, line by line.

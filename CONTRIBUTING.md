@@ -66,16 +66,19 @@ Every pull request that is not [exempt](#contribution-quality-bar) links an issu
 
 ### Pull request size
 
-A pull request has at most **1,500 changed lines** (additions plus deletions), **not counting** tests, generated files and documentation. The limit exists so a reviewer can read the whole change: a large diff gets a shallower review.
+A pull request has at most **1,500 changed lines** (additions plus deletions), **not counting** tests, generated files, documentation and translations. The limit exists so a reviewer can read the whole change: a large diff gets a shallower review.
 
 - **Tests do not count:** `test/**`, `*_test.dart`, `rust/tests/**`, and `#[cfg(test)]` items and `#[test]` functions inside `rust/src/`. Write as many tests as the change needs.
 - **Generated files do not count:** `lib/src/rust/**`, `rust/src/frb_generated.rs`, the generated localizations, lockfiles and golden images.
 - **Documentation does not count:** Markdown files, `docs/`, `specs/` and `.specify/`.
+- **Translations do not count:** the `.arb` files in `lib/l10n/`.
 - Everything else counts: Rust and Dart production code, platform code, CI and tooling.
 
 Over the limit, split the work into pull requests that each build, pass the tests and can be reviewed on their own, for example one per phase of a feature. If the size cannot be avoided (a bindings regeneration, a migration, a large dependency bump), say why in the description; a maintainer may apply `size:exempt`.
 
-The **Pull request size** check counts the lines on every pull request. Over the limit it adds `quality:too-large` and one comment with the breakdown. It does not block the merge. First-time contributors keep the tighter first pull request limit of 400 changed lines.
+The **Pull request size** check counts the lines on every pull request. Over the limit it adds `quality:too-large` and one comment with the breakdown. It does not block the merge.
+
+A first-time contributor's first pull request has a tighter limit: 400 changed lines, including tests and documentation but not generated files. Maintainers apply that limit by hand for now; the size check does not.
 
 ### Pull request template
 
