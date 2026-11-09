@@ -66,21 +66,21 @@ jobs:
   plain:
     needs: select
     if: needs.select.outputs.plain != ''
-    uses: MostroP2P/mortsom/.github/workflows/app-e2e.yml@c47547072b74c8b1240ceac3e858d82304aaa4bf
+    uses: MostroP2P/mortsom/.github/workflows/app-e2e.yml@86d468c310eb896757da5e9d10fe7b7994219bd3
     with:
       app_ref: ${{ github.event.pull_request.html_url }}
       scenarios: ${{ needs.select.outputs.plain }}
       bond: false
-      mortsom_ref: c47547072b74c8b1240ceac3e858d82304aaa4bf
+      mortsom_ref: 86d468c310eb896757da5e9d10fe7b7994219bd3
       artifact_name: mortsom-pr-plain
 
   bond:
     needs: select
     if: needs.select.outputs.bond != ''
-    uses: MostroP2P/mortsom/.github/workflows/app-e2e.yml@c47547072b74c8b1240ceac3e858d82304aaa4bf
+    uses: MostroP2P/mortsom/.github/workflows/app-e2e.yml@86d468c310eb896757da5e9d10fe7b7994219bd3
     with:
       app_ref: ${{ github.event.pull_request.html_url }}
       scenarios: ${{ needs.select.outputs.bond }}
       bond: true
-      mortsom_ref: c47547072b74c8b1240ceac3e858d82304aaa4bf
+      mortsom_ref: 86d468c310eb896757da5e9d10fe7b7994219bd3
       artifact_name: mortsom-pr-bond
