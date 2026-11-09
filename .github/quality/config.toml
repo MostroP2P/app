@@ -1,0 +1,49 @@
+# Contribution quality bar: bot settings.
+# Design: docs/CONTRIBUTION_QUALITY_SPEC.md § 7. Read from `main` only: the
+# checks run on pull_request_target, so a pull request cannot change them.
+
+[size]
+# Changed lines (additions + deletions) a pull request may have, not
+# counting the paths below and the test items of `rust_inline_tests` (§ 7.6).
+max_lines = 1500
+
+# What no author writes by hand (§ 7.4). A superset of the
+# `linguist-generated` entries of .gitattributes.
+generated = [
+  "lib/src/rust/**",
+  "rust/src/frb_generated.rs",
+  "lib/l10n/app_localizations*.dart",
+  "lib/l10n/untranslated_messages.txt",
+  "pubspec.lock",
+  "rust/Cargo.lock",
+  "test/**/goldens/*.png",
+]
+
+# Test code.
+tests = [
+  "test/**",
+  "integration_test/**",
+  "test_driver/**",
+  "**/*_test.dart",
+  "rust/tests/**",
+]
+
+# Documentation and specs.
+docs = [
+  "**/*.md",
+  "docs/**",
+  "specs/**",
+  ".specify/**",
+]
+
+# Rust sources whose `#[cfg(test)]` items and `#[test]` functions count as
+# tests, line by line.
+rust_inline_tests = ["rust/src/**/*.rs"]
+
+[labels]
+too_large = "quality:too-large"
+exempt = "size:exempt"
+
+[authors]
+# Accounts the size check skips.
+bots = ["dependabot[bot]", "github-actions[bot]"]

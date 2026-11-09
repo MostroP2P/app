@@ -1,0 +1,29 @@
+name: Quality scripts
+
+# Unit tests of the quality bar's scripts. quality-size.yml runs the version
+# on `main`, so a change to them is only exercised here before it merges.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - ".github/quality/**"
+      - ".github/workflows/quality-scripts.yml"
+  pull_request:
+    paths:
+      - ".github/quality/**"
+      - ".github/workflows/quality-scripts.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Quality scripts tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: Unit tests
+        # ubuntu-latest ships Python 3.12 (tomllib); no third-party packages.
+        run: python3 -m unittest discover -s .github/quality/tests -v
