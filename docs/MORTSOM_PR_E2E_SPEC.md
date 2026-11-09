@@ -340,8 +340,11 @@ Phases 1–3 land together; the gate starts in shadow mode.
   the setup when bond scenarios are selected. First measurement
   (MostroP2P/mortsom#123, smoke against `main`): 21 minutes end to end,
   of which 3.6 build Mortsom, 6.6 start the regtest stack and 8.6 build
-  the app and run three scenarios (17–50 s each). At about a minute per
-  scenario, `max_scenarios = 16` keeps a stack's run near 35–40 minutes.
+  the app and run three scenarios (17–50 s each). A trade-flow change
+  (MostroP2P/app#925) selected 15 scenarios: 51 minutes end to end, 24 of
+  them in scenarios (19 s to 6.4 min each; `pending_order_expires` is the
+  longest), all passed on the first attempt. `max_scenarios = 16` keeps a
+  stack's run under an hour.
 - **Linux only.** Web, Android and iOS code is not exercised, and the
   interruption scenarios (background, network loss, rotation, relay
   faults) are skipped on Linux.
