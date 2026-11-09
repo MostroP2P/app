@@ -642,9 +642,9 @@ Linux and web. It already builds the app from a pull request
 The daemon runs its e2e harness on pull requests and labels the result
 (`ORTSOM_PR_E2E_SPEC.md` in `MostroP2P/mostro`). The equivalent here
 runs the Mortsom scenarios selected by what a pull request touches and
-labels regressions. It needs its own spec, written in this repository
-before it is built; this spec only reserves its place in the layers and
-its labels (`mortsom:*`).
+labels regressions. Its design is
+[`docs/MORTSOM_PR_E2E_SPEC.md`](MORTSOM_PR_E2E_SPEC.md); it starts in
+shadow mode, with labels (`mortsom:*`) and one comment.
 
 ### 9.2 Per-PR scenario from the Manual testing steps (future)
 
