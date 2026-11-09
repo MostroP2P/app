@@ -337,8 +337,11 @@ Phases 1–3 land together; the gate starts in shadow mode.
 
 - **Cost.** Each pull request builds the app on a GitHub-hosted runner
   (no cache, by design) and runs its selection; the bond stack doubles
-  the setup when bond scenarios are selected. Measured timings are in the
-  pull request that introduces the gate; `max_scenarios` bounds the run.
+  the setup when bond scenarios are selected. First measurement
+  (MostroP2P/mortsom#123, smoke against `main`): 21 minutes end to end,
+  of which 3.6 build Mortsom, 6.6 start the regtest stack and 8.6 build
+  the app and run three scenarios (17–50 s each). At about a minute per
+  scenario, `max_scenarios = 16` keeps a stack's run near 35–40 minutes.
 - **Linux only.** Web, Android and iOS code is not exercised, and the
   interruption scenarios (background, network loss, rotation, relay
   faults) are skipped on Linux.
