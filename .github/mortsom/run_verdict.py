@@ -187,7 +187,11 @@ def apply(gh, number, labels, v, body):
         # Nothing the gate maps changed (or mortsom:skip): no comment, and a
         # previous one would only describe a run that no longer applies.
         for c in mine:
-            gh.request("DELETE", f"/repos/{gh.repo}/issues/comments/{c['id']}")
+            try:
+                gh.request("DELETE", f"/repos/{gh.repo}/issues/comments/{c['id']}")
+            except urllib.error.HTTPError as e:
+                if e.code != 404:  # another verdict run already deleted it
+                    raise
         return
     if not mine:
         gh.request("POST", f"/repos/{gh.repo}/issues/{number}/comments", {"body": body})

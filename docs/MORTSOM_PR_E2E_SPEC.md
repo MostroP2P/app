@@ -237,6 +237,13 @@ whose two stacks built different commits is discarded), within
 **reference**; the `stability_window` most recent are the **history**.
 None: `inconclusive`, reason `no-baseline`.
 
+After `mortsom_ref` changes on `main`, baselines measured with the old pin
+no longer count. Every pull request is `no-baseline` until the baseline
+that the bump triggers finishes; a pull request branched before the bump
+stays so until it is updated onto a `main` with a new-pin baseline, since
+the walk only looks back from its merge-base. A finished baseline does not
+re-run verdicts: push, or add `mortsom:run`, to get one.
+
 ### 7.2 Classifying each scenario
 
 For each scenario of the **trusted selection** (recomputed with `main`'s

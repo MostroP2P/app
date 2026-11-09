@@ -122,12 +122,30 @@ class TestApply(unittest.TestCase):
 
     def test_not_applicable_removes_labels_and_the_comment_and_posts_nothing(self):
         mine = {"id": 5, "user": {"login": "github-actions[bot]"}, "body": verdict.MARKER + "\nold"}
-        gh = FakeGitHub(comments=[mine])
+        other_bot = {"id": 6, "user": {"login": "github-actions[bot]"}, "body": "<!-- quality-size -->\nsize"}
+        other_user = {"id": 7, "user": {"login": "someone"}, "body": verdict.MARKER + "\nquoted"}
+        gh = FakeGitHub(comments=[mine, other_bot, other_user])
         rv.apply(gh, 9, ("mortsom:regression",), verdict.Verdict("not-applicable"), verdict.MARKER)
         self.assertEqual([c for c in gh.calls if c[0] == "POST"], [])
+        deleted = [c[1] for c in gh.calls if c[0] == "DELETE" and "/comments/" in c[1]]
+        self.assertEqual(deleted, ["/repos/MostroP2P/app/issues/comments/5"])
         self.assertIn(("DELETE", "/repos/MostroP2P/app/issues/comments/5", None), gh.calls)
         self.assertIn(("DELETE", "/repos/MostroP2P/app/issues/9/labels/mortsom%3Aregression", None), gh.calls)
 
+
+
+class TestCommentCleanup(unittest.TestCase):
+    def test_a_comment_already_deleted_is_not_an_error(self):
+        import urllib.error
+
+        class GH(FakeGitHub):
+            def request(self, method, path, body=None, params=None):
+                if method == "DELETE" and "/comments/" in path:
+                    raise urllib.error.HTTPError(path, 404, "gone", {}, None)
+                return super().request(method, path, body, params)
+
+        mine = {"id": 5, "user": {"login": "github-actions[bot]"}, "body": verdict.MARKER}
+        rv.apply(GH(comments=[mine]), 9, (), verdict.Verdict("not-applicable"), verdict.MARKER)
 
 
 class TestMain(unittest.TestCase):
