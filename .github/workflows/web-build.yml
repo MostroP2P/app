@@ -38,7 +38,11 @@ env:
 jobs:
   build:
     name: Build and smoke-test web bundle
-    runs-on: ubuntu-latest
+    # Pinned, not ubuntu-latest: that label moved to ubuntu-26.04, where
+    # Playwright 1.56.0 cannot install Chromium ("Playwright does not support
+    # chromium on ubuntu26.04-x64"). Move to ubuntu-latest together with a
+    # Playwright bump that supports it (1.64.1 does).
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     # The first uncached run compiles std from source (-Z build-std), which is slow.
@@ -102,6 +106,36 @@ jobs:
           cargo install flutter_rust_bridge_codegen --version "$FRB_VERSION" --locked
           cargo install cargo-expand --version "$CARGO_EXPAND_VERSION" --locked
           cargo install wasm-pack --version "$WASM_PACK_VERSION" --locked
+
+      # wasm-pack downloads wasm-bindgen (the version rust/Cargo.lock pins) and
+      # binaryen's wasm-opt (the version wasm-pack pins) from GitHub Releases on
+      # every build, so an outage there failed the build: it took down CI and the
+      # Pages deploy of v2.1.1. When the wasm-bindgen download fails, wasm-pack
+      # falls back to `cargo install`, which inherits build-web.sh's wasm
+      # RUSTFLAGS and cannot build a host tool. Kept here, neither is fetched
+      # again until one of the two versions changes; the restore key keeps
+      # wasm-opt across a wasm-bindgen bump.
+      - name: Locate wasm-pack downloads
+        id: wasm-pack-cache
+        run: |
+          version=$(awk '/^name = "wasm-bindgen"$/ { getline; gsub(/"/, "", $3); print $3 }' rust/Cargo.lock)
+          if [[ -z "$version" ]]; then
+            echo "::error::wasm-bindgen is not in rust/Cargo.lock"
+            exit 1
+          fi
+          echo "wasm-bindgen=$version" >> "$GITHUB_OUTPUT"
+          # Created up front: a cache miss leaves no directory, and wasm-pack
+          # does not create one it was pointed at — it skips the download and
+          # goes straight to the `cargo install` that cannot work here.
+          mkdir -p "$RUNNER_TEMP/wasm-pack"
+          echo "WASM_PACK_CACHE=$RUNNER_TEMP/wasm-pack" >> "$GITHUB_ENV"
+
+      - name: Cache wasm-pack downloads
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.WASM_PACK_CACHE }}
+          key: web-wasm-pack-${{ runner.os }}-wasmpack${{ env.WASM_PACK_VERSION }}-wasmbindgen${{ steps.wasm-pack-cache.outputs.wasm-bindgen }}
+          restore-keys: web-wasm-pack-${{ runner.os }}-wasmpack${{ env.WASM_PACK_VERSION }}-
 
       - name: Resolve dependencies
         run: flutter pub get

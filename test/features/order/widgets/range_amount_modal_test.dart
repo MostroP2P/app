@@ -12,6 +12,7 @@ Future<double? Function()> _open(
   WidgetTester tester, {
   required Locale locale,
   double textScale = 1.0,
+  String currencyCode = 'ARS',
 }) async {
   double? result;
   await tester.pumpWidget(
@@ -41,7 +42,7 @@ Future<double? Function()> _open(
                     context: context,
                     min: 2000,
                     max: 998000,
-                    currencyCode: 'ARS',
+                    currencyCode: currencyCode,
                   );
                 },
                 child: const Text('open'),
@@ -56,6 +57,18 @@ Future<double? Function()> _open(
 }
 
 void main() {
+  testWidgets('a BTC-pegged code is typed and bounded in sats (#907)', (
+    tester,
+  ) async {
+    await _open(tester, locale: const Locale('en'), currencyCode: 'RBTC');
+
+    // Its amount is sats, so the unit beside the field and under it is sats,
+    // never the code a whole number would misread as whole RBTC.
+    expect(find.text('Min: 2,000 – Max: 998,000 sats'), findsOneWidget);
+    expect(find.text('sats'), findsOneWidget);
+    expect(find.text('RBTC'), findsNothing);
+  });
+
   // Issue #730, DS-CMP-26: the dialog opens from "Take order" and answered
   // "Submit". Its answer repeats the opener, in every language.
   for (final locale in AppLocalizations.supportedLocales) {

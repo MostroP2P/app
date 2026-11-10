@@ -30,6 +30,20 @@ retracts an older answer, so both read `None` until the node is fetched again.
 
 ---
 
+### get_reputation_issuer_node(issuer: String) → MostroNodeEntry?
+The one known Mostro whose last capability fetch announced `issuer` as its
+`reputation_issuer`, as its registry entry (named when its kind 0 profile is
+cached), or `None` when no fetched node does, or when two do. Only nodes whose
+info event this app fetched (the active one, and those active before) are
+known. The import screen names the source of a checked attestation before it
+is imported (#881). Nothing goes on the wire: it reads the capabilities
+already fetched and the node registry (`list_mostro_nodes`, with its
+housekeeping of the active node's entry).
+
+**Errors**: those of `list_mostro_nodes`.
+
+---
+
 ### reputation_identity_npub(identity: String) → String *(sync)*
 Encode a public key, given as hex or npub (surrounding whitespace ignored), as
 npub in Rust. The import screen displays the complete, selectable value for
@@ -68,9 +82,15 @@ the identity that asked is still the active one.
 **Errors**: `ReputationExportUnsupported`, `StorageUnavailable` (checked
 before anything is sent), `PrivacyModeEnabled`, `InvalidPubkey`,
 `NoDaemonResponse`, `InvalidPayload`,
-`InvalidReputationAttestation`, the node's `CantDoReason` by name, and
-`NoIdentity` when the identity was deleted or replaced before the answer
-arrived (nothing is stored).
+`ReputationIssuerKeyMismatch` (the answer is signed by another key than the
+`reputation_issuer` the app read for the node, as after a rotation with a
+stale info event; refreshing the node's info is the remedy, #882),
+`InvalidReputationAttestation` (it names another identity), the node's
+`CantDoReason` by name, and `NoIdentity` when the identity was deleted or
+replaced before the answer arrived (nothing is stored). The reputation screen
+shows `ReputationIssuerKeyMismatch` with its own text, and every failure
+without a text of its own as "This Mostro could not export your reputation",
+never as an invalid pasted attestation.
 
 ---
 
@@ -174,21 +194,30 @@ json: String         # the event JSON as received, to import unchanged
   authorisation signed by the identity the account is bound to now; when
   filled, it is passed trimmed as `rebind` to `export_reputation`. The returned
   attestation is shown to select or copy, and Rust keeps it as pending.
-- **Moving to a new identity.** The user types the new identity as npub or hex.
-  It is validated and encoded through `reputation_identity_npub`, then shown in
-  a confirmation dialog stating that whoever holds that key can export the
-  reputation from this node. Only after confirmation is
-  `sign_reputation_rebind` called with the node's issuer key. The result is
-  shown to select or copy, for the new identity to paste in the export field
-  above.
+- **Moving to a new identity**, a card of its own, always shown. The user
+  types the new identity as npub or hex. It is validated and encoded through
+  `reputation_identity_npub`, then shown in a confirmation dialog stating that
+  whoever holds that key can export the reputation from the issuer. Only after
+  confirmation is `sign_reputation_rebind` called, with the issuer the user
+  chose (#880):
+  - **Sign for this Mostro**, shown only while the node advertises
+    `reputation_issuer`, signs for that key. The result is shown to select or
+    copy, with a note to paste it in the export card from the new identity.
+  - **Sign for lnp2pBot** signs for `lnp2pbotIssuerKey`, the bot's issuer
+    key, a constant next to its username in `lib/features/reputation/lnp2pbot.dart`.
+    The bot takes the authorisation only after the new identity opened
+    `t.me/lnp2pbot?start=rep_…` and was told its reputation is bound to
+    another identity (lnp2pBot/bot#934), so the note with the result says to
+    open the bot from the import screen first, then paste it in that chat and
+    confirm.
 
 In full privacy mode a notice explains why every action is disabled.
 
 Automation identifiers: `settings.reputation`, `reputation.open_import`,
 `reputation.export`, `reputation.export.rebind`, `reputation.export.confirm`,
 `reputation.export.result`, `reputation.rebind.identity`,
-`reputation.rebind.sign`, `reputation.rebind.confirm` and
-`reputation.rebind.result`.
+`reputation.rebind.sign`, `reputation.rebind.sign_bot`,
+`reputation.rebind.confirm` and `reputation.rebind.result`.
 
 ## Import screen
 
@@ -200,6 +229,10 @@ that importing links the source and destination accounts.
   in full privacy mode, or when `import_issuers` is absent. A localized notice
   explains the refusal and Retry rereads the state. An empty issuer list means
   that no issuer is trusted yet; Check rejects every attestation in that case.
+  The screen rereads `get_reputation_support()` every two seconds and reloads
+  when `import_issuers` appears or disappears, so a capability fetch that
+  finishes after the screen opened (a cold start) is picked up without Retry
+  (#883).
 - The full identity npub is selectable beside the bot action. The user compares
   it with the key shown by lnp2pBot before confirming the binding there.
   The Telegram URL uses `rep_` plus the same key encoded as 43 unpadded base64url
@@ -210,6 +243,13 @@ that importing links the source and destination accounts.
   locally. A user paste can contain surrounding prose; only the JSON object is
   passed to Rust. Check verifies signature, kind, tags, expiry, destination and
   the node's issuer trust list without publishing. Failures are localized.
+- The verified card names its source first, because the import cannot be
+  undone and uses up that issuer for this identity on this node (#881):
+  lnp2pBot when the issuer is `lnp2pbotIssuerKey`; otherwise the known Mostro
+  whose info event announces the key as `reputation_issuer`
+  (`get_reputation_issuer_node`), by its cached profile name or its npub;
+  otherwise the issuer's npub, selectable. A failed registry lookup falls back
+  to the npub: the figures and Import still show.
 - The verified card shows locale-formatted rating, review count and trading
   age, with plural forms. Checks, refusals and successful imports are announced
   to screen readers as live regions. Editing the field withdraws the card and confirmation; an answer
@@ -221,4 +261,5 @@ that importing links the source and destination accounts.
   state is cleared by Rust only when its event id matches the imported event.
 
 Automation identifiers: `reputation.import.identity`, `.open_bot`, `.input`,
-`.check`, `.figures`, and `.confirm` (each suffix follows `reputation.import`).
+`.check`, `.figures`, `.source`, and `.confirm` (each suffix follows
+`reputation.import`).

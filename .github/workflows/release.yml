@@ -2,7 +2,8 @@ name: Release
 
 # Pushing a tag `vX.Y.Z` publishes a GitHub release: signed Android APKs (one
 # per ABI), Linux / Windows / macOS / iOS builds (release-builds.yml), generated
-# release notes, and a PR that records the release in CHANGELOG.md. Maintainer procedure, required secrets and how to recover from
+# release notes, the release on Zapstore, and a PR that records it in
+# CHANGELOG.md. Maintainer procedure, required secrets and how to recover from
 # a failed run: docs/RELEASING.md. test/ci/release_workflow_test.dart guards
 # the properties below that are easy to weaken by accident.
 on:
@@ -371,6 +372,80 @@ jobs:
             gh release create "$TAG" dist/* --verify-tag \
               --title "Mostro $TAG" --notes-file RELEASE_BODY.md
           fi
+
+  # Lists the release on Zapstore as zapstore.yaml describes it. zsp takes the
+  # arm64-v8a APK from the latest GitHub release, so this runs after publish;
+  # nothing waits for it. A release already on Zapstore is a no-op, so the job
+  # can be re-run on its own.
+  zapstore:
+    name: Publish on Zapstore
+    needs: [prepare, publish]
+    if: ${{ !cancelled() && needs.publish.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # ZAPSTORE_SIGN_WITH signs as Mostro on Zapstore, so it is a secret of the
+    # release environment, like the APK signing key: only a release tag reads
+    # it, and with required reviewers this job waits for its own approval.
+    environment: release
+    env:
+      ZSP_VERSION: "0.4.17"
+      ZSP_SHA256: "3f241da6a5dc7a85fe851d3b42b77790b651bd36c7029382a701262bda832d20"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      # zsp takes the latest release whatever tag runs it: a re-run of an older
+      # tag would list the newest APK with this tag's zapstore.yaml.
+      - name: Check this is the latest release
+        id: latest
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          latest=$(gh release view --json tagName --jq .tagName)
+          if [ "$latest" = "$TAG" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::The latest release is $latest, not $TAG: Zapstore is left as it is."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check Zapstore secret
+        if: steps.latest.outputs.publish == 'true'
+        env:
+          ZAPSTORE_SIGN_WITH: ${{ secrets.ZAPSTORE_SIGN_WITH }}
+        run: |
+          if [ -z "$ZAPSTORE_SIGN_WITH" ]; then
+            echo "::error::Missing secret ZAPSTORE_SIGN_WITH of the release environment (docs/RELEASING.md). The GitHub release is out; only Zapstore is missing it."
+            exit 1
+          fi
+
+      # The binary runs with the key in its environment: pinned, and checked
+      # against the digest GitHub lists for that release asset.
+      - name: Install zsp
+        if: steps.latest.outputs.publish == 'true'
+        run: |
+          set -euo pipefail
+          dir="$RUNNER_TEMP/zsp-bin"
+          mkdir -p "$dir"
+          curl -fsSL --retry 3 -o "$dir/zsp" \
+            "https://github.com/zapstore/zsp/releases/download/v$ZSP_VERSION/zsp-$ZSP_VERSION-linux-amd64"
+          echo "$ZSP_SHA256  $dir/zsp" | sha256sum --check --strict
+          chmod +x "$dir/zsp"
+          echo "$dir" >> "$GITHUB_PATH"
+
+      # --quiet: no prompts, and no certificate linking (the identity proof is
+      # renewed by hand, docs/RELEASING.md). zapstore.yaml and its images are
+      # the tagged commit's; its `pubkey` makes zsp refuse any other key.
+      - name: Publish on Zapstore
+        if: steps.latest.outputs.publish == 'true'
+        env:
+          SIGN_WITH: ${{ secrets.ZAPSTORE_SIGN_WITH }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: zsp publish --quiet zapstore.yaml
 
   # main is protected, so the changelog arrives as a pull request. A PR opened
   # with GITHUB_TOKEN does not start CI: close and reopen it to run the checks.

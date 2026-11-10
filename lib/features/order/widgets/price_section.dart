@@ -11,7 +11,9 @@ import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/create_order_palette.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
 import 'package:mostro/features/order/models/create_order_rules.dart';
+import 'package:mostro/features/order/providers/exchange_rate_provider.dart';
 import 'package:mostro/features/order/providers/order_side_provider.dart';
+import 'package:mostro/features/order/widgets/currency_section.dart';
 import 'package:mostro/features/order/widgets/premium_slider_shapes.dart';
 import 'package:mostro/features/order/widgets/underline_amount_field.dart';
 import 'package:mostro/l10n/app_localizations.dart';
@@ -40,6 +42,40 @@ final fixedSatsProvider = StateProvider<String>((_) => '');
 /// at market with a premium — so PriceSection locks the control to Market and
 /// disables Fixed while this is true.
 final isRangeOrderProvider = StateProvider<bool>((_) => false);
+
+/// The selected currency's code while Market is locked, null otherwise.
+///
+/// Market is locked for a pegged code (a stablecoin, or bitcoin on another
+/// network) the active node's rates event does not quote
+/// (`ExchangeRateLookup.notQuoted`): such a node refuses every market order
+/// in it (mostrod `docs/PRICE_PROVIDERS.md` §11.8, §11.9). A fiat is
+/// never locked, and a node that publishes no rates event locks nothing:
+/// the pre-check keeps failing open there (#337), the daemon decides.
+final marketLockedCodeProvider = Provider.autoDispose<String?>((ref) {
+  final currency = ref.watch(selectedFiatCurrencyProvider);
+  if (currency == null || !currency.isPegged) return null;
+  final lookup = ref.watch(exchangeRateLookupProvider(currency.code));
+  return lookup.valueOrNull is ExchangeRateLookup_NotQuoted
+      ? currency.code
+      : null;
+});
+
+/// Whether the selected pegged code's quote is still on its way: the active
+/// node's lookup has answered nothing yet, so Market may be about to lock.
+/// The screen holds Publish on a market order until it knows, or the order
+/// would reach a node that refuses it. A fiat is never pending: it is never
+/// locked.
+///
+/// `AsyncLoading`, not "no value": after a node change Riverpod keeps the
+/// previous node's answer while the new one loads (`isReloading`), and that
+/// answer says nothing about the new node. A refresh of the same node keeps
+/// its state type, and its answer, until it lands.
+final marketQuotePendingProvider = Provider.autoDispose<bool>((ref) {
+  final currency = ref.watch(selectedFiatCurrencyProvider);
+  if (currency == null || !currency.isPegged) return false;
+  final lookup = ref.watch(exchangeRateLookupProvider(currency.code));
+  return lookup is AsyncLoading;
+});
 
 /// `+3%`, `0%`, `-3%` — the premium as the screen prints it. Zero carries no
 /// sign; the value is a whole percent because the protocol stores one.
@@ -88,6 +124,13 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
     // Grouped for the locale in build, where the context is available; the
     // provider is reset on every screen open so this is normally empty.
     _satsController = TextEditingController(text: ref.read(fixedSatsProvider));
+    // The lock moves the control to Fixed itself: the screen opens on Market
+    // and a disabled Market segment would otherwise stay selected.
+    ref.listenManual(marketLockedCodeProvider, (_, locked) {
+      if (locked != null && ref.read(isMarketPriceProvider)) {
+        ref.read(isMarketPriceProvider.notifier).state = false;
+      }
+    }, fireImmediately: true);
   }
 
   @override
@@ -153,6 +196,7 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
     final palette = OrderBookPalette.of(context);
     final isMarket = ref.watch(isMarketPriceProvider);
     final isRange = ref.watch(isRangeOrderProvider);
+    final lockedCode = ref.watch(marketLockedCodeProvider);
     final l10n = AppLocalizations.of(context);
 
     // Sync controllers from providers via listeners (not in build body). The
@@ -183,7 +227,7 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
             const SizedBox(width: 6),
             IconButton(
               onPressed: () => _showPriceInfo(context),
-              icon: Icon(Icons.info_outline, size: 13, color: palette.textFaint),
+              icon: Icon(Icons.info_outline, size: 14, color: palette.textFaint),
               padding: EdgeInsets.zero,
               constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
               tooltip: l10n.priceTypeInfoTooltip,
@@ -193,10 +237,13 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
               size: PillSegmentedSize.small,
               selected: isMarket,
               segments: [
+                // A stablecoin the node does not quote has no market price
+                // there, so Market is locked out ([marketLockedCodeProvider]).
                 PillSegment(
                   value: true,
                   label: l10n.priceTypeMarket,
                   automationId: AutomationIds.orderCreatePriceMarket,
+                  enabled: lockedCode == null,
                 ),
                 // Range orders must use market price (Mostro applies a premium
                 // to the variable amount), so Fixed is locked out in range.
@@ -215,8 +262,20 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
             ),
           ],
         ),
-        const SizedBox(height: 11),
-        if (isRange) ...[
+        const SizedBox(height: 12),
+        if (lockedCode != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 10),
+            child: Text(
+              l10n.marketPriceNotQuotedByNode(lockedCode),
+              style: TextStyle(
+                fontSize: 11,
+                height: 1.5,
+                color: palette.textTertiary,
+              ),
+            ),
+          )
+        else if (isRange)
           Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Text(
@@ -228,7 +287,6 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
               ),
             ),
           ),
-        ],
         AnimatedSize(
           duration: _swapDuration,
           curve: Curves.easeOut,
@@ -302,7 +360,7 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
       key: const ValueKey('premium-block'),
       duration: _tintDuration,
       curve: Curves.easeOut,
-      padding: const EdgeInsets.all(13),
+      padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         color: bg,
         borderRadius: BorderRadius.circular(14),
@@ -348,10 +406,15 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
                     textAlign: TextAlign.right,
                     style: valueStyle,
                     cursorColor: valueColor,
+                    // The figure edits in place: no box and no fill of its
+                    // own, and none from the theme either (DS-CMP-19).
                     decoration: const InputDecoration(
                       isDense: true,
                       isCollapsed: true,
+                      filled: false,
                       border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
                       suffixText: '%',
                     ),
                     onChanged: (v) {
@@ -375,7 +438,7 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
                 InkWell(
                   key: const ValueKey('premium-figure'),
                   onTap: _startPremiumEditing,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius: BorderRadius.circular(8),
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 4),
                     child: Text(formatPremium(premium), style: valueStyle),

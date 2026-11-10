@@ -1,11 +1,13 @@
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/home/providers/order_reason_provider.dart';
 import 'package:mostro/features/home/widgets/order_list_item.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 
+import '../../support/catalogue_fixtures.dart';
 import '../../support/fake_orders.dart';
 import '../../support/load_app_fonts.dart';
 
@@ -84,15 +86,18 @@ void main() {
 
     await withClock(Clock.fixed(kFakeNow), () async {
       await tester.pumpWidget(
-        MaterialApp(
-          debugShowCheckedModeBanner: false,
-          theme: buildDarkTheme(),
-          locale: const Locale('es'),
-          localizationsDelegates: AppLocalizations.localizationsDelegates,
-          supportedLocales: AppLocalizations.supportedLocales,
-          home: Scaffold(
-            backgroundColor: OrderBookPalette.dark.bg,
-            body: Center(child: SizedBox(width: 380, child: _book())),
+        ProviderScope(
+          overrides: [catalogueOverride()],
+          child: MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: buildDarkTheme(),
+            locale: const Locale('es'),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            home: Scaffold(
+              backgroundColor: OrderBookPalette.dark.bg,
+              body: Center(child: SizedBox(width: 380, child: _book())),
+            ),
           ),
         ),
       );

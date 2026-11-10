@@ -1,0 +1,170 @@
+# Mortsom pull request gate: settings and path -> scenario rules.
+# Design: docs/MORTSOM_PR_E2E_SPEC.md § 4. The verdict reads this file from
+# `main` only (§ 9); a pull request's own copy only steers its own run.
+
+[settings]
+# MostroP2P/mortsom commit the gate runs. Also the `uses:` ref of
+# mortsom-pr.yml and mortsom-baseline.yml (checked by mortsom-map.yml), and
+# the commit `scenarios.json` was printed by (`mortsom list --json`).
+mortsom_ref = "86d468c310eb896757da5e9d10fe7b7994219bd3"
+# Tags every non-ignored selection runs.
+always_tags = ["smoke"]
+# Eligible scenarios needed before `would-close` is possible.
+min_scenarios = 4
+# Regressions / eligible that make `would-close`.
+close_ratio = 0.5
+# How many first-parent commits back from the merge-base a baseline may be.
+baseline_max_distance = 10
+# How many recent baselines a scenario must have passed to be stable.
+stability_window = 3
+# Scenarios per stack (plain, bond) a pull request runs at most.
+max_scenarios = 16
+
+# --- No app behaviour ------------------------------------------------------
+
+[[rule]]
+name = "docs, specs, tests and tooling"
+paths = [
+  "**/*.md", "docs/**", "specs/**", ".specify/**", "LICENSE",
+  "assets/screenshots/**", "screenshots/**",
+  "test/**", "integration_test/**", "test_driver/**", "rust/tests/**",
+  ".github/**", "tool/**", "analysis_options.yaml", ".gitattributes", ".gitignore",
+  "lib/src/rust/**", "lib/l10n/app_localizations*.dart", "lib/l10n/untranslated_messages.txt",
+  "pubspec.lock", "rust/Cargo.lock", "rust_builder/**",
+  "rust/src/source_guard.rs", "rust/src/mostro/test_fixtures.rs",
+  ".claude/**", ".opencode/**", ".clippy.toml", ".coderabbit.yaml", ".metadata",
+  "firebase.json", "zapstore.yaml", "flutter_rust_bridge.yaml", "scripts/**",
+]
+ignore = true
+
+# --- Everything depends on it -----------------------------------------------
+
+[[rule]]
+name = "core: protocol, transport, persistence, startup"
+paths = [
+  "rust/src/lib.rs", "rust/src/config.rs", "rust/src/rt.rs", "rust/src/identity_slot.rs",
+  "rust/src/frb_generated.rs",
+  "rust/src/nostr/mod.rs", "rust/src/nostr/coalesce.rs", "rust/src/nostr/first_answer.rs",
+  "rust/src/nostr/live_subs.rs", "rust/src/nostr/order_events.rs", "rust/src/nostr/publish.rs",
+  "rust/src/nostr/relay_list.rs", "rust/src/nostr/relay_pool.rs", "rust/src/nostr/relay_probe.rs",
+  "rust/src/nostr/req_census.rs", "rust/src/nostr/subscriptions.rs", "rust/src/nostr/transport.rs",
+  "rust/src/queue/**", "rust/src/db/**", "rust/src/crypto/**",
+  "rust/src/mostro/mod.rs", "rust/src/mostro/fsm.rs", "rust/src/mostro/session.rs",
+  "rust/src/mostro/status.rs", "rust/src/mostro/actions.rs",
+  "rust/src/api/mod.rs", "rust/src/api/bridge_handler.rs", "rust/src/api/types.rs",
+  "rust/src/api/identity.rs", "rust/src/api/nostr.rs", "rust/src/api/messages.rs",
+  "lib/main.dart", "lib/main_mortsom.dart",
+  "lib/core/app.dart", "lib/core/app_bootstrap.dart", "lib/core/app_routes.dart",
+  "lib/core/startup_sequence.dart", "lib/core/startup_failure.dart",
+  "lib/core/test_environment.dart", "lib/core/mostro_defaults.dart",
+  "lib/core/daemon_errors.dart", "lib/core/trade_node.dart",
+  "lib/core/automation/**", "lib/core/lifecycle/**", "lib/core/services/**",
+  "lib/core/storage/**", "lib/core/stubs/**",
+  "pubspec.yaml", "rust/Cargo.toml", "rust/build.rs", ".cargo/config.toml", "linux/**",
+]
+full = true
+
+# --- Trades -------------------------------------------------------------------
+
+[[rule]]
+name = "order book, creation and trade screens"
+paths = [
+  "lib/features/order/**", "lib/features/trades/**", "lib/features/home/**",
+  "rust/src/api/orders.rs", "rust/src/api/orders/**", "rust/src/api/order_link.rs",
+  "rust/src/api/trade_touch.rs", "rust/src/api/nodes.rs",
+  "rust/src/mostro/trade_index.rs", "rust/src/mostro/trade_node.rs",
+  "rust/src/mostro/pending.rs", "rust/src/mostro/delete_effects.rs",
+  "rust/src/mostro/node_info.rs", "rust/src/mostro/rates.rs",
+  "rust/src/mostro/pow.rs", "rust/src/mostro/protocol_version.rs",
+  "rust/src/nostr/order_link.rs",
+]
+tags = ["happy-path", "cancellation", "expiration"]
+scenarios = ["unauthorized_actions_at_taken"]
+
+[[rule]]
+name = "payments and escrow"
+paths = [
+  "rust/src/api/invoice.rs", "rust/src/api/escrow.rs", "rust/src/api/escrow_deadline.rs",
+  "rust/src/api/nwc.rs", "rust/src/nwc/**",
+  "rust/src/mostro/payout_route.rs", "rust/src/mostro/node_fee.rs",
+  "rust/src/mostro/escrow_mode.rs", "rust/src/mostro/escrow_deadline.rs",
+  "rust/src/mostro/funds_at_risk.rs",
+]
+tags = ["happy-path", "payment-failure", "expiration"]
+
+[[rule]]
+name = "anti-abuse bond"
+paths = [
+  "rust/src/api/bond.rs", "rust/src/mostro/bond_claims.rs", "rust/src/mostro/bond_policy.rs",
+  "lib/**/*bond*",
+]
+tags = ["bond"]
+
+[[rule]]
+name = "disputes"
+paths = ["lib/features/disputes/**", "rust/src/api/disputes.rs", "rust/src/mostro/serbero.rs"]
+tags = ["dispute"]
+
+[[rule]]
+name = "rating and reputation"
+paths = [
+  "lib/features/rate/**", "lib/features/reputation/**",
+  "rust/src/api/reputation.rs", "rust/src/api/my_reputation.rs",
+  "rust/src/api/reputation_transfer.rs",
+  "rust/src/mostro/reputation.rs", "rust/src/mostro/reputation_support.rs",
+]
+scenarios = ["full_trade_with_rating"]
+
+[[rule]]
+name = "identity, account and restore"
+paths = [
+  "lib/features/account/**", "rust/src/mostro/restore_history.rs",
+  "rust/src/api/restore_progress.rs",
+]
+tags = ["recovery"]
+
+[[rule]]
+name = "shared UI and visuals"
+paths = [
+  "lib/shared/**", "lib/core/*_palette.dart", "lib/core/app_theme.dart",
+  "lib/core/font_licenses.dart", "lib/l10n/*.arb", "lib/l10n/*.yaml", "l10n.yaml",
+  "assets/**",
+]
+tags = ["smoke"]
+
+# --- No Mortsom scenario exercises these on Linux (§ 4.5) -------------------
+
+[[rule]]
+name = "chat and attachments"
+paths = ["lib/features/chat/**", "rust/src/attachments/**", "rust/src/nostr/blossom.rs"]
+uncovered = "Mortsom has no chat scenario"
+
+[[rule]]
+name = "Cashu"
+paths = ["lib/features/cashu/**", "rust/src/cashu/**", "rust/src/api/cashu.rs", "rust/src/mostro/cashu_wire.rs"]
+uncovered = "Mortsom has no Cashu escrow scenario"
+
+[[rule]]
+name = "notifications and push"
+paths = ["lib/features/notifications/**", "rust/src/api/push.rs", "rust/src/mostro/push.rs", "lib/firebase_options.dart"]
+uncovered = "Mortsom does not assert notifications on Linux"
+
+[[rule]]
+name = "announcements"
+paths = ["rust/src/api/announcements.rs", "rust/src/nostr/announcement_reader.rs", "rust/src/nostr/announcements.rs"]
+uncovered = "Mortsom has no announcement scenario"
+
+[[rule]]
+name = "settings, about and onboarding screens"
+paths = [
+  "lib/features/settings/**", "lib/features/about/**", "lib/features/drawer/**",
+  "lib/features/walkthrough/**", "lib/features/install/**", "lib/features/deep_links/**",
+  "rust/src/api/settings.rs", "rust/src/api/logging.rs", "rust/src/api/node_stats.rs",
+  "rust/src/node_pictures.rs", "rust/src/bin/**",
+]
+uncovered = "Mortsom configures the app through its bootstrap hooks and does not drive these screens"
+
+[[rule]]
+name = "web and other platforms"
+paths = ["lib/core/web/**", "lib/**/*_web.dart", "web/**", "android/**", "ios/**", "macos/**", "windows/**", "scripts/build-web.sh"]
+uncovered = "the gate runs the Linux build only"

@@ -1,0 +1,69 @@
+name: Mortsom baseline
+
+# The baseline of main the Mortsom gate compares pull requests against
+# (docs/MORTSOM_PR_E2E_SPEC.md § 5): every scenario Linux can run, plain and
+# bonded, never capped. A failing scenario here is information, not an error.
+
+on:
+  push:
+    branches: [main]
+    paths-ignore: ["**.md", "docs/**", "specs/**", ".specify/**"]
+  schedule:
+    - cron: "17 5 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mortsom-baseline
+  cancel-in-progress: false
+
+jobs:
+  select:
+    name: Select every scenario
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      plain: ${{ steps.select.outputs.plain }}
+      bond: ${{ steps.select.outputs.bond }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - id: select
+        name: Select
+        run: >-
+          python3 .github/mortsom/select_scenarios.py --map .github/mortsom/map.toml
+          --catalog .github/mortsom/scenarios.json --full --no-cap --out selection.json
+      - name: Meta
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          printf '{"sha": "%s", "mortsom_ref": "%s"}\n' "$SHA" "86d468c310eb896757da5e9d10fe7b7994219bd3" > meta.json
+          cat meta.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mortsom-baseline-meta
+          path: meta.json
+          retention-days: 90
+
+  plain:
+    needs: select
+    uses: MostroP2P/mortsom/.github/workflows/app-e2e.yml@86d468c310eb896757da5e9d10fe7b7994219bd3
+    with:
+      app_ref: main
+      scenarios: ${{ needs.select.outputs.plain }}
+      bond: false
+      mortsom_ref: 86d468c310eb896757da5e9d10fe7b7994219bd3
+      artifact_name: mortsom-baseline-plain
+
+  bond:
+    needs: select
+    uses: MostroP2P/mortsom/.github/workflows/app-e2e.yml@86d468c310eb896757da5e9d10fe7b7994219bd3
+    with:
+      app_ref: main
+      scenarios: ${{ needs.select.outputs.bond }}
+      bond: true
+      mortsom_ref: 86d468c310eb896757da5e9d10fe7b7994219bd3
+      artifact_name: mortsom-baseline-bond

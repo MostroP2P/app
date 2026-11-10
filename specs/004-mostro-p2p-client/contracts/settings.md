@@ -19,7 +19,7 @@ Return all current user preferences.
 AppSettings {
   theme: ThemeMode                 # System | Dark | Light (default: System)
   language: String                 # BCP-47 locale code (default: device locale)
-  default_fiat_code: String?       # ISO 4217 code, e.g. "USD" (default: null — show all)
+  default_fiat_code: String?       # Currency code, e.g. "USD" or "USDT" (default: null — show all)
   default_lightning_address: String?  # Lightning address for auto-fill when selling
   logging_enabled: bool            # Runtime-only in Rust; re-applied by Flutter on launch
   privacy_mode: bool               # Mirrors Identity.privacy_mode; false when no Identity exists
@@ -51,8 +51,9 @@ Set the default fiat currency for new orders. Pass null to clear
 
 **Validation** (applied only when `code` is non-null):
 - If no active Mostro node is selected: perform format-only validation
-  (accept any syntactically valid ISO 4217 code). Do NOT return
-  `UnsupportedCurrency`.
+  (accept any syntactically valid currency code: 3 to 5 uppercase ASCII
+  letters — an ISO 4217 fiat, or a stablecoin code from the catalogue such as
+  `USDT`, `USDC`, `DOC`; app#884). Do NOT return `UnsupportedCurrency`.
 - If an active node exists but `MostroNodeInfo.supported_currencies` is
   `null` (list unknown): likewise perform format-only validation and do
   NOT return `UnsupportedCurrency`.

@@ -1,5 +1,6 @@
 import 'package:clock/clock.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/features/home/providers/home_order_providers.dart';
@@ -7,6 +8,7 @@ import 'package:mostro/features/home/providers/order_reason_provider.dart';
 import 'package:mostro/features/home/widgets/order_list_item.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 
+import '../../support/catalogue_fixtures.dart';
 import '../../support/fake_orders.dart';
 
 const _dark = OrderBookPalette.dark;
@@ -23,30 +25,31 @@ Future<void> _pumpCard(
   addTearDown(tester.view.reset);
   await withClock(Clock.fixed(kFakeNow), () async {
     await tester.pumpWidget(
-      MaterialApp(
-        theme: buildDarkTheme(),
-        locale: const Locale('en'),
-        localizationsDelegates: AppLocalizations.localizationsDelegates,
-        supportedLocales: AppLocalizations.supportedLocales,
-        builder:
-            (context, child) => MediaQuery(
-              data: MediaQuery.of(
-                context,
-              ).copyWith(textScaler: TextScaler.linear(textScale)),
-              child: child!,
-            ),
-        home: Scaffold(
-          body: SingleChildScrollView(
-            padding: const EdgeInsets.all(18),
-            child: OrderListItem(
-              order: order,
-              reason: reason,
-              currencyFlags: const {'USD': '🇺🇸'},
+      ProviderScope(
+        overrides: [catalogueOverride()],
+        child: MaterialApp(
+          theme: buildDarkTheme(),
+          locale: const Locale('en'),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          supportedLocales: AppLocalizations.supportedLocales,
+          builder:
+              (context, child) => MediaQuery(
+                data: MediaQuery.of(
+                  context,
+                ).copyWith(textScaler: TextScaler.linear(textScale)),
+                child: child!,
+              ),
+          home: Scaffold(
+            body: SingleChildScrollView(
+              padding: const EdgeInsets.all(18),
+              child: OrderListItem(order: order, reason: reason),
             ),
           ),
         ),
       ),
     );
+    // The catalogue loads asynchronously; the mark lands a frame later.
+    await tester.pump();
   });
 }
 

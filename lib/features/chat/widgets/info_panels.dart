@@ -90,6 +90,7 @@ class TradeInformationTab extends ConsumerWidget {
       amount: facts.fiatAmount,
       min: facts.fiatAmountMin,
       max: facts.fiatAmountMax,
+      code: facts.fiatCode,
       locale: locale,
     );
     return '$amount ${facts.fiatCode}';

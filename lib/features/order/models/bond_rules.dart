@@ -5,6 +5,7 @@ library;
 
 import 'package:intl/intl.dart';
 
+import 'package:mostro/shared/utils/btc_pegged.dart';
 import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/src/rust/api/types.dart'
     show
@@ -19,7 +20,15 @@ import 'package:mostro/src/rust/api/types.dart'
 /// What the bond is worth in the order's fiat at [rate] (fiat per BTC), or
 /// null without a usable rate. For the hero's context line only — the
 /// daemon never charges fiat.
-double? bondFiatEquivalent({required int sats, required double? rate}) {
+///
+/// Null for a BTC-pegged [fiatCode] too: its amount is sats, so the
+/// "equivalent" would only repeat the bond's sats under the code (#907).
+double? bondFiatEquivalent({
+  required int sats,
+  required double? rate,
+  required String fiatCode,
+}) {
+  if (isBtcPeggedCode(fiatCode)) return null;
   if (rate == null || !rate.isFinite || rate <= 0 || sats <= 0) return null;
   return sats / 100000000 * rate;
 }
@@ -125,12 +134,17 @@ BondCancelCopy bondCancelCopy(TradeUpdateReason? reason) => switch (reason) {
 bool bondExplainerOpens({required bool? stored}) => stored ?? true;
 
 /// `2 060 ARS`: the fiat equivalent rounded to whole units in [locale]'s
-/// digit grouping, with the order's currency code.
+/// digit grouping, with the order's currency code. A BTC-pegged code's
+/// amount is sats, so it reads in the asset unit instead: `0.001 RBTC`
+/// (#907).
 String formatBondFiat(String locale, double amount, String fiatCode) {
-  final formatted = NumberFormat.decimalPatternDigits(
-    locale: locale,
-    decimalDigits: 0,
-  ).format(amount);
+  final formatted =
+      isBtcPeggedCode(fiatCode)
+          ? formatBtcPeggedAmount(amount, locale)
+          : NumberFormat.decimalPatternDigits(
+            locale: locale,
+            decimalDigits: 0,
+          ).format(amount);
   return '$formatted $fiatCode';
 }
 

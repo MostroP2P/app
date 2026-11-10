@@ -49,7 +49,9 @@ import 'package:mostro/features/trades/widgets/cancel_request_notice.dart';
 import 'package:mostro/features/trades/widgets/payout_destination_card.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/mascot/mascot_cues.dart';
+import 'package:mostro/shared/utils/btc_pegged.dart';
 import 'package:mostro/shared/utils/countdown.dart';
+import 'package:mostro/shared/utils/fiat_currencies.dart';
 import 'package:mostro/shared/utils/reputation_age.dart';
 import 'package:mostro/shared/widgets/mostro_modal.dart';
 import 'package:mostro/shared/utils/platform_int64.dart';
@@ -720,11 +722,28 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
     final trade = tradeAsync.valueOrNull;
     final peerRating = trade?.peerRating;
     final figures = _figures(trade, order);
+    // A coin is sent on one network and checked by its transaction ID: the
+    // step copy says both (#884). Bitcoin on another network also has to
+    // confirm before release, and Liquid hides the amount (#907).
+    final stablecoinPegs = ref.watch(stablecoinPegsProvider);
+    final coinCopy = switch (figures?.code) {
+      null => _CoinCopy.none,
+      final code when code.toUpperCase() == 'LBTC' => _CoinCopy.liquid,
+      final code when isBtcPeggedCode(code) => _CoinCopy.btcPegged,
+      final code when stablecoinPegs.containsKey(code) => _CoinCopy.stablecoin,
+      _ => _CoinCopy.none,
+    };
+    // The row's method first, like the figures: a taken order can leave the
+    // book. A row restored without a book entry has none.
+    final paymentMethod = switch (trade?.order.paymentMethod) {
+      final method? when method.isNotEmpty => method,
+      _ => order?.paymentMethod,
+    };
     final locale = Localizations.localeOf(context).toString();
     final amount =
         figures == null
             ? null
-            : '${formatFiatAmount(amount: figures.fiat, min: figures.min, max: figures.max, locale: locale)} ${figures.code}';
+            : '${formatFiatAmount(amount: figures.fiat, min: figures.min, max: figures.max, code: figures.code, locale: locale)} ${figures.code}';
     // The row's own role first: `isBuyer` defaults to buyer while the role
     // lookup runs, and would tell a seller "You buy".
     final isSelling = switch (trade?.role) {
@@ -858,11 +877,12 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
                                 view,
                                 status,
                                 isBuyer,
-                                order,
+                                paymentMethod: paymentMethod,
                                 kind: trade?.order.kind,
                                 amount: amount,
                                 summary: summary,
                                 loadFailed: loadFailed,
+                                coinCopy: coinCopy,
                               ),
                     ),
                   ),
@@ -1050,12 +1070,13 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
     AppLocalizations l10n,
     TradeView view,
     TradeStatus status,
-    bool isBuyer,
-    OrderItem? order, {
+    bool isBuyer, {
+    required String? paymentMethod,
     required OrderKind? kind,
     required String? amount,
     required String? summary,
     required bool loadFailed,
+    required _CoinCopy coinCopy,
   }) {
     return TradeStepBlock(
       summary: summary,
@@ -1072,7 +1093,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
       body:
           loadFailed
               ? TextSpan(text: l10n.tradeLoadError)
-              : _body(l10n, status, isBuyer, order?.paymentMethod),
+              : _body(l10n, status, isBuyer, paymentMethod, coinCopy: coinCopy),
       warning: view.showsReleaseWarning ? l10n.tradeReleaseIrreversible : null,
       countdown:
           view.showsTimer
@@ -1138,13 +1159,17 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
   }
 
   /// What to do about it, with the payment method in the body face. The
-  /// method-specific copy needs the order; without it the generic line.
+  /// method-specific copy needs the order; without it the generic line. A
+  /// stablecoin's also names the address and the transaction ID (#884), and
+  /// bitcoin on another network's also says to wait for the confirmation
+  /// (#907).
   InlineSpan? _body(
     AppLocalizations l10n,
     TradeStatus status,
     bool isBuyer,
-    String? method,
-  ) {
+    String? method, {
+    required _CoinCopy coinCopy,
+  }) {
     final book = OrderBookPalette.of(context);
     final keyData = TextStyle(
       color: book.textBody,
@@ -1168,6 +1193,16 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
             : l10n.tradeWaitingPaymentSellerInstruction,
       TradeStatus.inProgress => l10n.tradeInstructionInProgress,
       TradeStatus.waitingBond => l10n.tradeInstructionWaitingBond,
+      TradeStatus.active
+          when isBuyer && method != null && coinCopy == _CoinCopy.liquid =>
+        l10n.tradeBodyActiveBuyerLiquid(method),
+      TradeStatus.active
+          when isBuyer && method != null && coinCopy == _CoinCopy.btcPegged =>
+        l10n.tradeBodyActiveBuyerBtcPegged(method),
+      TradeStatus.active when method != null && coinCopy != _CoinCopy.none =>
+        isBuyer
+            ? l10n.tradeBodyActiveBuyerStablecoin(method)
+            : l10n.tradeBodyActiveSellerStablecoin(method),
       TradeStatus.active when method != null =>
         isBuyer
             ? l10n.tradeBodyActiveBuyer(method)
@@ -1176,6 +1211,15 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
         isBuyer
             ? l10n.tradeInstructionActiveBuyer
             : l10n.tradeInstructionActiveSeller,
+      TradeStatus.fiatSent
+          when !isBuyer && method != null && coinCopy == _CoinCopy.liquid =>
+        l10n.tradeBodyFiatSentSellerLiquid(method),
+      TradeStatus.fiatSent
+          when !isBuyer && method != null && coinCopy == _CoinCopy.btcPegged =>
+        l10n.tradeBodyFiatSentSellerBtcPegged(method),
+      TradeStatus.fiatSent
+          when !isBuyer && method != null && coinCopy == _CoinCopy.stablecoin =>
+        l10n.tradeBodyFiatSentSellerStablecoin(method),
       TradeStatus.fiatSent when !isBuyer && method != null => l10n
           .tradeBodyFiatSentSeller(method),
       TradeStatus.fiatSent =>
@@ -1597,3 +1641,8 @@ InlineSpan emphasise(String sentence, String part, TextStyle style) {
     ],
   );
 }
+
+/// The payment copy a trade's currency needs beyond the fiat one: a
+/// stablecoin's network and transaction ID (#884), and for bitcoin on another
+/// network the confirmation, with Liquid's unblinded link (#907).
+enum _CoinCopy { none, stablecoin, btcPegged, liquid }

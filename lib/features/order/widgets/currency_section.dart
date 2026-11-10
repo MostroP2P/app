@@ -10,6 +10,7 @@ import 'package:mostro/features/order/models/create_order_rules.dart';
 import 'package:mostro/features/settings/providers/node_stats_provider.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
+import 'package:mostro/shared/widgets/currency_mark.dart';
 import 'package:mostro/shared/widgets/currency_picker_dialog.dart';
 
 /// Provider for the currently selected fiat code in the create-order form.
@@ -62,7 +63,7 @@ final offeredFiatCurrenciesProvider =
         final byCode = {for (final c in catalogue) c.code: c};
         return [
           for (final code in offeredFiatCodes(byCode.keys.toList(), accepted))
-            byCode[code] ?? FiatCurrency(code: code, name: '', flag: ''),
+            byCode[code] ?? FiatCurrency(code: code, name: ''),
         ];
       });
     });
@@ -91,7 +92,6 @@ class CurrencyInlineSelector extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final code = ref.watch(selectedFiatCodeProvider);
-    final flag = ref.watch(currencyFlagsProvider)[code] ?? '';
     final palette = OrderBookPalette.of(context);
 
     return _EditableValue(
@@ -102,8 +102,7 @@ class CurrencyInlineSelector extends ConsumerWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(flag, style: const TextStyle(fontSize: 14)),
-          const SizedBox(width: 6),
+          CurrencyMarkGap(code: code, size: 14, gap: 6),
           Text(
             code,
             style: TextStyle(
@@ -141,8 +140,7 @@ class CurrencyRowSelector extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Row(
           children: [
-            Text(currency?.flag ?? '', style: const TextStyle(fontSize: 14)),
-            const SizedBox(width: 8),
+            CurrencyMarkGap(code: code, size: 14, gap: 8),
             Text(
               code,
               style: TextStyle(

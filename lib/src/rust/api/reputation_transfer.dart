@@ -5,6 +5,7 @@
 
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+import 'types.dart';
 
 // These functions are ignored because they are not marked as `pub`: `ask`, `check_exported`, `check_importable`, `event_id`, `identity_keys`, `identity_pubkey`, `importable`, `is_export_reply`, `is_import_reply`, `new`, `parse`, `pending_slot`, `pubkey`, `publish_request`, `refusal`, `same_identity`, `while_still_current`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `eq`, `eq`, `fmt`, `fmt`
@@ -12,6 +13,15 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 /// What the active node advertises, as of its last capability fetch.
 ReputationSupportInfo getReputationSupport() =>
     RustLib.instance.api.crateApiReputationTransferGetReputationSupport();
+
+/// The known Mostro whose info event announces `issuer` as its
+/// `reputation_issuer`, as its registry entry (named when its profile is
+/// cached), or `None` when no fetched node does. The import screen names the
+/// source of an attestation before it is imported (#881).
+Future<MostroNodeEntry?> getReputationIssuerNode({required String issuer}) =>
+    RustLib.instance.api.crateApiReputationTransferGetReputationIssuerNode(
+      issuer: issuer,
+    );
 
 /// Encode an identity as npub, for the user to confirm before it is bound or
 /// authorised: the import screen compares it with lnp2pBot's confirmation,

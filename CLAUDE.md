@@ -34,8 +34,9 @@ flutter analyze && flutter test             # Dart side
 #   ./scripts/build-web.sh --release
 #   flutter build web --release --base-href "/app/" --pwa-strategy=none
 cd test/web/smoke && npm ci && npx playwright install chromium && BASE_PATH=/app/ node smoke.mjs
-flutter run -d linux|chrome|android         # Rust is a lib — there is no `cargo run`
+flutter run -d linux|chrome|android         # Rust is a lib — `cargo run` runs no app
 flutter gen-l10n                            # after editing lib/l10n/*.arb
+cd rust && cargo run --bin announce -- --template   # announcement validator (docs/ANNOUNCEMENTS.md)
 ```
 
 ## Web (wasm) — non-obvious constraints
@@ -205,14 +206,15 @@ bridged by flutter_rust_bridge.
 - **Before opening a PR, read and follow `CONTRIBUTING.md § Contribution quality bar`**
   (summarised in `AGENTS.md § Before opening a pull request`): accepted issue, every section
   of `.github/pull_request_template.md`, Manual testing a person actually ran, screenshots for
-  visible changes, and for a fix a `test:` commit that fails on `main`, first after any
+  visible changes, at most 1,500 changed lines not counting tests, generated files, docs and translations
+  (`size:exempt` is a maintainer's call), and for a fix a `test:` commit that fails on `main`, first after any
   `refactor:` seam commits. Exemptions (Markdown-only, maintainers, bots, `quality:exempt`) and the
   `quality:no-red-test` waiver are in that section.
 
 ## Releases (`docs/RELEASING.md`)
 - **A pushed tag `vX.Y.Z` is the release.** `.github/workflows/release.yml` builds two signed
-  APKs (`armeabi-v7a`, `arm64-v8a`), publishes the GitHub release and opens the `CHANGELOG.md`
-  PR. It refuses a tag that is not on `main` or whose version `pubspec.yaml` **and**
+  APKs (`armeabi-v7a`, `arm64-v8a`), publishes the GitHub release, lists it on Zapstore (`zsp`,
+  signed with the `ZAPSTORE_SIGN_WITH` secret) and opens the `CHANGELOG.md` PR. It refuses a tag that is not on `main` or whose version `pubspec.yaml` **and**
   `rust/Cargo.toml` do not already carry — the About screen shows `CARGO_PKG_VERSION`. Cut a
   release with `./scripts/release.sh X.Y.Z`, run twice: it opens the bump PR
   (`scripts/bump-version.sh`, never one file by hand), then — once merged — tags `origin/main`.
@@ -418,5 +420,16 @@ bridged by flutter_rust_bridge.
   (`nodePictureProvider`); `Image.network` is only the fallback while nothing is stored from the
   URL the profile names now. Don't go back to the URL: on native nothing caches it across
   launches, so every first QR downloaded it with its centre blank meanwhile.
+- **Announcements (kind 38387) come from the project's keys, never from a node**
+  (`specs/006-announcement-channel`, `docs/ANNOUNCEMENTS.md`). Rust reads only
+  `nostr/announcements.rs::ALLOWLIST` (`npub`s, checked outside this repo), verifies every
+  event itself, caches 20 in the device-scoped `announcements` table and re-checks them
+  against the clock on every `Online` and resume, so an expiry holds offline. The toggle
+  (`settings` key `announcements_enabled`) closes the subscription at the tap; the cache
+  stays shown. Dart renders what `api::announcements` hands it and decides nothing:
+  `announcement_cards.dart` reconciles the Sembast cards to each snapshot, the copy follows
+  the locale on screen, a dismissed `critical` stays listed, read. Publish with
+  `cargo run --bin announce` + `nak`, to every default relay, in all seven locales — the
+  reader drops a partial one silently, and `SUPPORTED_LOCALES` is held equal to the ARBs.
 
 <!-- MANUAL ADDITIONS END -->

@@ -23,6 +23,7 @@ String localizedReputationError(
     'UntrustedReputationIssuer': l10n.reputationUntrustedIssuer,
     'ReputationIdentityMismatch': l10n.reputationIdentityMismatch,
     'ReputationAlreadyImported': l10n.reputationAlreadyImported,
+    'ReputationIssuerKeyMismatch': l10n.reputationExportUnexpectedIssuer,
   };
   for (final entry in byMarker.entries) {
     if (raw.contains(entry.key)) return entry.value;

@@ -875,7 +875,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get fiatSentFailed =>
-      'De fiat kon niet als verstuurd worden gemeld. Probeer het opnieuw.';
+      'De betaling kon niet als verstuurd worden gemeld. Probeer het opnieuw.';
 
   @override
   String get releaseFailed => 'Vrijgeven is mislukt. Probeer het opnieuw.';
@@ -1379,6 +1379,33 @@ class AppLocalizationsNl extends AppLocalizations {
       'Acties van de solver en uitkomsten van disputen';
 
   @override
+  String get notifAnnouncementsTitle => 'Aankondigingen';
+
+  @override
+  String get notifAnnouncementsSubtitle =>
+      'Versies, storingen en relaywijzigingen, ondertekend door het Mostro-project';
+
+  @override
+  String get announcementsGroupSubtitle =>
+      'Aankondigingen worden van de relays gelezen en nooit beantwoord: er wordt niets over jou verstuurd.';
+
+  @override
+  String get announcementLevelInfo => 'Aankondiging';
+
+  @override
+  String get announcementLevelWarning => 'Mededeling';
+
+  @override
+  String get announcementLevelCritical => 'Beveiligingsupdate';
+
+  @override
+  String get announcementOpenLink => 'Link openen';
+
+  @override
+  String get notificationsBellCritical =>
+      'Meldingen, een ongelezen beveiligingsupdate';
+
+  @override
   String get searchCurrenciesHint => 'Valuta zoeken…';
 
   @override
@@ -1452,7 +1479,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get tradeInstructionFiatSentBuyer =>
-      'Je hebt de fiatbetaling als verstuurd gemeld. Wacht tot de verkoper de ontvangst bevestigt en je sats vrijgeeft.';
+      'Je hebt de betaling als verstuurd gemeld. Wacht tot de verkoper de ontvangst bevestigt en je sats vrijgeeft.';
 
   @override
   String get tradeInstructionActiveSeller =>
@@ -1460,7 +1487,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get tradeInstructionFiatSentSeller =>
-      'De koper heeft bevestigd dat de fiat is overgemaakt. Controleer of het binnen is en geef daarna de sats vrij.';
+      'De koper heeft bevestigd dat de betaling is verstuurd. Controleer of het binnen is en geef daarna de sats vrij.';
 
   @override
   String get tradeInstructionDisputed =>
@@ -1574,10 +1601,10 @@ class AppLocalizationsNl extends AppLocalizations {
   String get tradeStepInvoiceSeller => 'Jij zet de sats vast';
 
   @override
-  String get tradeStepFiatBuyer => 'Jij maakt de fiat over';
+  String get tradeStepFiatBuyer => 'Jij betaalt';
 
   @override
-  String get tradeStepFiatSeller => 'De koper maakt de fiat over';
+  String get tradeStepFiatSeller => 'De koper betaalt';
 
   @override
   String get tradeStepReleaseBuyer => 'De verkoper geeft je sats vrij';
@@ -2396,7 +2423,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get tradeBodyWaitingPaymentBuyer =>
-      'De verkoper zet de sats vast. Zodra ze vaststaan, is het aan jou om de fiat over te maken.';
+      'De verkoper zet de sats vast. Zodra ze vaststaan, is het aan jou om te betalen.';
 
   @override
   String tradeBodyActiveSeller(String method) {
@@ -2411,6 +2438,41 @@ class AppLocalizationsNl extends AppLocalizations {
   @override
   String tradeBodyFiatSentSeller(String method) {
     return 'De koper heeft de betaling als verstuurd gemeld. Controleer je $method-rekening voordat je vrijgeeft.';
+  }
+
+  @override
+  String tradeBodyActiveBuyerStablecoin(String method) {
+    return 'Stuur het via $method naar het adres uit de chat: op een ander netwerk kan het verloren gaan. Plak daarna de transactie-ID in de chat (dat is je bewijs bij een dispuut) en meld het hieronder.';
+  }
+
+  @override
+  String tradeBodyActiveSellerStablecoin(String method) {
+    return 'Deel je $method-adres in de chat hierboven.';
+  }
+
+  @override
+  String tradeBodyFiatSentSellerStablecoin(String method) {
+    return 'De koper heeft de betaling als verstuurd gemeld. Controleer met de transactie-ID uit de chat of die op je $method-adres is aangekomen voordat je vrijgeeft.';
+  }
+
+  @override
+  String tradeBodyActiveBuyerBtcPegged(String method) {
+    return 'Stuur het via $method naar het adres uit de chat, met een fee die hoog genoeg is om snel te bevestigen: de verkoper geeft pas vrij na de bevestiging. Plak daarna de transactie-ID in de chat (dat is je bewijs bij een dispuut) en meld het hieronder.';
+  }
+
+  @override
+  String tradeBodyActiveBuyerLiquid(String method) {
+    return 'Stuur het via $method naar het adres uit de chat. Plak daarna de niet-geblindeerde transactielink in de chat: Liquid verbergt het bedrag, en de link toont het aan de verkoper en, bij een dispuut, aan de solver. Meld het hieronder.';
+  }
+
+  @override
+  String tradeBodyFiatSentSellerBtcPegged(String method) {
+    return 'De koper heeft de betaling als verstuurd gemeld. Geef pas vrij als die op $method is bevestigd: controleer het met de transactie-ID uit de chat.';
+  }
+
+  @override
+  String tradeBodyFiatSentSellerLiquid(String method) {
+    return 'De koper heeft de betaling als verstuurd gemeld. Geef pas vrij als die op $method is bevestigd: controleer het bedrag met de niet-geblindeerde link uit de chat.';
   }
 
   @override
@@ -3670,14 +3732,14 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get tradeCardActiveMessage =>
-      'De sats staan vast. De koper kan nu de fiat overmaken.';
+      'De sats staan vast. De koper kan nu betalen.';
 
   @override
-  String get tradeCardFiatSentTitle => 'Fiat als verstuurd gemeld';
+  String get tradeCardFiatSentTitle => 'Betaling als verstuurd gemeld';
 
   @override
   String get tradeCardFiatSentMessage =>
-      'De koper heeft de fiatbetaling als verstuurd gemeld.';
+      'De koper heeft de betaling als verstuurd gemeld.';
 
   @override
   String get tradeCardSettledHoldInvoiceTitle => 'Sats vrijgegeven';
@@ -4517,7 +4579,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get tradeBodyWaitingPaymentBuyerCashu =>
-      'De verkoper vergrendelt de sats in de escrow. Zodra die vergrendeld is, ben jij aan de beurt om de fiat te betalen.';
+      'De verkoper vergrendelt de sats in de escrow. Zodra die vergrendeld is, ben jij aan de beurt om te betalen.';
 
   @override
   String get shareChatKeyAction => 'Chatsleutel delen met de solver';
@@ -4750,8 +4812,28 @@ class AppLocalizationsNl extends AppLocalizations {
       'Geïmporteerde reputatie wordt opgeteld bij die van hier; je tegenpartijen zien ze samen.';
 
   @override
+  String get reputationExportFailed =>
+      'Deze Mostro kon je reputatie niet exporteren. Probeer het later opnieuw.';
+
+  @override
+  String get reputationExportUnexpectedIssuer =>
+      'Deze Mostro heeft het antwoord ondertekend met een andere sleutel dan aangekondigd. Schakel over naar een andere Mostro en terug om zijn gegevens te vernieuwen, en probeer het dan opnieuw.';
+
+  @override
   String get reputationOpenLnp2pbotFailed =>
       'Telegram kon niet worden geopend. Open lnp2pBot zelf in Telegram en plak hier wat hij je stuurt.';
+
+  @override
+  String get reputationIssuedByLnp2pbot => 'Uitgegeven door lnp2pBot';
+
+  @override
+  String reputationIssuedByMostro(String name) {
+    return 'Uitgegeven door de Mostro $name';
+  }
+
+  @override
+  String get reputationIssuedByUnknownKey =>
+      'Uitgegeven door een sleutel die deze app niet kent:';
 
   @override
   String get reputationIdentityHint =>
@@ -4795,14 +4877,31 @@ class AppLocalizationsNl extends AppLocalizations {
       'Je reputatie is klaar. Schakel over naar de Mostro waar je ze wilt en importeer ze; ze is 7 dagen geldig.';
 
   @override
+  String get reputationRebindTitle => 'Overstappen op een nieuwe identiteit';
+
+  @override
   String get reputationRebindBody =>
-      'Stap je over op een nieuwe identiteit? Onderteken hier een toestemming voor de nieuwe, met de identiteit waaraan je reputatie nu gekoppeld is. Plak die daarna vanaf de nieuwe identiteit in het toestemmingsveld hierboven en exporteer.';
+      'Onderteken een toestemming voor de nieuwe identiteit met de identiteit waaraan je reputatie nu gekoppeld is: voor deze Mostro, of voor lnp2pBot als je haar daar hebt opgehaald.';
 
   @override
   String get reputationNewIdentityHint => 'Nieuwe identiteit (npub of hex)';
 
   @override
+  String get reputationRebindSignNode => 'Ondertekenen voor deze Mostro';
+
+  @override
+  String get reputationRebindSignBot => 'Ondertekenen voor lnp2pBot';
+
+  @override
   String get reputationRebindSign => 'Toestemming ondertekenen';
+
+  @override
+  String get reputationRebindSignedForNode =>
+      'Plak die vanaf de nieuwe identiteit in het toestemmingsveld van de exportkaart en exporteer.';
+
+  @override
+  String get reputationRebindSignedForBot =>
+      'lnp2pBot neemt dit pas aan nadat de nieuwe identiteit je reputatie daar heeft opgevraagd: open, als je dat nog niet deed, lnp2pBot vanaf de nieuwe identiteit met „Ophalen bij lnp2pBot” op het importscherm, en open daarna geen andere link naar de bot. Plak dit dan in die chat en bevestig. Het is een uur geldig.';
 
   @override
   String get reputationInvalidIdentity =>
@@ -4819,6 +4918,11 @@ class AppLocalizationsNl extends AppLocalizations {
   @override
   String reputationRebindConfirmBody(String npub) {
     return 'Wie deze identiteit bezit, kan je reputatie van deze Mostro exporteren, en je huidige identiteit kan dat niet meer:\n\n$npub\n\nOnderteken alleen voor een identiteit die van jou is.';
+  }
+
+  @override
+  String reputationRebindConfirmBodyBot(String npub) {
+    return 'Wie deze identiteit bezit, kan je reputatie van lnp2pBot exporteren, en je huidige identiteit kan dat niet meer:\n\n$npub\n\nOnderteken alleen voor een identiteit die van jou is.';
   }
 
   @override
@@ -5019,5 +5123,16 @@ class AppLocalizationsNl extends AppLocalizations {
   @override
   String otherNodeCardSwitchPrompt(String nodeName) {
     return 'Wil je overschakelen naar node $nodeName?';
+  }
+
+  @override
+  String get stablecoinsGroupHeader => 'Stablecoins';
+
+  @override
+  String get bitcoinNetworksGroupHeader => 'Bitcoin op andere netwerken';
+
+  @override
+  String marketPriceNotQuotedByNode(String code) {
+    return 'Deze node geeft geen marktprijs voor $code. Stel een vast bedrag in sats in.';
   }
 }

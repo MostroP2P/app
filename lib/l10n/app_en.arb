@@ -1103,7 +1103,7 @@
   "@cancelTradeDialogContentAccept": {
     "description": "Body text for the cancel-trade confirmation dialog when the counterparty already asked to cancel: this cancel accepts theirs"
   },
-  "fiatSentFailed": "Failed to mark fiat as sent. Please try again.",
+  "fiatSentFailed": "Failed to mark the payment as sent. Please try again.",
   "@fiatSentFailed": {
     "description": "Snackbar shown when the fiat-sent action fails"
   },
@@ -1714,6 +1714,38 @@
   "@notifDisputeUpdatesSubtitle": {
     "description": "Subtitle of the dispute updates notification toggle"
   },
+  "notifAnnouncementsTitle": "Announcements",
+  "@notifAnnouncementsTitle": {
+    "description": "Title of the Announcements toggle in notification settings (specs/006)"
+  },
+  "notifAnnouncementsSubtitle": "Releases, outages and relay changes, signed by the Mostro project",
+  "@notifAnnouncementsSubtitle": {
+    "description": "Subtitle of the Announcements toggle"
+  },
+  "announcementsGroupSubtitle": "Announcements are read from the relays and never answered: nothing about you is sent.",
+  "@announcementsGroupSubtitle": {
+    "description": "Line above the Announcements toggle: the channel is one-way, nothing is reported back"
+  },
+  "announcementLevelInfo": "Announcement",
+  "@announcementLevelInfo": {
+    "description": "Label on an info-level announcement card (specs/006 §3.4)"
+  },
+  "announcementLevelWarning": "Notice",
+  "@announcementLevelWarning": {
+    "description": "Label on a warning-level announcement card"
+  },
+  "announcementLevelCritical": "Security update",
+  "@announcementLevelCritical": {
+    "description": "Label on a critical (security) announcement card"
+  },
+  "announcementOpenLink": "Open link",
+  "@announcementOpenLink": {
+    "description": "Button on an announcement card that opens its link externally"
+  },
+  "notificationsBellCritical": "Notifications, a security update is unread",
+  "@notificationsBellCritical": {
+    "description": "Semantic label of the bell while a critical announcement is unread"
+  },
   "searchCurrenciesHint": "Search currencies…",
   "@searchCurrenciesHint": {
     "description": "Hint text of the currency search field"
@@ -1806,7 +1838,7 @@
   "@tradeInstructionActiveBuyer": {
     "description": "Instruction for buyer while trade is active"
   },
-  "tradeInstructionFiatSentBuyer": "Fiat payment marked as sent. Waiting for the seller to confirm receipt and release your sats.",
+  "tradeInstructionFiatSentBuyer": "Payment marked as sent. Waiting for the seller to confirm receipt and release your sats.",
   "@tradeInstructionFiatSentBuyer": {
     "description": "Instruction for buyer after marking fiat sent"
   },
@@ -1814,7 +1846,7 @@
   "@tradeInstructionActiveSeller": {
     "description": "Instruction for seller while trade is active"
   },
-  "tradeInstructionFiatSentSeller": "The buyer has confirmed they sent the fiat payment. Once you verify receipt, release the sats.",
+  "tradeInstructionFiatSentSeller": "The buyer has confirmed they sent the payment. Once you verify receipt, release the sats.",
   "@tradeInstructionFiatSentSeller": {
     "description": "Instruction for seller after buyer marks fiat sent"
   },
@@ -1939,11 +1971,11 @@
   "@tradeStepInvoiceSeller": {
     "description": "Timeline step for seller: lock sats"
   },
-  "tradeStepFiatBuyer": "You send the fiat payment",
+  "tradeStepFiatBuyer": "You send the payment",
   "@tradeStepFiatBuyer": {
     "description": "Timeline step for buyer: send fiat"
   },
-  "tradeStepFiatSeller": "The buyer sends the fiat payment",
+  "tradeStepFiatSeller": "The buyer sends the payment",
   "@tradeStepFiatSeller": {
     "description": "Timeline step for seller: buyer sends fiat"
   },
@@ -3030,7 +3062,7 @@
   "@tradeChatClosedAnnouncement": {
     "description": "Screen-reader announcement when the trade screen's chat card turns closed while the user is on it (the completed trade's hour ran out); the messages stay readable"
   },
-  "tradeBodyWaitingPaymentBuyer": "The seller is locking the sats. Once they are locked, it's your turn to pay the fiat.",
+  "tradeBodyWaitingPaymentBuyer": "The seller is locking the sats. Once they are locked, it's your turn to pay.",
   "@tradeBodyWaitingPaymentBuyer": {
     "description": "Step body for the buyer while the seller pays the hold invoice"
   },
@@ -3055,6 +3087,69 @@
   "tradeBodyFiatSentSeller": "The buyer marked the payment as sent. Check your {method} account before releasing.",
   "@tradeBodyFiatSentSeller": {
     "description": "Step body for the seller once the buyer marked the fiat as sent; {method} is the payment method",
+    "placeholders": {
+      "method": {
+        "type": "String"
+      }
+    }
+  },
+  "tradeBodyActiveBuyerStablecoin": "Send it on {method}, to the address they shared in the chat: on another network it can be lost. Then paste the transaction ID in the chat (it is your proof in a dispute) and mark it below.",
+  "@tradeBodyActiveBuyerStablecoin": {
+    "description": "Step body for the buyer of an active stablecoin trade: send on the network the payment method names, then paste the transaction ID in the chat (app#884); {method} is the payment method",
+    "placeholders": {
+      "method": {
+        "type": "String"
+      }
+    }
+  },
+  "tradeBodyActiveSellerStablecoin": "Share your {method} address in the chat above.",
+  "@tradeBodyActiveSellerStablecoin": {
+    "description": "Step body for the seller of an active stablecoin trade: share the receiving address (app#884); {method} is the payment method",
+    "placeholders": {
+      "method": {
+        "type": "String"
+      }
+    }
+  },
+  "tradeBodyFiatSentSellerStablecoin": "The buyer marked the payment as sent. Before releasing, check that it reached your {method} address, with the transaction ID from the chat.",
+  "@tradeBodyFiatSentSellerStablecoin": {
+    "description": "Step body for the seller of a stablecoin trade once the buyer marked the payment as sent: check the transfer by its transaction ID (app#884); {method} is the payment method",
+    "placeholders": {
+      "method": {
+        "type": "String"
+      }
+    }
+  },
+  "tradeBodyActiveBuyerBtcPegged": "Send it on {method}, to the address they shared in the chat, with a fee high enough to confirm soon: the seller releases only once it has confirmed. Then paste the transaction ID in the chat (it is your proof in a dispute) and mark it below.",
+  "@tradeBodyActiveBuyerBtcPegged": {
+    "description": "Step body for the buyer of an active trade in bitcoin on another network (BTC on-chain or RBTC): pay a fee high enough to confirm well before the escrow deadline, worded for any chain, then paste the transaction ID (app#907); {method} is the payment method",
+    "placeholders": {
+      "method": {
+        "type": "String"
+      }
+    }
+  },
+  "tradeBodyActiveBuyerLiquid": "Send it on {method}, to the address they shared in the chat. Then paste the unblinded transaction link in the chat: Liquid hides the amount, and the link shows it to the seller and, in a dispute, to the solver. Mark it below.",
+  "@tradeBodyActiveBuyerLiquid": {
+    "description": "Step body for the buyer of an active L-BTC trade: Liquid transactions are confidential, so share the unblinded link that shows the amount (app#907); {method} is the payment method",
+    "placeholders": {
+      "method": {
+        "type": "String"
+      }
+    }
+  },
+  "tradeBodyFiatSentSellerBtcPegged": "The buyer marked the payment as sent. Release only once it has confirmed on {method}: check it with the transaction ID from the chat.",
+  "@tradeBodyFiatSentSellerBtcPegged": {
+    "description": "Step body for the seller of a trade in bitcoin on another network once the buyer marked it sent: release only after the transfer confirms (app#907); {method} is the payment method",
+    "placeholders": {
+      "method": {
+        "type": "String"
+      }
+    }
+  },
+  "tradeBodyFiatSentSellerLiquid": "The buyer marked the payment as sent. Release only once it has confirmed on {method}: check the amount with the unblinded link from the chat.",
+  "@tradeBodyFiatSentSellerLiquid": {
+    "description": "Step body for the seller of an L-BTC trade once the buyer marked it sent: release only after it confirms, checking the amount with the unblinded link (app#907); {method} is the payment method",
     "placeholders": {
       "method": {
         "type": "String"
@@ -4131,11 +4226,11 @@
   "@tradeCardWaitingTakerBondMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
   "tradeCardActiveTitle": "Trade active",
   "@tradeCardActiveTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
-  "tradeCardActiveMessage": "The sats are locked. The buyer can now send the fiat payment.",
+  "tradeCardActiveMessage": "The sats are locked. The buyer can now send the payment.",
   "@tradeCardActiveMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
-  "tradeCardFiatSentTitle": "Fiat marked as sent",
+  "tradeCardFiatSentTitle": "Payment marked as sent",
   "@tradeCardFiatSentTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
-  "tradeCardFiatSentMessage": "The buyer marked the fiat payment as sent.",
+  "tradeCardFiatSentMessage": "The buyer marked the payment as sent.",
   "@tradeCardFiatSentMessage": {"description": "Notifications card body for a trade status change (issue #474); role-neutral, both sides see it"},
   "tradeCardSettledHoldInvoiceTitle": "Sats released",
   "@tradeCardSettledHoldInvoiceTitle": {"description": "Notifications card title for a trade status change (issue #474); role-neutral, both sides see it"},
@@ -4569,7 +4664,7 @@
   "@tradeHeadlineWaitingPaymentSellerCashu": {"description": "Trade screen headline for the seller while it must lock the Cashu escrow (the hold-invoice step on a Cashu node)"},
   "tradeWaitingPaymentSellerInstructionCashu": "Lock your ecash in the escrow at the node's mint. That starts the trade, and it comes back to you if the node disappears.",
   "@tradeWaitingPaymentSellerInstructionCashu": {"description": "Trade screen instruction for the seller on a Cashu node: lock the escrow"},
-  "tradeBodyWaitingPaymentBuyerCashu": "They're locking the sats in escrow. Once it's locked, it's your turn to pay the fiat.",
+  "tradeBodyWaitingPaymentBuyerCashu": "They're locking the sats in escrow. Once it's locked, it's your turn to pay.",
   "@tradeBodyWaitingPaymentBuyerCashu": {"description": "Trade screen body for the buyer while the seller locks the Cashu escrow"},
   "shareChatKeyAction": "Share the chat key with the resolver",
   "@shareChatKeyAction": {"description": "Dispute chat app bar: tooltip of the action that sends the solver the peer chat key (#415)"},
@@ -4814,6 +4909,14 @@
   "@reputationInvalidAttestation": {
     "description": "Pasted text that is not a valid reputation attestation"
   },
+  "reputationExportFailed": "This Mostro could not export your reputation. Try again later.",
+  "@reputationExportFailed": {
+    "description": "Reputation screen: an export failed for a reason without a message of its own (#882)"
+  },
+  "reputationExportUnexpectedIssuer": "This Mostro signed the answer with a key other than the one it announced. Switch to another Mostro and back to refresh its info, then try again.",
+  "@reputationExportUnexpectedIssuer": {
+    "description": "Reputation screen: the export answer is signed by another key than the reputation_issuer the app read for the node, usually a stale info event (#882)"
+  },
   "@reputationImportTitle": {
     "description": "App bar title of the Import reputation screen"
   },
@@ -4838,6 +4941,23 @@
   },
   "@reputationFiguresNote": {
     "description": "Under the figures: imported reputation is merged with the one on this node"
+  },
+  "reputationIssuedByLnp2pbot": "Issued by lnp2pBot",
+  "@reputationIssuedByLnp2pbot": {
+    "description": "Import reputation screen, above the figures of a checked attestation: it was signed with lnp2pBot's issuer key (#881)"
+  },
+  "reputationIssuedByMostro": "Issued by the Mostro {name}",
+  "@reputationIssuedByMostro": {
+    "description": "Import reputation screen, above the figures: a known Mostro announces the issuer key; name is its cached profile name, or its npub (#881)",
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "reputationIssuedByUnknownKey": "Issued by a key this app does not know:",
+  "@reputationIssuedByUnknownKey": {
+    "description": "Import reputation screen, above the figures: neither lnp2pBot nor a known Mostro signs with the issuer key; its npub follows on the next line (#881)"
   },
   "reputationIdentityHint": "Before confirming in lnp2pBot, check that it shows this same public key:",
   "reputationUnavailable": "Unable to check whether reputation can be imported. Try again.",
@@ -4888,17 +5008,37 @@
   "@reputationExported": {
     "description": "Reputation screen, export card: shown above the exported reputation, which the user copies to import it on another Mostro node"
   },
-  "reputationRebindBody": "Moving to a new identity? Sign an authorization for it here, with the identity your reputation is bound to now. Then, from the new identity, paste it in the authorization field above and export.",
+  "reputationRebindTitle": "Move to a new identity",
+  "@reputationRebindTitle": {
+    "description": "Reputation screen: title of the card that signs an authorization to move an exported reputation to a new identity"
+  },
+  "reputationRebindBody": "Sign an authorization for the new identity with the identity your reputation is bound to now: for this Mostro, or for lnp2pBot if you got it from there.",
   "@reputationRebindBody": {
-    "description": "Reputation screen, export card: how to move the reputation to a new identity; above the new-identity field and the Sign authorization button"
+    "description": "Reputation screen, move card: how to move the reputation to a new identity; above the new-identity field and the two sign buttons"
   },
   "reputationNewIdentityHint": "New identity (npub or hex)",
   "@reputationNewIdentityHint": {
-    "description": "Reputation screen, export card: hint of the field for the public key (npub or hex) of the new identity to authorize"
+    "description": "Reputation screen, move card: hint of the field for the public key (npub or hex) of the new identity to authorize"
+  },
+  "reputationRebindSignNode": "Sign for this Mostro",
+  "@reputationRebindSignNode": {
+    "description": "Reputation screen, move card: button that signs the authorization for the active node's issuer key; shown only while the node exports"
+  },
+  "reputationRebindSignBot": "Sign for lnp2pBot",
+  "@reputationRebindSignBot": {
+    "description": "Reputation screen, move card: button that signs the authorization for lnp2pBot's issuer key"
   },
   "reputationRebindSign": "Sign authorization",
   "@reputationRebindSign": {
-    "description": "Reputation screen: button that signs an authorization for the new identity; also the confirm button of the dialog shown before signing"
+    "description": "Confirm button of the dialog shown before signing a rebind authorization"
+  },
+  "reputationRebindSignedForNode": "From the new identity, paste it in the authorization field of the export card and export.",
+  "@reputationRebindSignedForNode": {
+    "description": "Reputation screen, move card: shown above an authorization signed for the active node, which the new identity pastes into the export card"
+  },
+  "reputationRebindSignedForBot": "lnp2pBot takes this only after the new identity asked it for your reputation: if you have not yet, open lnp2pBot from the new identity with \"Get it from lnp2pBot\" on the import screen, and open no other link to it afterwards. Then paste this in that chat and confirm. It is valid for one hour.",
+  "@reputationRebindSignedForBot": {
+    "description": "Reputation screen, move card: shown above an authorization signed for lnp2pBot. The bot takes it only after the new identity opened the link from the import screen (lnp2pBot/bot#934). The quoted label is reputationOpenLnp2pbot"
   },
   "reputationInvalidIdentity": "That is not a valid npub or hex key.",
   "@reputationInvalidIdentity": {
@@ -4914,7 +5054,16 @@
   },
   "reputationRebindConfirmBody": "Whoever holds this identity will be able to export your reputation from this Mostro, and your current identity no longer will:\n\n{npub}\n\nSign only for an identity that is yours.",
   "@reputationRebindConfirmBody": {
-    "description": "Dialog body before signing a rebind authorization: the key that will take the reputation over",
+    "description": "Dialog body before signing a rebind authorization for the active node: the key that will take the reputation over",
+    "placeholders": {
+      "npub": {
+        "type": "String"
+      }
+    }
+  },
+  "reputationRebindConfirmBodyBot": "Whoever holds this identity will be able to export your reputation from lnp2pBot, and your current identity no longer will:\n\n{npub}\n\nSign only for an identity that is yours.",
+  "@reputationRebindConfirmBodyBot": {
+    "description": "Dialog body before signing a rebind authorization for lnp2pBot: the key that will take the reputation over",
     "placeholders": {
       "npub": {
         "type": "String"
@@ -5180,6 +5329,23 @@
     "description": "Notifications (#811): body of the dialog shown when the user taps a card whose trade is on another node; its primary action switches to that node and then opens what was tapped",
     "placeholders": {
       "nodeName": {
+        "type": "String"
+      }
+    }
+  },
+  "stablecoinsGroupHeader": "Stablecoins",
+  "@stablecoinsGroupHeader": {
+    "description": "Group header above the stablecoins in the currency pickers (create order, default currency, order book filter)"
+  },
+  "bitcoinNetworksGroupHeader": "Bitcoin on other networks",
+  "@bitcoinNetworksGroupHeader": {
+    "description": "Group header above bitcoin on other networks (BTC, LBTC, RBTC: order currencies pegged 1:1 to bitcoin, amounts in sats) in the currency pickers, after the stablecoins (app#907)"
+  },
+  "marketPriceNotQuotedByNode": "This node doesn't quote {code} at market price. Set a fixed amount in sats.",
+  "@marketPriceNotQuotedByNode": {
+    "description": "Under the Market | Fixed control when the node's rates event does not quote the selected stablecoin, so Market is locked",
+    "placeholders": {
+      "code": {
         "type": "String"
       }
     }

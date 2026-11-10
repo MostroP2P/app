@@ -30,6 +30,10 @@ pub const RATES_KIND: u16 = 30078;
 /// NIP-33 `d` tag identifying it.
 pub const RATES_D_TAG: &str = "mostro-rates";
 
+/// The rate a node publishes for a BTC-pegged code (`BTC`, `LBTC`, `RBTC`):
+/// 10⁸ units per BTC, a unit being a sat.
+pub const BTC_PEGGED_RATE: f64 = 100_000_000.0;
+
 /// Lifetime assumed for an event published without a NIP-40 `expiration` tag,
 /// and the ceiling clamped onto one that carries an implausibly distant value.
 ///
@@ -62,13 +66,20 @@ static SNAPSHOT: RwLock<Option<Snapshot>> = RwLock::new(None);
 /// nothing about the rest. `None` means nothing usable was found at all.
 ///
 /// Codes are upper-cased so a lookup never misses on capitalisation alone.
+///
+/// The inner `BTC` key means one of two things. A source's bitcoin-in-bitcoin
+/// self-rate (`1`) prices nothing and is dropped. On-chain bitcoin quoted as a
+/// BTC-pegged order currency, at [`BTC_PEGGED_RATE`], is a real quote and is
+/// kept (mostro `docs/PRICE_PROVIDERS.md` §11.9).
 pub fn parse_rates_content(content: &str) -> Option<HashMap<String, f64>> {
     let value: serde_json::Value = serde_json::from_str(content).ok()?;
     let table = value.get("BTC")?.as_object()?;
 
     let rates: HashMap<String, f64> = table
         .iter()
-        .filter(|(code, _)| code.as_str() != "BTC")
+        .filter(|(code, price)| {
+            !code.eq_ignore_ascii_case("BTC") || price.as_f64() == Some(BTC_PEGGED_RATE)
+        })
         .filter_map(|(code, price)| {
             let price = price.as_f64()?;
             (price.is_finite() && price > 0.0).then(|| (code.to_uppercase(), price))
@@ -131,12 +142,20 @@ pub fn store(node: &str, rates: HashMap<String, f64>, sources: Vec<String>, expi
 /// usable to answer with: no fetch yet, a snapshot belonging to another node,
 /// one that has expired by `now`, or a currency this node does not quote.
 pub fn cached_rate(node: &str, fiat_code: &str, now: i64) -> Option<f64> {
+    cached_lookup(node, fiat_code, now).flatten()
+}
+
+/// [`cached_rate`] with the two "nothing" cases told apart: the outer `None`
+/// is no usable snapshot for `node` (no fetch yet, another node's, expired by
+/// `now`); `Some(None)` is a usable table that quotes no such currency, which
+/// is what locks a stablecoin's Market price (app#884).
+pub fn cached_lookup(node: &str, fiat_code: &str, now: i64) -> Option<Option<f64>> {
     let guard = SNAPSHOT.read().unwrap_or_else(|e| e.into_inner());
     let snapshot = guard.as_ref()?;
     if snapshot.node != node || now >= snapshot.expires_at {
         return None;
     }
-    snapshot.rates.get(&fiat_code.to_uppercase()).copied()
+    Some(snapshot.rates.get(&fiat_code.to_uppercase()).copied())
 }
 
 /// The price providers `node` named for its cached table, or `None` when
@@ -196,6 +215,30 @@ mod tests {
         let rates = parse_rates_content(r#"{"BTC":{"BTC":1,"USD":50000.0}}"#).unwrap();
 
         assert_eq!(rates.len(), 1);
+        assert!(!rates.contains_key("BTC"));
+    }
+
+    #[test]
+    fn on_chain_btc_quoted_at_the_peg_is_kept() {
+        // A node that quotes bitcoin on other networks publishes on-chain BTC
+        // as the inner `BTC` entry at 10⁸ sats per BTC, next to LBTC and RBTC
+        // (#907). That is a quote, unlike a source's self-rate of 1.
+        for content in [
+            r#"{"BTC":{"BTC":100000000,"RBTC":100000000,"USD":50000.0}}"#,
+            r#"{"BTC":{"BTC":100000000.0,"RBTC":100000000.0,"USD":50000.0}}"#,
+        ] {
+            let rates = parse_rates_content(content).unwrap();
+
+            assert_eq!(rates.get("BTC"), Some(&100_000_000.0), "{content}");
+            assert_eq!(rates.get("RBTC"), Some(&100_000_000.0), "{content}");
+            assert_eq!(rates.get("USD"), Some(&50000.0), "{content}");
+        }
+    }
+
+    #[test]
+    fn an_inner_btc_that_is_neither_the_self_rate_nor_the_peg_is_dropped() {
+        let rates = parse_rates_content(r#"{"BTC":{"btc":2,"USD":50000.0}}"#).unwrap();
+
         assert!(!rates.contains_key("BTC"));
     }
 
@@ -283,6 +326,21 @@ mod tests {
 
         assert_eq!(cached_rate("node-a", "USD", 1_000), None);
         assert_eq!(cached_rate("node-a", "USD", 1_001), None);
+    }
+
+    /// The lookup tells "no usable table" from "a table without the code":
+    /// the first fails open, the second locks a stablecoin's Market (app#884).
+    #[test]
+    fn the_lookup_tells_no_table_from_a_table_without_the_code() {
+        let _guard = lock();
+        assert_eq!(cached_lookup("node-a", "USDT", 999), None);
+
+        store("node-a", usd(50_000.0), vec![], 1_000);
+
+        assert_eq!(cached_lookup("node-a", "USD", 999), Some(Some(50_000.0)));
+        assert_eq!(cached_lookup("node-a", "usdt", 999), Some(None));
+        assert_eq!(cached_lookup("node-b", "USD", 999), None);
+        assert_eq!(cached_lookup("node-a", "USD", 1_000), None);
     }
 
     #[test]

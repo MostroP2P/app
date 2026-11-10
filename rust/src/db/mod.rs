@@ -85,6 +85,13 @@ pub mod settings_keys {
     /// unix seconds of the `403`; each entry clears per §7.1.
     pub const PUSH_NODE_REFUSALS: &str = "push_node_refusals";
 
+    // ── Announcements (specs/006-announcement-channel §7) ────────────────────
+
+    /// The Announcements toggle, `"true"` / `"false"`; absent reads as
+    /// enabled. Device-scoped, like the push toggle: it says whether this
+    /// install opens the announcement subscription, not anything about a user.
+    pub const ANNOUNCEMENTS_ENABLED: &str = "announcements_enabled";
+
     /// User-added Mostro nodes, JSON array of `crate::api::nodes::CustomNode`.
     /// The trusted registry is compiled in (`crate::config::TRUSTED_MOSTRO_NODES`);
     /// only user additions are persisted.
@@ -189,6 +196,20 @@ pub mod settings_keys {
     /// dispute solver. Persisted so a restart never offers to send it twice.
     pub fn dispute_key_shared(order_id: &str) -> String {
         format!("{DISPUTE_KEY_SHARED_PREFIX}{order_id}")
+    }
+
+    /// Every persisted key of `order_id`'s dispute: what
+    /// `api::disputes::clear_dispute_keys` deletes, and what rehydration
+    /// looks for on a finished order. One list, so a key added to it is both
+    /// cleared and swept.
+    pub fn dispute_keys(order_id: &str) -> [String; 5] {
+        [
+            dispute_admin(order_id),
+            dispute_admin_at(order_id),
+            dispute_node(order_id),
+            dispute_mine(order_id),
+            dispute_key_shared(order_id),
+        ]
     }
 
     /// Per-order status replay cursor — the `created_at` (unix seconds,

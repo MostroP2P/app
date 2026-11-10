@@ -39,6 +39,7 @@ import 'package:mostro/l10n/app_localizations_en.dart';
 import 'package:mostro/shared/utils/platform_int64.dart';
 import 'package:mostro/src/rust/api/types.dart';
 
+import '../../support/catalogue_fixtures.dart';
 import '../../support/fake_orders.dart';
 import '../../support/fake_payout.dart';
 import '../../support/fake_trades.dart';
@@ -461,6 +462,264 @@ void main() {
       expect(_outlinedButtonWithText(_en.openDisputeButton), findsOneWidget);
       expect(_outlinedButtonWithText(_en.releaseSatsButton), findsNothing);
       expect(find.text(_en.tradeTimerYouHave), findsOneWidget);
+    });
+  });
+
+  // A coin sent on another network than the one agreed can be lost, and in
+  // a dispute its transaction ID is the buyer's proof of the transfer (#884).
+  group('bitcoin on another network waits for confirmations (#907)', () {
+    Future<void> pumpNetworkTrade(
+      WidgetTester tester, {
+      required bool isBuyer,
+      required OrderStatus status,
+      required String fiatCode,
+      required String paymentMethod,
+    }) => _pumpTradeDetail(
+      tester,
+      orderId: 'order-net',
+      isBuyer: isBuyer,
+      status: status,
+      book: [
+        fakeOrder(
+          id: 'order-net',
+          fiatCode: fiatCode,
+          fiatAmount: 100000,
+          paymentMethod: paymentMethod,
+        ),
+      ],
+      extraOverrides: [catalogueOverride()],
+    );
+
+    testWidgets('the buyer pays a fee that confirms in time', (tester) async {
+      const method = 'RBTC (Rootstock)';
+      await pumpNetworkTrade(
+        tester,
+        isBuyer: true,
+        status: OrderStatus.active,
+        fiatCode: 'RBTC',
+        paymentMethod: method,
+      );
+
+      expect(
+        find.text(
+          _en.tradeBodyActiveBuyerBtcPegged(method),
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a Liquid buyer shares the unblinded link', (tester) async {
+      const method = 'LBTC (Liquid)';
+      await pumpNetworkTrade(
+        tester,
+        isBuyer: true,
+        status: OrderStatus.active,
+        fiatCode: 'LBTC',
+        paymentMethod: method,
+      );
+
+      expect(
+        find.text(_en.tradeBodyActiveBuyerLiquid(method), findRichText: true),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('the seller shares an address on the network', (tester) async {
+      const method = 'BTC (On-chain)';
+      await pumpNetworkTrade(
+        tester,
+        isBuyer: false,
+        status: OrderStatus.active,
+        fiatCode: 'BTC',
+        paymentMethod: method,
+      );
+
+      expect(
+        find.text(
+          _en.tradeBodyActiveSellerStablecoin(method),
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('the seller releases only once it confirmed', (tester) async {
+      const method = 'RBTC (Rootstock)';
+      await pumpNetworkTrade(
+        tester,
+        isBuyer: false,
+        status: OrderStatus.fiatSent,
+        fiatCode: 'RBTC',
+        paymentMethod: method,
+      );
+
+      expect(
+        find.text(
+          _en.tradeBodyFiatSentSellerBtcPegged(method),
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a Liquid seller checks the amount by the unblinded link', (
+      tester,
+    ) async {
+      const method = 'LBTC (Liquid)';
+      await pumpNetworkTrade(
+        tester,
+        isBuyer: false,
+        status: OrderStatus.fiatSent,
+        fiatCode: 'LBTC',
+        paymentMethod: method,
+      );
+
+      expect(
+        find.text(
+          _en.tradeBodyFiatSentSellerLiquid(method),
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+    });
+  });
+
+  group('a stablecoin trade names the network and the transaction ID', () {
+    const method = 'USDT (Tron)';
+
+    Future<void> pumpCoinTrade(
+      WidgetTester tester, {
+      required bool isBuyer,
+      required OrderStatus status,
+      String fiatCode = 'USDT',
+      String paymentMethod = method,
+    }) => _pumpTradeDetail(
+      tester,
+      orderId: 'order-coin',
+      isBuyer: isBuyer,
+      status: status,
+      book: [
+        fakeOrder(
+          id: 'order-coin',
+          fiatCode: fiatCode,
+          paymentMethod: paymentMethod,
+        ),
+      ],
+      extraOverrides: [catalogueOverride()],
+    );
+
+    testWidgets('the buyer sends on the network and pastes the ID', (
+      tester,
+    ) async {
+      await pumpCoinTrade(tester, isBuyer: true, status: OrderStatus.active);
+
+      expect(
+        find.text(
+          _en.tradeBodyActiveBuyerStablecoin(method),
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('the seller shares an address on the network', (tester) async {
+      await pumpCoinTrade(tester, isBuyer: false, status: OrderStatus.active);
+
+      expect(
+        find.text(
+          _en.tradeBodyActiveSellerStablecoin(method),
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('the seller checks the transfer before releasing', (
+      tester,
+    ) async {
+      await pumpCoinTrade(tester, isBuyer: false, status: OrderStatus.fiatSent);
+
+      expect(
+        find.text(
+          _en.tradeBodyFiatSentSellerStablecoin(method),
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('the row names the network once the order left the book', (
+      tester,
+    ) async {
+      // Arrange + Act: a taken order can leave the book; its row stays.
+      await _pumpTradeDetail(
+        tester,
+        orderId: 'order-coin',
+        isBuyer: true,
+        status: OrderStatus.active,
+        trades: [
+          fakeTrade(id: 'coin', fiatCode: 'USDT', paymentMethod: method),
+        ],
+        extraOverrides: [catalogueOverride()],
+      );
+
+      // Assert
+      expect(
+        find.text(
+          _en.tradeBodyActiveBuyerStablecoin(method),
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a row restored without its method reads the book', (
+      tester,
+    ) async {
+      // Arrange + Act: a restore with no book entry writes an empty method.
+      await _pumpTradeDetail(
+        tester,
+        orderId: 'order-coin',
+        isBuyer: true,
+        status: OrderStatus.active,
+        trades: [fakeTrade(id: 'coin', fiatCode: 'USDT', paymentMethod: '')],
+        book: [
+          fakeOrder(id: 'order-coin', fiatCode: 'USDT', paymentMethod: method),
+        ],
+        extraOverrides: [catalogueOverride()],
+      );
+
+      // Assert
+      expect(
+        find.text(
+          _en.tradeBodyActiveBuyerStablecoin(method),
+          findRichText: true,
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('a fiat trade keeps its copy', (tester) async {
+      await pumpCoinTrade(
+        tester,
+        isBuyer: true,
+        status: OrderStatus.active,
+        fiatCode: 'USD',
+        paymentMethod: 'Zelle',
+      );
+
+      expect(
+        find.text(_en.tradeBodyActiveBuyer('Zelle'), findRichText: true),
+        findsOneWidget,
+      );
+      expect(
+        find.text(
+          _en.tradeBodyActiveBuyerStablecoin('Zelle'),
+          findRichText: true,
+        ),
+        findsNothing,
+      );
     });
   });
 

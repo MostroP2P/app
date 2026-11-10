@@ -205,6 +205,113 @@ void main() {
     });
   });
 
+  group('release zapstore job', () {
+    test('runs only once the GitHub release is published', () {
+      // Arrange
+      final zapstore = job('zapstore');
+
+      // Assert — zsp reads the APK from the latest GitHub release, so it has
+      // nothing to publish until that release exists.
+      expect(zapstore, contains('needs: [prepare, publish]'));
+      expect(zapstore, contains("needs.publish.result == 'success'"));
+    });
+
+    test('publishes only while its tag is the latest GitHub release', () {
+      // Arrange
+      final zapstore = job('zapstore');
+
+      // Assert — zsp always takes the latest release, so a re-run of an older
+      // tag would list the newest APK with the older tag's zapstore.yaml.
+      expect(zapstore, contains('gh release view --json tagName'));
+      expect(zapstore, contains(r'TAG: ${{ needs.prepare.outputs.tag }}'));
+      expect(zapstore, contains(r'if [ "$latest" = "$TAG" ]; then'));
+      expect(zapstore, contains(r'echo "publish=true" >> "$GITHUB_OUTPUT"'));
+      expect(zapstore, contains(r'echo "publish=false" >> "$GITHUB_OUTPUT"'));
+      expect(
+        zapstore.split("if: steps.latest.outputs.publish == 'true'").length - 1,
+        3,
+        reason: 'the secret check, installing and running zsp wait for it',
+      );
+    });
+
+    test('a skipped re-run does not need the secret', () {
+      // Arrange
+      final zapstore = job('zapstore');
+
+      // Assert — a re-run of an older tag is skipped with a warning, even
+      // when ZAPSTORE_SIGN_WITH is missing.
+      expect(
+        zapstore.indexOf('name: Check this is the latest release'),
+        lessThan(zapstore.indexOf('name: Check Zapstore secret')),
+      );
+    });
+
+    test('zapstore.yaml names the publisher, so zsp refuses another key', () {
+      // Act
+      final config = File('zapstore.yaml').readAsStringSync();
+
+      // Assert — the listing and its certificate proof belong to this key; any
+      // other would publish a second, unrelated Mostro.
+      expect(
+        config,
+        contains(
+          'pubkey: '
+          'npub1m0str0kss9282qw6mlslgrdgagw8n63qy9qagtv26ar0p7k282dqx30dna',
+        ),
+      );
+    });
+
+    test(
+      'sees the signing key only from a release tag, with no write token',
+      () {
+        // Arrange
+        final zapstore = job('zapstore');
+
+        // Assert — the key signs as Mostro on Zapstore: it lives in the
+        // `release` environment, which admits only `v*.*.*` tags.
+        expect(zapstore, contains('environment: release'));
+        expect(zapstore, isNot(contains(': write')));
+        expect(
+          release.split('secrets.ZAPSTORE_SIGN_WITH').length - 1,
+          zapstore.split('secrets.ZAPSTORE_SIGN_WITH').length - 1,
+          reason: 'only the zapstore job may read ZAPSTORE_SIGN_WITH',
+        );
+      },
+    );
+
+    test('runs a pinned zsp, checked against its checksum', () {
+      // Arrange
+      final zapstore = job('zapstore');
+
+      // Assert — the binary runs with the key in its environment.
+      expect(
+        RegExp(r'ZSP_VERSION: "\d+\.\d+\.\d+"').hasMatch(zapstore),
+        isTrue,
+      );
+      expect(RegExp(r'ZSP_SHA256: "[0-9a-f]{64}"').hasMatch(zapstore), isTrue);
+      expect(zapstore, contains('sha256sum --check --strict'));
+    });
+
+    test('hands the key to zsp through the environment, never argv', () {
+      // Arrange
+      final zapstore = job('zapstore');
+
+      // Assert
+      expect(
+        zapstore,
+        contains(r'SIGN_WITH: ${{ secrets.ZAPSTORE_SIGN_WITH }}'),
+      );
+      expect(zapstore, contains('run: zsp publish --quiet zapstore.yaml\n'));
+      expect(RegExp(r'\$\{?SIGN_WITH\b').hasMatch(zapstore), isFalse);
+    });
+
+    test('does not hold back the changelog PR', () {
+      // Assert — the GitHub release is out either way; CHANGELOG.md records
+      // it whether or not Zapstore took it.
+      expect(job('changelog'), contains('needs: [prepare, publish]'));
+    });
+  });
+
   group('macOS sandbox', () {
     test('lets the app open outgoing connections', () {
       // Assert — the app is sandboxed, and a sandboxed app without this

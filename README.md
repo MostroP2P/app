@@ -30,7 +30,7 @@ No accounts, no KYC, and nobody ever holds your funds.
 
 <br>
 
-<img src="docs/zapstore/01_hero.png" width="33%" alt="The Mostro order book"><img src="docs/zapstore/02_hero.png" width="33%" alt="An encrypted chat with the other trader"><img src="docs/zapstore/03_hero.png" width="33%" alt="The hold invoice that locks the seller's sats">
+<img src="docs/zapstore/01_hero.jpg" width="33%" alt="The Mostro order book"><img src="docs/zapstore/02_hero.jpg" width="33%" alt="An encrypted chat with the other trader"><img src="docs/zapstore/03_hero.jpg" width="33%" alt="The hold invoice that locks the seller's sats">
 
 </div>
 
@@ -73,14 +73,14 @@ Mostro App is the official cross-platform client for the [Mostro](https://mostro
 ## Screenshots
 
 <p align="center">
-  <img src="docs/zapstore/04_book.png" width="30%" alt="Order book: buy and sell Bitcoin, peer to peer">
-  <img src="docs/zapstore/05_create.png" width="30%" alt="Create orders: your price, your payment methods">
-  <img src="docs/zapstore/06_escrow.png" width="30%" alt="Lightning escrow: sats locked in a hold invoice until the trade settles">
+  <img src="docs/zapstore/04_book.jpg" width="30%" alt="Order book: buy and sell Bitcoin, peer to peer">
+  <img src="docs/zapstore/05_create.jpg" width="30%" alt="Create orders: your price, your payment methods">
+  <img src="docs/zapstore/06_escrow.jpg" width="30%" alt="Lightning escrow: sats locked in a hold invoice until the trade settles">
 </p>
 <p align="center">
-  <img src="docs/zapstore/07_chat.png" width="30%" alt="Private chat: encrypted over Nostr, no phone number">
-  <img src="docs/zapstore/08_trades.png" width="30%" alt="My trades: know what each trade needs next">
-  <img src="docs/zapstore/09_nodes.png" width="30%" alt="Choose your node: no central server to shut down">
+  <img src="docs/zapstore/07_chat.jpg" width="30%" alt="Private chat: encrypted over Nostr, no phone number">
+  <img src="docs/zapstore/08_trades.jpg" width="30%" alt="My trades: know what each trade needs next">
+  <img src="docs/zapstore/09_nodes.jpg" width="30%" alt="Choose your node: no central server to shut down">
 </p>
 
 ---
@@ -113,6 +113,7 @@ Status of the client's features across the Rust core and the Flutter UI.
 - [x] Range orders (create / take a slice / remainder republished)
 - [x] Cooperative cancellation (request / accept, with a notice for each side)
 - [x] In-app notifications (trade, dispute and chat events)
+- [x] Announcements — signed notices from the project (kind `38387`) in Notifications, with an off switch; see `docs/ANNOUNCEMENTS.md`
 - [x] Anti-abuse bond
 - [x] Multi-language (en, de, es, fr, it, nl, pt)
 - [x] Log report (Rust core logs, shared as a sanitized text report)

@@ -16,7 +16,6 @@ class OrderBookList extends StatelessWidget {
   const OrderBookList({
     super.key,
     required this.orders,
-    required this.currencyFlags,
     required this.reasons,
     required this.columns,
     required this.onOrderTap,
@@ -25,7 +24,6 @@ class OrderBookList extends StatelessWidget {
   /// Already filtered and sorted — newest first by default, which is what
   /// makes an arriving order shift every row below it.
   final List<OrderItem> orders;
-  final Map<String, String> currencyFlags;
   final Map<String, OrderReason> reasons;
   final int columns;
   final void Function(String orderId) onOrderTap;
@@ -131,7 +129,6 @@ class OrderBookList extends StatelessWidget {
   Widget _card(OrderItem order) => OrderListItem(
     key: ValueKey(order.id),
     order: order,
-    currencyFlags: currencyFlags,
     reason: reasons[order.id],
     onTap: () => onOrderTap(order.id),
   );

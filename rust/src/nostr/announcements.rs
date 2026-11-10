@@ -20,15 +20,24 @@ pub const KIND_ANNOUNCEMENT: u16 = 38387;
 
 /// The keys allowed to publish announcements, as `npub`s (§4.1).
 ///
-/// **Empty on purpose.** An empty allowlist means no authors, and no authors
-/// means no subscription: every step of the feature can merge without the
-/// channel being live. Filling it is a one-line commit of its own, with each
-/// `npub` checked against a source outside this repo.
+/// Three project keys, handed over by the maintainer on 2026-10-23 and held
+/// equal to their hex form by `the_shipped_allowlist_is_the_project_keys`,
+/// so a one-character slip in an `npub` cannot quietly swap a publisher.
+/// Changing this list is a one-line commit of its own, with each `npub`
+/// checked against a source outside this repo. An empty list means no
+/// authors, and no authors means no subscription.
 ///
 /// Never a maintainer's personal key, a Mostro node key, or a key the app
 /// derives (`m/44'/1237'/38383'/0/N`). `npub` rather than hex because it is
 /// what a reviewer compares with the published value.
-const ALLOWLIST: &[&str] = &[];
+const ALLOWLIST: &[&str] = &[
+    // 00005b73d9f868d7ed4ab555c1d34e462608a4e0d0c93f27cd95ad5470911b8b
+    "npub1qqq9ku7elp5d0m22k42ur56wgcnq3f8q6ryn7f7djkk4guy3rw9su9q2k5",
+    // 000021340198eb372618e44309a705dec3e6c084a121076de0fde5c7b786aa00
+    "npub1qqqzzdqpnr4nwfscu3psnfc9mmp7dsyy5ysswm0qlhju0dux4gqqzurqvu",
+    // 0000025590337c61ed410aa017fee518cf86c9047b406fbd56f036dc040cc14f
+    "npub1qqqqy4vsxd7xrm2pp2sp0lh9rr8cdjgy0dqxl02k7qmdcpqvc98s0x0lqw",
+];
 
 /// The locales every announcement carries, all of them and no others (§3.2).
 /// They are the app's locales — `lib/l10n/app_*.arb` — and change with them.
@@ -566,6 +575,22 @@ mod tests {
     #[test]
     fn the_shipped_allowlist_decodes_in_full() {
         assert_eq!(allowed_authors().len(), ALLOWLIST.len());
+    }
+
+    /// The `npub`s above, in the hex form the keys were handed over in: a
+    /// bech32 typo that still decodes would otherwise trust a stranger.
+    #[test]
+    fn the_shipped_allowlist_is_the_project_keys() {
+        let hex: Vec<String> = allowed_authors().iter().map(|k| k.to_hex()).collect();
+
+        assert_eq!(
+            hex,
+            [
+                "00005b73d9f868d7ed4ab555c1d34e462608a4e0d0c93f27cd95ad5470911b8b",
+                "000021340198eb372618e44309a705dec3e6c084a121076de0fde5c7b786aa00",
+                "0000025590337c61ed410aa017fee518cf86c9047b406fbd56f036dc040cc14f",
+            ]
+        );
     }
 
     #[test]

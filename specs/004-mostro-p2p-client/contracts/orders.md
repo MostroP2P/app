@@ -220,7 +220,7 @@ if connected. Merges local cache with relay data.
 ```text
 OrderFilters {
   kind: OrderKind?          # Buy or Sell
-  fiat_code: String?        # ISO 4217 filter
+  fiat_code: String?        # Currency filter: ISO 4217 fiat or stablecoin code
   payment_method: String?   # Payment method filter
 }
 ```
@@ -281,7 +281,7 @@ NewOrderParams {
   fiat_amount: f64?           # Fixed amount in fiat (null if range)
   fiat_amount_min: f64?       # Min amount for range orders (null if fixed)
   fiat_amount_max: f64?       # Max amount for range orders (null if fixed)
-  fiat_code: String           # ISO 4217 code
+  fiat_code: String           # ISO 4217 fiat or stablecoin code (e.g. "USDT")
   payment_method: String      # Payment method description
   premium: f64                # Price premium/discount %
   amount_sats: u64?           # Optional fixed sat amount
@@ -294,14 +294,34 @@ NewOrderParams {
 - If range: `amount_sats` MUST be absent (not even `0`) — a range is priced at
   market when taken, and mostro-core refuses one with sats. Fails with
   `RangeOrderWithSats`.
-- `fiat_code` MUST be valid ISO 4217
-- `payment_method` MUST not be empty
+- `fiat_code` MUST be a currency code of 3 to 5 uppercase ASCII letters: an
+  ISO 4217 fiat, or a stablecoin code from the catalogue (`USDT`, `USDC`,
+  `DOC`; app#884). The node's accepted-currency list decides the rest.
+- A market-priced order (`amount_sats` absent, a range order always) in a
+  stablecoin needs the node to quote the coin: a node whose rates event
+  (`lookup_exchange_rate` → `ExchangeRateLookup::NotQuoted`) lists no price
+  for it refuses every market order in the coin (mostrod
+  `docs/PRICE_PROVIDERS.md` §11.8). The create-order screen locks Market —
+  and range mode with it — on `NotQuoted`, and holds Publish on a market
+  order while the lookup is pending — after a node change too, until the
+  new node answers: the previous node's answer says nothing about it.
+  `NoRates` (no event at all) and every fiat stay as before: the pre-check
+  fails open and the daemon decides.
+- `payment_method` MUST not be empty. The create-order picker suggests the
+  currency's list from `assets/data/payment_methods.json`, the `default` one
+  for a fiat without its own. A stablecoin always has its own, and every
+  entry names the network (`DOC (Rootstock)`, `USDT (Tron)`; app#884): a
+  coin sent on the wrong chain can be lost. A free-text method stays
+  possible.
 - The amount is checked against the node's advertised `min_order_amount` /
   `max_order_amount` before anything is sent: directly for a fixed
   `amount_sats` (#282), and for a market-price order by converting every fiat
   amount the daemon will price — both ends of a range order — at the rate the
-  node publishes (`fetch_exchange_rate` in `nostr.md`), truncating as the
-  daemon does (#337). The fiat amount is first normalised to the whole unit the
+  node publishes (`fetch_exchange_rate` in `nostr.md`), rounding to the
+  nearest sat as the daemon does since MostroP2P/mostro#1090 (#337). An
+  older daemon truncates instead, a sat lower at most, so an amount is
+  refused only when both conversions put it out of range. The fiat amount is
+  first normalised to the whole unit the
   wire carries (`new_order` casts it to `i64`), so the check judges the amount
   the daemon actually receives rather than the decimal the user typed
 

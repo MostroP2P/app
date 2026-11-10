@@ -61,6 +61,29 @@ void main() {
       expect(drift, isEmpty);
     });
 
+    // A stablecoin trade is paid in a coin, not in fiat (#884): what a trade
+    // says about the buyer's leg calls it the payment, as its action does.
+    test('$locale: the buyer\'s leg of a trade is the payment, not fiat', () {
+      final strings = arb(locale);
+      const leg = [
+        'tradeStepFiatBuyer',
+        'tradeStepFiatSeller',
+        'tradeBodyWaitingPaymentBuyer',
+        'tradeBodyWaitingPaymentBuyerCashu',
+        'tradeInstructionFiatSentBuyer',
+        'tradeInstructionFiatSentSeller',
+        'tradeCardActiveMessage',
+        'tradeCardFiatSentTitle',
+        'tradeCardFiatSentMessage',
+        'fiatSentFailed',
+      ];
+      final drift = {
+        for (final key in leg)
+          if (strings[key]!.toLowerCase().contains('fiat')) key: strings[key],
+      };
+      expect(drift, isEmpty);
+    });
+
     test('$locale: the hold invoice is explained, not named as a term', () {
       final strings = arb(locale);
       for (final key in ['invoiceHoldNote', 'bondWhyHold']) {

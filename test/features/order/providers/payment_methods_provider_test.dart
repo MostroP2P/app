@@ -45,10 +45,15 @@ void main() {
 
   group('shipped payment_methods.json contract', () {
     late Map<String, dynamic> shipped;
+    late List<Map<String, dynamic>> catalogue;
     setUpAll(() {
       shipped = jsonDecode(
         File('assets/data/payment_methods.json').readAsStringSync(),
       ) as Map<String, dynamic>;
+      catalogue =
+          (jsonDecode(File('assets/data/fiat.json').readAsStringSync())
+                  as List<dynamic>)
+              .cast<Map<String, dynamic>>();
     });
 
     test('ships a default fallback plus many currencies', () {
@@ -77,16 +82,63 @@ void main() {
     test('every currency with its own methods can be picked', () {
       // A code missing from fiat.json is never offered, so its methods are
       // never seen (MLC had both, and only the methods shipped).
-      final catalogue = (jsonDecode(
-                File('assets/data/fiat.json').readAsStringSync(),
-              )
-              as List<dynamic>)
-          .map((c) => (c as Map<String, dynamic>)['code'] as String)
-          .toSet();
+      final codes = catalogue.map((c) => c['code'] as String).toSet();
       expect(
-        shipped.keys.where((k) => k != 'default' && !catalogue.contains(k)),
+        shipped.keys.where((k) => k != 'default' && !codes.contains(k)),
         isEmpty,
       );
+    });
+
+    test('every stablecoin has its own methods, each naming the network', () {
+      // A coin sent on the wrong network can be lost, so a stablecoin never
+      // falls back to the fiat `default` list, and every method says which
+      // chain the coin travels on: "USDT (Tron)" (#884).
+      final coins = [
+        for (final c in catalogue)
+          if (c['peg'] != null) c['code'] as String,
+      ];
+      expect(coins, isNotEmpty);
+      for (final code in coins) {
+        expect(shipped.keys, contains(code), reason: '$code has no methods');
+        final methods = (shipped[code] as List).cast<String>();
+        expect(methods, isNotEmpty, reason: code);
+        expect(
+          methods,
+          everyElement(
+            matches(RegExp('^${RegExp.escape(code)} \\([^()]+\\)\$')),
+          ),
+          reason: code,
+        );
+      }
+    });
+
+    test('bitcoin on other networks names its one network (#907)', () {
+      // The code already names the network, so each has one method, written
+      // `<CODE> (<Network>)` as the protocol book's page asks.
+      const methods = {
+        'BTC': ['BTC (On-chain)'],
+        'LBTC': ['LBTC (Liquid)'],
+        'RBTC': ['RBTC (Rootstock)'],
+      };
+      methods.forEach((code, expected) {
+        expect((shipped[code] as List).cast<String>(), expected, reason: code);
+      });
+    });
+
+    test('each coin is offered on the networks of #884', () {
+      // The order is the picker's, not part of the contract.
+      const networks = {
+        'DOC': ['Rootstock'],
+        'USDC': ['Ethereum', 'Base', 'Solana', 'Polygon'],
+        'USDT': ['Tron', 'Ethereum', 'Polygon', 'Solana', 'Liquid'],
+      };
+      networks.forEach((code, chains) {
+        expect(
+          (shipped[code] as List).cast<String>(),
+          unorderedEquals([for (final chain in chains) '$code ($chain)']),
+          reason: code,
+        );
+      });
     });
   });
 }

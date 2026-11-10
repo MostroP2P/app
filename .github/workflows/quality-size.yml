@@ -1,0 +1,47 @@
+name: Pull request size
+
+# The contribution quality bar's size check (docs/CONTRIBUTION_QUALITY_SPEC.md
+# § 7.6): counts a pull request's changed lines, not counting tests,
+# generated files and docs, labels it `quality:too-large` over the limit and
+# keeps one comment with the breakdown. It informs; it never blocks or closes.
+#
+# pull_request_target runs this workflow and its scripts as they are on
+# `main`, with a write token. That is safe only because nothing here checks
+# out or runs pull request code: the changed files, their patches and the
+# Rust sources come from the API as data.
+
+on:
+  pull_request_target:
+    # labeled/unlabeled only matter for `size:exempt` (see the job's if).
+    types: [opened, reopened, synchronize, ready_for_review, labeled, unlabeled]
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+  # The neutral "Pull request size" check run on the head commit.
+  checks: write
+
+jobs:
+  size:
+    name: Size
+    if: >-
+      (github.event.action != 'labeled' && github.event.action != 'unlabeled')
+      || github.event.label.name == 'size:exempt'
+    # On the job, not the workflow: a skipped run (any other label event)
+    # must not join the group and cancel a real check.
+    concurrency:
+      group: quality-size-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # The base branch, never the pull request's head or merge ref.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - name: Check size
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: python3 .github/quality/run_size_check.py

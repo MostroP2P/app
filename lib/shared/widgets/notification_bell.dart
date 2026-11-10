@@ -62,10 +62,9 @@ class _NotificationBellState extends ConsumerState<NotificationBell>
       TweenSequenceItem(tween: Tween(begin: 6.0, end: -6.0), weight: 2),
       TweenSequenceItem(tween: Tween(begin: -6.0, end: 6.0), weight: 2),
       TweenSequenceItem(tween: Tween(begin: 6.0, end: 0.0), weight: 1),
-    ]).animate(CurvedAnimation(
-      parent: _shakeController,
-      curve: Curves.easeInOut,
-    ),);
+    ]).animate(
+      CurvedAnimation(parent: _shakeController, curve: Curves.easeInOut),
+    );
   }
 
   @override
@@ -82,8 +81,12 @@ class _NotificationBellState extends ConsumerState<NotificationBell>
   Widget build(BuildContext context) {
     final backupActive = ref.watch(backupReminderProvider);
     final unreadCount = ref.watch(unreadNotificationCountProvider);
+    // A security announcement outranks the count (specs/006 §3.4): the dot
+    // turns red, as for the backup reminder.
+    final criticalUnread = ref.watch(unreadCriticalAnnouncementProvider);
+    final redDot = backupActive || criticalUnread;
 
-    final isActive = backupActive || unreadCount > 0;
+    final isActive = redDot || unreadCount > 0;
 
     // Trigger shake whenever the indicator becomes active.
     ref.listen<bool>(backupReminderProvider, (prev, next) {
@@ -94,9 +97,14 @@ class _NotificationBellState extends ConsumerState<NotificationBell>
     });
 
     final l10n = AppLocalizations.of(context);
-    final semanticLabel = !isActive
-        ? l10n.notificationsBellNoUnread
-        : backupActive
+    // With both behind the red dot, the label names the security update:
+    // it sorts above everything on the screen the bell opens (§3.4).
+    final semanticLabel =
+        !isActive
+            ? l10n.notificationsBellNoUnread
+            : criticalUnread
+            ? l10n.notificationsBellCritical
+            : backupActive
             ? l10n.notificationsBellBackupActive
             : l10n.notificationsBellUnread(unreadCount);
 
@@ -108,10 +116,11 @@ class _NotificationBellState extends ConsumerState<NotificationBell>
         onPressed: () => context.push(AppRoute.notifications),
         icon: AnimatedBuilder(
           animation: _shakeAnimation,
-          builder: (context, child) => Transform.translate(
-            offset: Offset(_shakeAnimation.value, 0),
-            child: child,
-          ),
+          builder:
+              (context, child) => Transform.translate(
+                offset: Offset(_shakeAnimation.value, 0),
+                child: child,
+              ),
           child: Stack(
             clipBehavior: Clip.none,
             children: [
@@ -124,12 +133,13 @@ class _NotificationBellState extends ConsumerState<NotificationBell>
                 Positioned(
                   top: -2,
                   right: -2,
-                  child: backupActive
-                      ? _RedDot(
-                          color: widget.dotColor,
-                          ringColor: widget.dotRingColor,
-                        )
-                      : _CountBadge(count: unreadCount),
+                  child:
+                      redDot
+                          ? _RedDot(
+                            color: widget.dotColor,
+                            ringColor: widget.dotRingColor,
+                          )
+                          : _CountBadge(count: unreadCount),
                 ),
             ],
           ),

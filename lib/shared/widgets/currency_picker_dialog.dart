@@ -5,6 +5,8 @@ import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/core/automation/automation_id.dart';
 import 'package:mostro/l10n/app_localizations.dart';
 import 'package:mostro/shared/utils/fiat_currencies.dart';
+import 'package:mostro/shared/widgets/currency_group_header.dart';
+import 'package:mostro/shared/widgets/currency_mark.dart';
 import 'package:mostro/shared/widgets/mostro_modal.dart';
 
 /// The picker's boxed search field (DS-CMP-11).
@@ -72,7 +74,8 @@ class _CurrencyPickerDialogState extends ConsumerState<_CurrencyPickerDialog> {
       final q = _query.toLowerCase();
       return c.code.toLowerCase().contains(q) ||
           c.name.toLowerCase().contains(q);
-    }).toList();
+    });
+    final rows = currencyPickerRows(filtered);
     final border = OutlineInputBorder(
       borderRadius: BorderRadius.circular(_kSearchFieldRadius),
       borderSide: BorderSide(color: palette.border),
@@ -117,7 +120,7 @@ class _CurrencyPickerDialogState extends ConsumerState<_CurrencyPickerDialog> {
             height: 300,
             child: currencies.isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : filtered.isEmpty
+                : rows.isEmpty
                     ? Center(
                         child: Text(
                           AppLocalizations.of(context).noCurrenciesFoundMessage,
@@ -125,15 +128,19 @@ class _CurrencyPickerDialogState extends ConsumerState<_CurrencyPickerDialog> {
                         ),
                       )
                     : ListView.builder(
-                        itemCount: filtered.length,
+                        itemCount: rows.length,
                         itemBuilder: (_, i) {
-                          final c = filtered[i];
+                          final row = rows[i];
+                          if (row is StablecoinsHeaderRow) {
+                            return const StablecoinsGroupHeader();
+                          }
+                          if (row is BitcoinNetworksHeaderRow) {
+                            return const BitcoinNetworksGroupHeader();
+                          }
+                          final c = (row as CurrencyRow).currency;
                           final option = ListTile(
                             contentPadding: EdgeInsets.zero,
-                            leading: Text(
-                              c.flag,
-                              style: const TextStyle(fontSize: 19),
-                            ),
+                            leading: CurrencyMark(code: c.code, size: 19),
                             title: Text(c.code),
                             // A code the node accepts but the catalogue
                             // does not name has no subtitle.

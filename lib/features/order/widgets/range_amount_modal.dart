@@ -6,6 +6,7 @@ import 'package:mostro/core/automation/automation_ids.dart';
 import 'package:mostro/core/create_order_palette.dart';
 import 'package:mostro/features/order/widgets/underline_amount_field.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/utils/btc_pegged.dart';
 import 'package:mostro/shared/widgets/mostro_modal.dart';
 
 /// Shows a modal dialog for entering an amount within a range.
@@ -50,6 +51,13 @@ class _RangeAmountDialogState extends State<_RangeAmountDialog> {
   String get _locale => Localizations.localeOf(context).toString();
 
   NumberFormat get _fiat => NumberFormat('#,##0.##', _locale);
+
+  /// The unit beside the field and under it. A BTC-pegged code's amount is
+  /// sats (#907): its code beside a whole number would read as whole coins.
+  String _unit(AppLocalizations l10n) =>
+      isBtcPeggedCode(widget.currencyCode)
+          ? l10n.satsUnitLabel
+          : widget.currencyCode;
 
   /// The typed amount without the grouping the field adds, or null while the
   /// field is empty. Whole units only: the take sends it as an integer. Zero
@@ -113,7 +121,7 @@ class _RangeAmountDialogState extends State<_RangeAmountDialog> {
               ),
             ],
             trailing: Text(
-              widget.currencyCode,
+              _unit(l10n),
               style: TextStyle(
                 fontFamily: AppFonts.figures,
                 fontSize: 15,
@@ -133,7 +141,7 @@ class _RangeAmountDialogState extends State<_RangeAmountDialog> {
             l10n.minMaxRangeLabel(
               _fiat.format(widget.min),
               _fiat.format(widget.max),
-              widget.currencyCode,
+              _unit(l10n),
             ),
             style: TextStyle(fontSize: 12, color: book.textTertiary),
           ),
