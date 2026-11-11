@@ -38,7 +38,7 @@ TradeRow _row({required bool isSelling}) => TradeRow(
   paymentMethod: 'Bank transfer',
   startedAt: 0,
   peerHandle: null,
-  node: null,
+  node: '',
 );
 
 void main() {
