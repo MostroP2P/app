@@ -41,6 +41,11 @@ TradeRow _row({required bool isSelling}) => TradeRow(
   node: '',
 );
 
+/// The event row's icon; the action chip may show the same glyph smaller.
+Finder _eventIcon(IconData icon) => find.byWidgetPredicate(
+  (w) => w is Icon && w.icon == icon && w.size == 17,
+);
+
 void main() {
   Future<void> pump(WidgetTester tester, {required bool isSelling}) async {
     final row = _row(isSelling: isSelling);
@@ -85,8 +90,8 @@ void main() {
     expect(find.text(_en.tradeCardWaitingPaymentSellerTitle), findsOneWidget);
     expect(find.text(_en.tradeCardWaitingPaymentSellerMessage), findsOneWidget);
     expect(find.text(_en.tradeCardWaitingPaymentTitle), findsNothing);
-    expect(find.byIcon(Icons.bolt_rounded), findsOneWidget);
-    expect(find.byIcon(Icons.hourglass_top_rounded), findsNothing);
+    expect(_eventIcon(Icons.bolt_rounded), findsOneWidget);
+    expect(_eventIcon(Icons.hourglass_top_rounded), findsNothing);
   });
 
   testWidgets('the buyer still waits for the seller', (tester) async {
@@ -94,6 +99,6 @@ void main() {
 
     expect(find.text(_en.tradeCardWaitingPaymentTitle), findsOneWidget);
     expect(find.text(_en.tradeCardWaitingPaymentMessage), findsOneWidget);
-    expect(find.byIcon(Icons.hourglass_top_rounded), findsOneWidget);
+    expect(_eventIcon(Icons.hourglass_top_rounded), findsOneWidget);
   });
 }
