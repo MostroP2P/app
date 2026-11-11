@@ -451,7 +451,7 @@ class _LatestEvent extends StatelessWidget {
             width: 32,
             height: 32,
             decoration: BoxDecoration(color: tone.bg, shape: BoxShape.circle),
-            child: Icon(noticeIcon(notification), size: 17, color: tone.ink),
+            child: Icon(noticeIcon(notification, isBuyer: isBuyer), size: 17, color: tone.ink),
           ),
           const SizedBox(width: AppSpacing.sm + 2),
           Expanded(
@@ -463,7 +463,7 @@ class _LatestEvent extends StatelessWidget {
                   children: [
                     Expanded(
                       child: Text(
-                        notification.resolvedTitle(l10n),
+                        notification.resolvedTitle(l10n, isBuyer: isBuyer),
                         style: Theme.of(context).textTheme.bodyMedium!.copyWith(
                           color: Colors.white,
                           fontWeight:
@@ -490,7 +490,7 @@ class _LatestEvent extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  notification.resolvedMessage(l10n),
+                  notification.resolvedMessage(l10n, isBuyer: isBuyer),
                   style: Theme.of(
                     context,
                   ).textTheme.bodySmall!.copyWith(color: textSec, fontSize: 13),
@@ -547,7 +547,7 @@ class _TimelineEvent extends StatelessWidget {
               child: Column(
                 children: [
                   Expanded(child: rail),
-                  Icon(noticeIcon(notification), size: 15, color: tone.ink),
+                  Icon(noticeIcon(notification, isBuyer: isBuyer), size: 15, color: tone.ink),
                   Expanded(child: isLast ? const SizedBox.shrink() : rail),
                 ],
               ),
@@ -564,7 +564,7 @@ class _TimelineEvent extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Text(
-                  notification.resolvedTitle(l10n),
+                  notification.resolvedTitle(l10n, isBuyer: isBuyer),
                   style: Theme.of(
                     context,
                   ).textTheme.bodySmall!.copyWith(color: textSec, fontSize: 13),

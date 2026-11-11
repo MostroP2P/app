@@ -3734,7 +3734,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get tradeCardWaitingTakerBondMessage =>
-      'Die Anti-Missbrauchs-Einlage der annehmenden Seite muss vor Beginn des Trades bezahlt werden.';
+      'Der Trade beginnt, sobald die Einlage bezahlt ist.';
 
   @override
   String get tradeCardActiveTitle => 'Trade aktiv';
@@ -3831,6 +3831,49 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get tradeCardCanceledBondExpiredMessage =>
       'Die Einlage-Rechnung ist unbezahlt abgelaufen.';
+
+  @override
+  String get tradeCardWaitingBuyerInvoiceBuyerTitle =>
+      'Füge deine Rechnung hinzu';
+
+  @override
+  String get tradeCardWaitingBuyerInvoiceBuyerMessage =>
+      'Füge eine Lightning-Rechnung hinzu, um die Sats zu erhalten. Danach geht der Trade weiter.';
+
+  @override
+  String get tradeCardWaitingPaymentSellerTitle => 'Sperre die Sats';
+
+  @override
+  String get tradeCardWaitingPaymentSellerMessage =>
+      'Bezahle die Hold-Rechnung, um die Sats zu sperren. Danach geht der Trade weiter.';
+
+  @override
+  String get tradeCardActiveBuyerMessage =>
+      'Die Sats sind gesperrt. Du kannst jetzt die Zahlung senden.';
+
+  @override
+  String get tradeCardActiveSellerMessage =>
+      'Deine Sats sind gesperrt. Der Käufer kann jetzt die Zahlung senden.';
+
+  @override
+  String get tradeCardFiatSentBuyerMessage =>
+      'Du hast die Zahlung als gesendet markiert. Der Verkäufer prüft sie und gibt die Sats frei.';
+
+  @override
+  String get tradeCardFiatSentSellerMessage =>
+      'Der Käufer hat die Zahlung als gesendet markiert. Prüfe, ob sie angekommen ist, bevor du die Sats freigibst.';
+
+  @override
+  String get tradeCardSettledHoldInvoiceBuyerMessage =>
+      'Der Verkäufer hat die Sats freigegeben. Deine Auszahlung ist unterwegs.';
+
+  @override
+  String get tradeCardSettledHoldInvoiceSellerMessage =>
+      'Du hast die Sats freigegeben. Die Auszahlung an den Käufer ist unterwegs.';
+
+  @override
+  String get tradeCardSettledByAdminBuyerMessage =>
+      'Der Schlichter hat die Sats an dich freigegeben.';
 
   @override
   String get chatCardTitle => 'Neue Nachrichten';

@@ -3719,7 +3719,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get tradeCardWaitingTakerBondMessage =>
-      'El depósito antiabuso del tomador debe pagarse antes de que empiece la operación.';
+      'La operación empieza cuando se pague el depósito.';
 
   @override
   String get tradeCardActiveTitle => 'Operación activa';
@@ -3813,6 +3813,48 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get tradeCardCanceledBondExpiredMessage =>
       'La factura del depósito expiró sin pagarse.';
+
+  @override
+  String get tradeCardWaitingBuyerInvoiceBuyerTitle => 'Agrega tu factura';
+
+  @override
+  String get tradeCardWaitingBuyerInvoiceBuyerMessage =>
+      'Agrega una factura Lightning para recibir los sats. La operación continúa cuando lo hagas.';
+
+  @override
+  String get tradeCardWaitingPaymentSellerTitle => 'Bloquea los sats';
+
+  @override
+  String get tradeCardWaitingPaymentSellerMessage =>
+      'Paga la factura de retención para bloquear los sats. La operación continúa cuando lo hagas.';
+
+  @override
+  String get tradeCardActiveBuyerMessage =>
+      'Los sats están bloqueados. Ya puedes enviar el pago.';
+
+  @override
+  String get tradeCardActiveSellerMessage =>
+      'Tus sats están bloqueados. El comprador ya puede enviar el pago.';
+
+  @override
+  String get tradeCardFiatSentBuyerMessage =>
+      'Marcaste el pago como enviado. El vendedor lo verifica y libera los sats.';
+
+  @override
+  String get tradeCardFiatSentSellerMessage =>
+      'El comprador marcó el pago como enviado. Verifica que llegó antes de liberar los sats.';
+
+  @override
+  String get tradeCardSettledHoldInvoiceBuyerMessage =>
+      'El vendedor liberó los sats. Tu pago está en camino.';
+
+  @override
+  String get tradeCardSettledHoldInvoiceSellerMessage =>
+      'Liberaste los sats. El pago al comprador está en camino.';
+
+  @override
+  String get tradeCardSettledByAdminBuyerMessage =>
+      'El resolutor de disputas te liberó los sats.';
 
   @override
   String get chatCardTitle => 'Mensajes nuevos';

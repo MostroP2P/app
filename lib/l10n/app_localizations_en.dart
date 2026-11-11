@@ -3695,7 +3695,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tradeCardWaitingTakerBondMessage =>
-      'The taker\'s deposit must be paid before the trade starts.';
+      'The trade starts once the deposit is paid.';
 
   @override
   String get tradeCardActiveTitle => 'Trade active';
@@ -3789,6 +3789,48 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get tradeCardCanceledBondExpiredMessage =>
       'The deposit invoice expired unpaid.';
+
+  @override
+  String get tradeCardWaitingBuyerInvoiceBuyerTitle => 'Add your invoice';
+
+  @override
+  String get tradeCardWaitingBuyerInvoiceBuyerMessage =>
+      'Add a Lightning invoice to receive the sats. The trade continues once you do.';
+
+  @override
+  String get tradeCardWaitingPaymentSellerTitle => 'Lock the sats';
+
+  @override
+  String get tradeCardWaitingPaymentSellerMessage =>
+      'Pay the hold invoice to lock the sats. The trade continues once you do.';
+
+  @override
+  String get tradeCardActiveBuyerMessage =>
+      'The sats are locked. You can now send the payment.';
+
+  @override
+  String get tradeCardActiveSellerMessage =>
+      'Your sats are locked. The buyer can now send the payment.';
+
+  @override
+  String get tradeCardFiatSentBuyerMessage =>
+      'You marked the payment as sent. The seller checks it and releases the sats.';
+
+  @override
+  String get tradeCardFiatSentSellerMessage =>
+      'The buyer marked the payment as sent. Check that it arrived before you release the sats.';
+
+  @override
+  String get tradeCardSettledHoldInvoiceBuyerMessage =>
+      'The seller released the sats. Your payout is on its way.';
+
+  @override
+  String get tradeCardSettledHoldInvoiceSellerMessage =>
+      'You released the sats. The buyer\'s payout is on its way.';
+
+  @override
+  String get tradeCardSettledByAdminBuyerMessage =>
+      'The dispute resolver released the sats to you.';
 
   @override
   String get chatCardTitle => 'New messages';
