@@ -30,6 +30,19 @@ GATE_PATHS = (".github/mortsom/", ".github/workflows/mortsom-")
 BASELINE_WORKFLOW = "mortsom-baseline.yml"
 
 
+REDIRECTS = (301, 302, 303, 307, 308)
+
+
+class _KeepRedirect(urllib.request.HTTPRedirectHandler):
+    """Surfaces a redirect as an HTTPError instead of following it."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+_NO_REDIRECT = urllib.request.build_opener(_KeepRedirect)
+
+
 class GitHub:
     def __init__(self, repo, token, api="https://api.github.com"):
         self.repo, self.token, self.api = repo, token, api
@@ -40,6 +53,23 @@ class GitHub:
             "Authorization": f"Bearer {self.token}", "Accept": accept,
             "X-GitHub-Api-Version": "2022-11-28"})
         with urllib.request.urlopen(req, timeout=60) as resp:
+            return resp.read()
+
+    def _download(self, url):
+        """The bytes behind an API download URL. The API answers with a
+        redirect to signed blob storage, which refuses a request that also
+        carries the token (HTTP 401) — and urllib would forward it — so the
+        redirect is followed by hand, without the token."""
+        req = urllib.request.Request(url, headers={
+            "Authorization": f"Bearer {self.token}", "X-GitHub-Api-Version": "2022-11-28"})
+        try:
+            with _NO_REDIRECT.open(req, timeout=60) as resp:
+                return resp.read()
+        except urllib.error.HTTPError as e:
+            location = e.headers.get("Location") if e.code in REDIRECTS else None
+            if not location:
+                raise
+        with urllib.request.urlopen(urllib.parse.urljoin(url, location), timeout=60) as resp:
             return resp.read()
 
     def request(self, method, path, body=None, params=None):
@@ -67,7 +97,7 @@ class GitHub:
             return {}
         out = {}
         try:
-            raw = self._open(artifact["archive_download_url"])
+            raw = self._download(artifact["archive_download_url"])
             with zipfile.ZipFile(io.BytesIO(raw)) as z:
                 for info in z.infolist()[:MAX_FILES]:
                     if not info.filename.endswith(".json") or info.file_size > MAX_JSON:
