@@ -3734,7 +3734,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get tradeCardWaitingTakerBondMessage =>
-      'Der Trade beginnt, sobald die Einlage bezahlt ist.';
+      'Der Trade geht weiter, sobald die Einlage bezahlt ist.';
 
   @override
   String get tradeCardActiveTitle => 'Trade aktiv';
@@ -3845,7 +3845,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get tradeCardWaitingPaymentSellerMessage =>
-      'Bezahle die Hold-Rechnung, um die Sats zu sperren. Danach geht der Trade weiter.';
+      'Sperre die Sats in der Treuhand. Danach geht der Trade weiter.';
 
   @override
   String get tradeCardActiveBuyerMessage =>

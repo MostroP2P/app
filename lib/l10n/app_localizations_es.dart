@@ -3719,7 +3719,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get tradeCardWaitingTakerBondMessage =>
-      'La operación empieza cuando se pague el depósito.';
+      'La operación continúa cuando se pague el depósito.';
 
   @override
   String get tradeCardActiveTitle => 'Operación activa';
@@ -3826,7 +3826,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get tradeCardWaitingPaymentSellerMessage =>
-      'Paga la factura de retención para bloquear los sats. La operación continúa cuando lo hagas.';
+      'Bloquea los sats en custodia. La operación continúa cuando lo hagas.';
 
   @override
   String get tradeCardActiveBuyerMessage =>

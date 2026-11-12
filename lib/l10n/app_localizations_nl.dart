@@ -3725,7 +3725,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get tradeCardWaitingTakerBondMessage =>
-      'De trade begint zodra de borg betaald is.';
+      'De trade gaat verder zodra de borg betaald is.';
 
   @override
   String get tradeCardActiveTitle => 'Trade actief';
@@ -3834,7 +3834,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get tradeCardWaitingPaymentSellerMessage =>
-      'Betaal de hold-invoice om de sats vast te zetten. Daarna gaat de trade verder.';
+      'Zet de sats vast in de escrow. Daarna gaat de trade verder.';
 
   @override
   String get tradeCardActiveBuyerMessage =>

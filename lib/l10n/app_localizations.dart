@@ -6165,7 +6165,7 @@ abstract class AppLocalizations {
   /// Notifications card body while a taker's deposit is unpaid (issue #474); role-neutral, it names neither side (#845)
   ///
   /// In en, this message translates to:
-  /// **'The trade starts once the deposit is paid.'**
+  /// **'The trade continues once the deposit is paid.'**
   String get tradeCardWaitingTakerBondMessage;
 
   /// Notifications card title for a trade status change (issue #474); role-neutral, both sides see it
@@ -6351,7 +6351,7 @@ abstract class AppLocalizations {
   /// Notifications card body for the seller when the order waits for them to pay the hold invoice (#845)
   ///
   /// In en, this message translates to:
-  /// **'Pay the hold invoice to lock the sats. The trade continues once you do.'**
+  /// **'Lock the sats in escrow. The trade continues once you do.'**
   String get tradeCardWaitingPaymentSellerMessage;
 
   /// Notifications card body for the buyer once the trade is active (#845)

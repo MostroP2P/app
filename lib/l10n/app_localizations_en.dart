@@ -3695,7 +3695,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tradeCardWaitingTakerBondMessage =>
-      'The trade starts once the deposit is paid.';
+      'The trade continues once the deposit is paid.';
 
   @override
   String get tradeCardActiveTitle => 'Trade active';
@@ -3802,7 +3802,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tradeCardWaitingPaymentSellerMessage =>
-      'Pay the hold invoice to lock the sats. The trade continues once you do.';
+      'Lock the sats in escrow. The trade continues once you do.';
 
   @override
   String get tradeCardActiveBuyerMessage =>

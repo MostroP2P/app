@@ -433,9 +433,9 @@ class _LatestEvent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColors>();
+    final book = OrderBookPalette.of(context);
     final l10n = AppLocalizations.of(context);
-    final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
+    final textSec = book.textSecondary;
     final tone = _toneColors(
       context,
       noticeTone(notification, isBuyer: isBuyer),
@@ -443,7 +443,7 @@ class _LatestEvent extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.chip),
+      borderRadius: BorderRadius.circular(_linkRadius),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -451,7 +451,11 @@ class _LatestEvent extends StatelessWidget {
             width: 32,
             height: 32,
             decoration: BoxDecoration(color: tone.bg, shape: BoxShape.circle),
-            child: Icon(noticeIcon(notification, isBuyer: isBuyer), size: 17, color: tone.ink),
+            child: Icon(
+              noticeIcon(notification, isBuyer: isBuyer),
+              size: 18,
+              color: tone.ink,
+            ),
           ),
           const SizedBox(width: AppSpacing.sm + 2),
           Expanded(
@@ -465,7 +469,7 @@ class _LatestEvent extends StatelessWidget {
                       child: Text(
                         notification.resolvedTitle(l10n, isBuyer: isBuyer),
                         style: Theme.of(context).textTheme.bodyMedium!.copyWith(
-                          color: Colors.white,
+                          color: book.textPrimary,
                           fontWeight:
                               notification.isRead
                                   ? FontWeight.w500
@@ -522,10 +526,10 @@ class _TimelineEvent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<AppColors>();
+    final book = OrderBookPalette.of(context);
     final l10n = AppLocalizations.of(context);
-    final textSec = colors?.textSecondary ?? const Color(0xFFB0B3C6);
-    final green = colors?.mostroGreen ?? const Color(0xFF8CC63F);
+    final textSec = book.textSecondary;
+    final green = book.lime;
     final rail = VerticalDivider(
       color: textSec.withValues(alpha: 0.3),
       width: 1,
@@ -537,7 +541,7 @@ class _TimelineEvent extends StatelessWidget {
 
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(AppRadius.chip),
+      borderRadius: BorderRadius.circular(_linkRadius),
       child: IntrinsicHeight(
         child: Row(
           children: [
@@ -547,7 +551,11 @@ class _TimelineEvent extends StatelessWidget {
               child: Column(
                 children: [
                   Expanded(child: rail),
-                  Icon(noticeIcon(notification, isBuyer: isBuyer), size: 15, color: tone.ink),
+                  Icon(
+                    noticeIcon(notification, isBuyer: isBuyer),
+                    size: 16,
+                    color: tone.ink,
+                  ),
                   Expanded(child: isLast ? const SizedBox.shrink() : rail),
                 ],
               ),

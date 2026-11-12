@@ -42,9 +42,8 @@ TradeRow _row({required bool isSelling}) => TradeRow(
 );
 
 /// The event row's icon; the action chip may show the same glyph smaller.
-Finder _eventIcon(IconData icon) => find.byWidgetPredicate(
-  (w) => w is Icon && w.icon == icon && w.size == 17,
-);
+Finder _eventIcon(IconData icon) =>
+    find.byWidgetPredicate((w) => w is Icon && w.icon == icon && w.size == 18);
 
 void main() {
   Future<void> pump(WidgetTester tester, {required bool isSelling}) async {
