@@ -4927,6 +4927,22 @@ async fn dispatch_mostro_message(
                     return;
                 }
                 record_status_event(&order_id, event_ts).await;
+                // These two open a step mostrod times, exactly like
+                // AddInvoice / PayInvoice, and a maker gets no other message
+                // saying when it began. Left unrecorded, the trade detail
+                // has no deadline to count to (#582).
+                if matches!(
+                    kind.action,
+                    Action::WaitingSellerToPay | Action::WaitingBuyerInvoice
+                ) {
+                    crate::api::invoice::record_invoice_step_start(
+                        &order_id,
+                        &format!("{status:?}"),
+                        event_ts,
+                        trade_index,
+                    )
+                    .await;
+                }
                 // The bond, if any: a first trade-flow message means it
                 // locked; a terminal outcome without a slash notice means
                 // it was released (docs/ANTI_ABUSE_BOND.md §2.4, §6.1).
@@ -20971,6 +20987,273 @@ mod tests {
         );
         assert_eq!(load_status_cursor(&order_id).await, Some(taken_at));
         (order_id, taken_at)
+    }
+
+    /// A taker's step start before and after the daemon's `waiting-*` message
+    /// for the step that follows its own. Rows are the taker's: `is_mine` is
+    /// false, and the first message of each pair opens the taker's own step.
+    async fn taker_step_start_after(
+        kind: crate::api::types::OrderKind,
+        first: Action,
+        first_payload: Option<Payload>,
+        next: Action,
+    ) -> (Option<i64>, Option<i64>) {
+        let _ = bond_test_db().await;
+        let (uuid, order_id) = waiting_payment_row(kind).await;
+        dispatch_daemon_message_at(uuid, first, first_payload, 1_000).await;
+        let opened = crate::api::invoice::trade_step_started_at(order_id.clone()).await;
+        dispatch_daemon_message_at(uuid, next, None, 1_100).await;
+        let moved = crate::api::invoice::trade_step_started_at(order_id).await;
+        (opened, moved)
+    }
+
+    /// #582, the taker's side of the same arm: a buyer who sent the invoice
+    /// is told `waiting-seller-to-pay`, a new step that mostrod times from
+    /// that moment, so its clock moves there instead of staying at the take.
+    #[tokio::test]
+    async fn waiting_seller_to_pay_moves_a_taker_buyers_step_start() {
+        let (opened, moved) = taker_step_start_after(
+            crate::api::types::OrderKind::Sell,
+            Action::AddInvoice,
+            Some(Payload::Order(small_order_with(
+                mostro_core::order::Status::WaitingBuyerInvoice,
+                1_000,
+            ))),
+            Action::WaitingSellerToPay,
+        )
+        .await;
+
+        assert_eq!(opened, Some(1_000), "the take opens the buyer's own step");
+        assert_eq!(moved, Some(1_100), "the seller's payment step has no start");
+    }
+
+    /// #582 for a seller who paid the hold invoice: `waiting-buyer-invoice`
+    /// opens the buyer's step and moves the clock the same way.
+    #[tokio::test]
+    async fn waiting_buyer_invoice_moves_a_taker_sellers_step_start() {
+        let (opened, moved) = taker_step_start_after(
+            crate::api::types::OrderKind::Buy,
+            Action::PayInvoice,
+            Some(Payload::PaymentRequest(
+                None,
+                "lnbc1holdinvoice".into(),
+                Some(1_000),
+            )),
+            Action::WaitingBuyerInvoice,
+        )
+        .await;
+
+        assert_eq!(opened, Some(1_000), "the take opens the seller's own step");
+        assert_eq!(moved, Some(1_100), "the buyer's invoice step has no start");
+    }
+
+    /// #582: a maker waiting for the seller's payment learns the step began
+    /// from mostrod's `waiting-seller-to-pay`, dated when it moved the order.
+    /// Without that start the maker's deadline is unknown and the trade
+    /// detail draws no countdown.
+    #[tokio::test]
+    async fn waiting_seller_to_pay_records_a_buy_makers_step_start() {
+        // Arrange + Act: a buy order taken a minute ago, mostrod told its
+        // maker to wait for the seller.
+        let (order_id, taken_at) = maker_taken_a_minute_ago(
+            crate::api::types::OrderKind::Buy,
+            Action::WaitingSellerToPay,
+            None,
+            "test-582-buy-maker-take",
+        )
+        .await;
+
+        // Assert: the daemon message's own date, not the local clock.
+        assert_eq!(
+            crate::api::invoice::trade_step_started_at(order_id).await,
+            Some(taken_at),
+            "the maker's waiting step has no recorded start"
+        );
+    }
+
+    /// #582 for a sell order whose taker has no invoice yet: the maker waits
+    /// for the buyer's `waiting-buyer-invoice`.
+    #[tokio::test]
+    async fn waiting_buyer_invoice_records_a_sell_makers_step_start() {
+        // Arrange + Act
+        let (order_id, taken_at) = maker_taken_a_minute_ago(
+            crate::api::types::OrderKind::Sell,
+            Action::WaitingBuyerInvoice,
+            None,
+            "test-582-sell-maker-take",
+        )
+        .await;
+
+        // Assert
+        assert_eq!(
+            crate::api::invoice::trade_step_started_at(order_id).await,
+            Some(taken_at),
+            "the maker's waiting step has no recorded start"
+        );
+    }
+
+    /// A buy maker's order after its first take: the order id, the trade key
+    /// index its row sits on, and the date of the take's message.
+    async fn buy_maker_in_waiting_payment(tag: &str) -> (String, u32, i64) {
+        let (order_id, taken_at) = maker_taken_a_minute_ago(
+            crate::api::types::OrderKind::Buy,
+            Action::WaitingSellerToPay,
+            None,
+            tag,
+        )
+        .await;
+        let trade_index = crate::db::app_db::db()
+            .expect("store initialised")
+            .get_trade_by_order_id(&order_id)
+            .await
+            .expect("lookup")
+            .expect("row kept")
+            .trade_key_index;
+        (order_id, trade_index, taken_at)
+    }
+
+    /// #582: the start is recorded behind the replay gate, not before it. A
+    /// `waiting-*` message older than the newest one already applied is a
+    /// backlog replay; recording it first would move the start back (the
+    /// earliest message of a step wins) and the countdown would read as
+    /// already expired.
+    #[tokio::test]
+    async fn a_replayed_waiting_message_does_not_move_the_step_start_back() {
+        // Arrange: a first take applied, its step start recorded.
+        let (order_id, trade_index, taken_at) =
+            buy_maker_in_waiting_payment("test-582-replay-first").await;
+        let order_uuid = uuid::Uuid::parse_str(&order_id).expect("uuid");
+
+        // Act: the same step's message again, dated before the cursor.
+        dispatch_mostro_message(
+            daemon_message(
+                order_uuid,
+                Action::WaitingSellerToPay,
+                None,
+                (taken_at - 600) as u64,
+            ),
+            "test-582-replay-old",
+            "ff00f628",
+            trade_index,
+        )
+        .await;
+
+        // Assert
+        assert_eq!(
+            crate::api::invoice::trade_step_started_at(order_id).await,
+            Some(taken_at),
+            "a replayed message moved the step start back"
+        );
+    }
+
+    /// #582: the recorded status is the one the action implies, not a fixed
+    /// one. After the seller pays, mostrod hands the duty to the buyer with
+    /// `waiting-buyer-invoice`; that is a new step on the same key, and it
+    /// replaces the seller's start.
+    #[tokio::test]
+    async fn waiting_buyer_invoice_after_waiting_payment_opens_a_new_step() {
+        // Arrange
+        let (order_id, trade_index, taken_at) =
+            buy_maker_in_waiting_payment("test-582-handoff-first").await;
+        let handoff = taken_at + 30;
+
+        // Act
+        dispatch_mostro_message(
+            daemon_message(
+                uuid::Uuid::parse_str(&order_id).expect("uuid"),
+                Action::WaitingBuyerInvoice,
+                None,
+                handoff as u64,
+            ),
+            "test-582-handoff-second",
+            "ff00f628",
+            trade_index,
+        )
+        .await;
+
+        // Assert
+        assert_eq!(
+            crate::api::invoice::trade_step_started_at(order_id).await,
+            Some(handoff),
+            "the new step kept the previous step's start"
+        );
+    }
+
+    /// #582: only the two actions that open a waiting step record a start.
+    /// A later `fiat-sent-ok` moves the order on and must not touch it.
+    #[tokio::test]
+    async fn other_status_actions_leave_the_step_start_alone() {
+        // Arrange
+        let (order_id, trade_index, taken_at) =
+            buy_maker_in_waiting_payment("test-582-other-first").await;
+
+        // Act
+        dispatch_mostro_message(
+            daemon_message(
+                uuid::Uuid::parse_str(&order_id).expect("uuid"),
+                Action::FiatSentOk,
+                None,
+                (taken_at + 10) as u64,
+            ),
+            "test-582-other-second",
+            "ff00f628",
+            trade_index,
+        )
+        .await;
+
+        // Assert
+        assert_eq!(
+            crate::api::invoice::trade_step_started_at(order_id).await,
+            Some(taken_at),
+            "an action that opens no waiting step moved the start"
+        );
+    }
+
+    /// #582 + #574: a maker keeps one trade key for the whole life of the
+    /// order, so a second take reaches it on the same index. Once the step
+    /// start is cleared (what the `new-order` resync and the sweep both do),
+    /// the second take's `waiting-seller-to-pay` opens its own step instead of
+    /// inheriting the first one's.
+    #[tokio::test]
+    async fn a_second_take_after_the_step_end_gets_its_own_step_start() {
+        // Arrange: a first take, then the order goes back to the book.
+        let (order_id, first_take) = maker_taken_a_minute_ago(
+            crate::api::types::OrderKind::Buy,
+            Action::WaitingSellerToPay,
+            None,
+            "test-582-first-take",
+        )
+        .await;
+        let db = crate::db::app_db::db().expect("store initialised");
+        let trade_index = db
+            .get_trade_by_order_id(&order_id)
+            .await
+            .expect("lookup")
+            .expect("row kept")
+            .trade_key_index;
+        assert!(clear_maker_step_start(db, &order_id).await);
+        let second_take = first_take + 30;
+
+        // Act
+        dispatch_mostro_message(
+            daemon_message(
+                uuid::Uuid::parse_str(&order_id).expect("uuid"),
+                Action::WaitingSellerToPay,
+                None,
+                second_take as u64,
+            ),
+            "test-582-second-take",
+            "ff00f628",
+            trade_index,
+        )
+        .await;
+
+        // Assert: the second take's own date.
+        assert_eq!(
+            crate::api::invoice::trade_step_started_at(order_id).await,
+            Some(second_take),
+            "the second take inherited the first take's step start"
+        );
     }
 
     /// A buyer's take, sixteen minutes old: past the client's take + 900 s
