@@ -240,7 +240,10 @@ class NotificationModel {
   /// bridge enums' names — stable, locale-independent — and the copy is
   /// resolved at render time. The id is the order and the status (and the
   /// reason, when there is one), so a replay of the same transition, or the
-  /// same status re-emitted to refresh a screen, adds nothing.
+  /// same status re-emitted to refresh a screen, adds nothing. A taker
+  /// leaving is the exception: the node keeps the maker's order id across
+  /// takes, so each departure also carries its date, or the first one would
+  /// silence every later one. A replay of one departure keeps its date.
   factory NotificationModel.tradeStatus({
     required String orderId,
     required String status,
@@ -248,8 +251,12 @@ class NotificationModel {
     required DateTime at,
     String? nodePubkey,
   }) {
+    final occurrence =
+        reason == _takerLeftReason
+            ? '-${at.millisecondsSinceEpoch ~/ 1000}'
+            : '';
     return NotificationModel(
-      id: 'trade-$orderId-$status${reason == null ? '' : '-$reason'}',
+      id: 'trade-$orderId-$status${reason == null ? '' : '-$reason'}$occurrence',
       type: NotificationType.tradeUpdate,
       title: '',
       message: '',
@@ -428,6 +435,7 @@ class NotificationModel {
   static const _claimStatePaid = 'paid';
   static const _tradeStatusKey = 'tradeStatus';
   static const _tradeReasonKey = 'tradeReason';
+  static const _takerLeftReason = 'takerLeft';
   static const _chatCountKey = 'chatCount';
   static const _chatSolverKey = 'chatSolver';
   static const _announcementKey = 'announcement';
@@ -482,7 +490,7 @@ class NotificationModel {
 
   /// The taker of the user's order walked away and the node put it back in
   /// the book (#917): another `pending` told apart by the reason.
-  bool get _takerLeft => detail?[_tradeReasonKey] == 'takerLeft';
+  bool get _takerLeft => detail?[_tradeReasonKey] == _takerLeftReason;
 
   String _tradeTitle(AppLocalizations l10n) =>
       _cancelRequestTitle(l10n) ??
