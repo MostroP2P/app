@@ -5094,6 +5094,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'Your order is in the order book now, and other users can take it.';
 
   @override
+  String get tradeCardTakerLeftTitle => 'Order back in the book';
+
+  @override
+  String get tradeCardTakerLeftMessage =>
+      'The other party did not continue the trade. Your order is back in the order book, and other users can take it.';
+
+  @override
   String get payoutInvoiceLabel => 'Invoice';
 
   @override

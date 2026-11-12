@@ -120,6 +120,23 @@ void main() {
       expect(n.resolvedTitle(es), 'Orden publicada');
     });
 
+    test('a taker walking away says the order is back in the book', () {
+      final n = NotificationModel.tradeStatus(
+        orderId: 'order-1',
+        status: 'pending',
+        reason: 'takerLeft',
+        at: at,
+      );
+
+      expect(n.resolvedTitle(en), 'Order back in the book');
+      expect(
+        n.resolvedMessage(en),
+        'The other party did not continue the trade. Your order is back in '
+        'the order book, and other users can take it.',
+      );
+      expect(n.resolvedTitle(es), 'Orden de nuevo en el libro');
+    });
+
     test('a status this build does not know still renders', () {
       final n = NotificationModel.tradeStatus(
         orderId: 'order-1',

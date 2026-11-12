@@ -125,6 +125,8 @@ BondCancelCopy bondCancelCopy(TradeUpdateReason? reason) => switch (reason) {
   TradeUpdateReason.payoutFailed ||
   // A publication ends the window without a cancel.
   TradeUpdateReason.orderPublished ||
+  // A taker walking away is a maker's news, after the bond window.
+  TradeUpdateReason.takerLeft ||
   null => BondCancelCopy.neutral,
 };
 

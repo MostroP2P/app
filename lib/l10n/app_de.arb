@@ -1375,6 +1375,8 @@
   "tradeCardPayoutFailedMessage": "Mostro konnte deine Sats nicht an die angegebene Adresse oder Rechnung senden. Öffne den Trade, um zu sehen, welche fehlgeschlagen ist, und füge eine neue Rechnung hinzu, falls noch nötig.",
   "tradeCardOrderPublishedTitle": "Order veröffentlicht",
   "tradeCardOrderPublishedMessage": "Deine Order ist jetzt im Orderbuch, und andere Nutzer können sie annehmen.",
+  "tradeCardTakerLeftTitle": "Order wieder im Orderbuch",
+  "tradeCardTakerLeftMessage": "Die Gegenpartei hat den Trade nicht fortgesetzt. Deine Order ist wieder im Orderbuch, und andere Nutzer können sie annehmen.",
   "payoutInvoiceLabel": "Rechnung",
   "payoutInvoiceCopied": "Rechnung kopiert",
   "payoutWillGoToLabel": "Die Sats gehen an",

@@ -240,7 +240,10 @@ class NotificationModel {
   /// bridge enums' names — stable, locale-independent — and the copy is
   /// resolved at render time. The id is the order and the status (and the
   /// reason, when there is one), so a replay of the same transition, or the
-  /// same status re-emitted to refresh a screen, adds nothing.
+  /// same status re-emitted to refresh a screen, adds nothing. A taker
+  /// leaving is the exception: the node keeps the maker's order id across
+  /// takes, so each departure also carries its date, or the first one would
+  /// silence every later one. A replay of one departure keeps its date.
   factory NotificationModel.tradeStatus({
     required String orderId,
     required String status,
@@ -248,8 +251,12 @@ class NotificationModel {
     required DateTime at,
     String? nodePubkey,
   }) {
+    final occurrence =
+        reason == _takerLeftReason
+            ? '-${at.millisecondsSinceEpoch ~/ 1000}'
+            : '';
     return NotificationModel(
-      id: 'trade-$orderId-$status${reason == null ? '' : '-$reason'}',
+      id: 'trade-$orderId-$status${reason == null ? '' : '-$reason'}$occurrence',
       type: NotificationType.tradeUpdate,
       title: '',
       message: '',
@@ -428,6 +435,7 @@ class NotificationModel {
   static const _claimStatePaid = 'paid';
   static const _tradeStatusKey = 'tradeStatus';
   static const _tradeReasonKey = 'tradeReason';
+  static const _takerLeftReason = 'takerLeft';
   static const _chatCountKey = 'chatCount';
   static const _chatSolverKey = 'chatSolver';
   static const _announcementKey = 'announcement';
@@ -480,6 +488,10 @@ class NotificationModel {
   /// bucket never is, told apart by the reason.
   bool get _orderPublished => detail?[_tradeReasonKey] == 'orderPublished';
 
+  /// The taker of the user's order walked away and the node put it back in
+  /// the book (#917): another `pending` told apart by the reason.
+  bool get _takerLeft => detail?[_tradeReasonKey] == _takerLeftReason;
+
   /// The title the user's side reads, when it differs from the neutral one:
   /// the status is the user's turn.
   String? _sideTitle(AppLocalizations l10n, bool? isBuyer) =>
@@ -513,6 +525,7 @@ class NotificationModel {
       _cancelRequestTitle(l10n) ??
       (_payoutFailed ? l10n.tradeCardPayoutFailedTitle : null) ??
       (_orderPublished ? l10n.tradeCardOrderPublishedTitle : null) ??
+      (_takerLeft ? l10n.tradeCardTakerLeftTitle : null) ??
       _sideTitle(l10n, isBuyer) ??
       switch (detail?[_tradeStatusKey]) {
         'waitingBuyerInvoice' => l10n.tradeCardWaitingBuyerInvoiceTitle,
@@ -536,6 +549,7 @@ class NotificationModel {
       _cancelRequestMessage(l10n) ??
       (_payoutFailed ? l10n.tradeCardPayoutFailedMessage : null) ??
       (_orderPublished ? l10n.tradeCardOrderPublishedMessage : null) ??
+      (_takerLeft ? l10n.tradeCardTakerLeftMessage : null) ??
       _sideMessage(l10n, isBuyer) ??
       switch (detail?[_tradeStatusKey]) {
         'waitingBuyerInvoice' => l10n.tradeCardWaitingBuyerInvoiceMessage,

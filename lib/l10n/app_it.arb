@@ -1375,6 +1375,8 @@
   "tradeCardPayoutFailedMessage": "Mostro non è riuscito a inviare i tuoi sats all'indirizzo o alla fattura che hai dato. Apri l'operazione per vedere quale non è riuscito e aggiungi una nuova fattura se serve ancora.",
   "tradeCardOrderPublishedTitle": "Ordine pubblicato",
   "tradeCardOrderPublishedMessage": "Il tuo ordine è ora nel libro ordini e altri utenti possono prenderlo.",
+  "tradeCardTakerLeftTitle": "Ordine di nuovo nel libro",
+  "tradeCardTakerLeftMessage": "L'altra parte non ha proseguito l'operazione. Il tuo ordine è di nuovo nel libro ordini e altri utenti possono prenderlo.",
   "payoutInvoiceLabel": "Fattura",
   "payoutInvoiceCopied": "Fattura copiata",
   "payoutWillGoToLabel": "I sats andranno a",

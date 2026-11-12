@@ -1375,6 +1375,8 @@
   "tradeCardPayoutFailedMessage": "Mostro kon je sats niet versturen naar het adres of de invoice die je gaf. Open de trade om te zien welke mislukte, en voeg een nieuwe invoice toe als dat nog nodig is.",
   "tradeCardOrderPublishedTitle": "Order gepubliceerd",
   "tradeCardOrderPublishedMessage": "Je order staat nu in het orderboek en andere gebruikers kunnen hem aannemen.",
+  "tradeCardTakerLeftTitle": "Order weer in het orderboek",
+  "tradeCardTakerLeftMessage": "De andere partij heeft de trade niet voortgezet. Je order staat weer in het orderboek en andere gebruikers kunnen hem aannemen.",
   "payoutInvoiceLabel": "Invoice",
   "payoutInvoiceCopied": "Invoice gekopieerd",
   "payoutWillGoToLabel": "De sats gaan naar",

@@ -5157,6 +5157,13 @@ class AppLocalizationsFr extends AppLocalizations {
       'Votre ordre est maintenant dans le carnet d\'ordres, et d\'autres utilisateurs peuvent le prendre.';
 
   @override
+  String get tradeCardTakerLeftTitle => 'Ordre de retour dans le carnet';
+
+  @override
+  String get tradeCardTakerLeftMessage =>
+      'L\'autre partie n\'a pas poursuivi la transaction. Votre ordre est de retour dans le carnet d\'ordres, et d\'autres utilisateurs peuvent le prendre.';
+
+  @override
   String get payoutInvoiceLabel => 'Facture';
 
   @override

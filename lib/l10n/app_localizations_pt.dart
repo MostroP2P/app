@@ -5154,6 +5154,13 @@ class AppLocalizationsPt extends AppLocalizations {
       'Sua ordem já está no livro de ordens e outros usuários podem aceitá-la.';
 
   @override
+  String get tradeCardTakerLeftTitle => 'Ordem de volta ao livro';
+
+  @override
+  String get tradeCardTakerLeftMessage =>
+      'A outra parte não continuou a operação. Sua ordem voltou ao livro de ordens e outros usuários podem aceitá-la.';
+
+  @override
   String get payoutInvoiceLabel => 'Fatura';
 
   @override

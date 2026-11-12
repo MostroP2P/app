@@ -8352,6 +8352,18 @@ abstract class AppLocalizations {
   /// **'Your order is in the order book now, and other users can take it.'**
   String get tradeCardOrderPublishedMessage;
 
+  /// Notifications card title (#917): the taker of the user's own order walked away (cancelled or let the waiting window lapse) and the node put the order back in the order book. Only the maker sees it
+  ///
+  /// In en, this message translates to:
+  /// **'Order back in the book'**
+  String get tradeCardTakerLeftTitle;
+
+  /// Notifications card body (#917): the counterparty did not continue the trade; the user's own order is in the order book again and can be taken. Only the maker sees it
+  ///
+  /// In en, this message translates to:
+  /// **'The other party did not continue the trade. Your order is back in the order book, and other users can take it.'**
+  String get tradeCardTakerLeftMessage;
+
   /// Trade detail payout card (#823): row label before the invoice an NWC wallet generated, shortened; the whole row copies it
   ///
   /// In en, this message translates to:

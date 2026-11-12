@@ -18,7 +18,10 @@
 ///   book's `pending` / `in-progress`). A `pending` that says the node
 ///   published the user's order ([TradeUpdateReason.orderPublished]) is
 ///   news: it comes once the maker's bond locked, often while the app was
-///   closed, and its push opens Notifications.
+///   closed, and its push opens Notifications. So is one that says the
+///   taker walked away and the order is back in the book
+///   ([TradeUpdateReason.takerLeft], #917): the maker's last card said the
+///   order was in a trade.
 ///
 /// A card records the node of its trade (#811), whichever node is active,
 /// so the card can say later that it is another node's. A trade on another
@@ -137,10 +140,11 @@ class EventCards {
   }
 
   Future<void> onTradeUpdate(TradeUpdate update) async {
-    final event =
-        update.reason == TradeUpdateReason.orderPublished
-            ? NotificationEvent.tradeUpdates
-            : tradeCardEvent(update.status);
+    final event = switch (update.reason) {
+      TradeUpdateReason.orderPublished ||
+      TradeUpdateReason.takerLeft => NotificationEvent.tradeUpdates,
+      _ => tradeCardEvent(update.status),
+    };
     if (event == null) return;
     if (update.reason == TradeUpdateReason.userCanceled) return;
     // Dated now, so the identity's date cannot filter it, and on a fresh

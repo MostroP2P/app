@@ -890,7 +890,10 @@ The trade and chat cards come from `lib/features/notifications/services/event_ca
   `created_at`). None for the book's `pending` / `in-progress`, the maker's own bond or the
   user's own cancel. A `pending` with `OrderPublished` is not the book's: the node
   published the user's order once the maker's bond locked (or after a create that timed
-  out), which is what the maker's push was about, and it raises "Order published". Dispute
+  out), which is what the maker's push was about, and it raises "Order published". Nor is
+  a `pending` with `TakerLeft`: the taker walked away and the node put the maker's order
+  back in the book, and it raises "Order back in the book" (#917). An expired order the
+  node publishes as `canceled` raises "Order expired", not a cancel. Dispute
   statuses and solver chat cards are included in
   the Disputes filter. Tap → trade detail.
 - **Chat** — one card per trade (`chat-<order>`, the solver's apart as

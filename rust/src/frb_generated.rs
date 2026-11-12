@@ -11717,6 +11717,7 @@ impl SseDecode for crate::api::types::TradeUpdateReason {
             6 => crate::api::types::TradeUpdateReason::Replayed,
             7 => crate::api::types::TradeUpdateReason::PayoutFailed,
             8 => crate::api::types::TradeUpdateReason::OrderPublished,
+            9 => crate::api::types::TradeUpdateReason::TakerLeft,
             _ => unreachable!("Invalid variant for TradeUpdateReason: {}", inner),
         };
     }
@@ -15016,6 +15017,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::TradeUpdateReason {
             Self::Replayed => 6.into_dart(),
             Self::PayoutFailed => 7.into_dart(),
             Self::OrderPublished => 8.into_dart(),
+            Self::TakerLeft => 9.into_dart(),
             _ => unreachable!(),
         }
     }
@@ -17554,6 +17556,7 @@ impl SseEncode for crate::api::types::TradeUpdateReason {
                 crate::api::types::TradeUpdateReason::Replayed => 6,
                 crate::api::types::TradeUpdateReason::PayoutFailed => 7,
                 crate::api::types::TradeUpdateReason::OrderPublished => 8,
+                crate::api::types::TradeUpdateReason::TakerLeft => 9,
                 _ => {
                     unimplemented!("");
                 }

@@ -3168,9 +3168,13 @@ async fn wipe_never_active_trade(
 /// `Canceled` arm. A wipe that fails reports `false`, so the caller's usual
 /// status write still lands and the row reads `Canceled` instead of a stale
 /// `pending`.
+///
+/// The wipe announces what [`public_end_status`] reads in the event:
+/// `expires_at` is the order's own, from the same event.
 async fn wipe_on_public_cancel(
     order_id: &str,
     wire: &OrderStatus,
+    expires_at: Option<i64>,
     revision_at: Option<i64>,
 ) -> bool {
     if !matches!(
@@ -3218,7 +3222,7 @@ async fn wipe_on_public_cancel(
             // those are history, not news.
             emit_trade_update_at(
                 order_id,
-                OrderStatus::Canceled,
+                public_end_status(wire, &local.status, expires_at, revision_at),
                 None,
                 revision_at.unwrap_or_else(crate::rt::unix_now),
             );
@@ -3231,6 +3235,31 @@ async fn wipe_on_public_cancel(
             );
             false
         }
+    }
+}
+
+/// What the public end of a never-active trade announces (#917). mostrod
+/// publishes an expired order as `canceled` (nip33.rs `create_status_tags`)
+/// and sends its maker no message, so a `canceled` for an order still in the
+/// book (`local`), dated at or after the order's `expires_at`, is that
+/// expiry: the node's expiry job ends an order only once its take window
+/// closed. Without either time it reads as the cancel it says, and so does
+/// anything else that ends the order.
+fn public_end_status(
+    wire: &OrderStatus,
+    local: &OrderStatus,
+    expires_at: Option<i64>,
+    revision_at: Option<i64>,
+) -> OrderStatus {
+    let in_book = matches!(local, OrderStatus::Pending | OrderStatus::WaitingTakerBond);
+    let window_closed = matches!(
+        (expires_at, revision_at),
+        (Some(expires_at), Some(at)) if expires_at > 0 && at >= expires_at
+    );
+    match wire {
+        OrderStatus::Expired => OrderStatus::Expired,
+        OrderStatus::Canceled if in_book && window_closed => OrderStatus::Expired,
+        _ => OrderStatus::Canceled,
     }
 }
 
@@ -7266,7 +7295,13 @@ async fn resync_republished_maker_order(
     if let Some(db) = crate::db::app_db::db() {
         write_maker_step_end(db, order_id).await;
     }
-    emit_trade_update_at(order_id, OrderStatus::Pending, None, event_ts);
+    // The maker's last card said the order was in a trade (#917).
+    emit_trade_update_at(
+        order_id,
+        OrderStatus::Pending,
+        Some(crate::api::types::TradeUpdateReason::TakerLeft),
+        event_ts,
+    );
     true
 }
 
@@ -8330,7 +8365,7 @@ async fn apply_peer_reveal(
 /// completion only from this event.
 async fn apply_single_order_update(mut order: OrderInfo, revision_at: Option<i64>) {
     order_book().note_wire_order(&order);
-    if wipe_on_public_cancel(&order.id, &order.status, revision_at).await {
+    if wipe_on_public_cancel(&order.id, &order.status, order.expires_at, revision_at).await {
         return;
     }
     if is_hard_terminal(&order.status) {
@@ -9793,7 +9828,11 @@ where
                 // there: what was decided above is a snapshot, and a take may
                 // have begun.
                 if end_maker_waiting_step(db, &oid, cursor_before).await {
-                    emit_trade_update(&oid, crate::api::types::OrderStatus::Pending);
+                    emit_trade_update_with(
+                        &oid,
+                        crate::api::types::OrderStatus::Pending,
+                        Some(crate::api::types::TradeUpdateReason::TakerLeft),
+                    );
                     log::info!(
                         "[orders] sweep: resynced republished maker order={oid} to pending"
                     );
@@ -10717,7 +10756,7 @@ async fn classify_ingested_order(
     // sync or to hold the entry at (`wipe_on_public_cancel`; one more
     // indexed row lookup, for `canceled` events only).
     if info.status != crate::api::types::OrderStatus::Pending
-        && !wipe_on_public_cancel(&info.id, &info.status, revision_at).await
+        && !wipe_on_public_cancel(&info.id, &info.status, info.expires_at, revision_at).await
     {
         let local = local_trade_status(&info.id).await;
         let applies = wire_status_applies(local.as_ref(), &info.status);
@@ -18816,6 +18855,114 @@ mod tests {
         assert_eq!(dated, vec![(OrderStatus::Canceled, 1_234)]);
     }
 
+    /// A maker's order back in the book (`pending`), as its trade row holds it.
+    async fn save_pending_maker_row(order_id: &str) {
+        let db = crate::db::app_db::db().expect("store initialised");
+        let mut order = wire_order(order_id, OrderStatus::Pending);
+        order.is_mine = true;
+        db.save_trade(&cancel_test_row(order))
+            .await
+            .expect("save the maker's row");
+    }
+
+    /// mostrod publishes an expired order as `canceled` (nip33.rs
+    /// `create_status_tags`) and sends its maker no message. A `canceled`
+    /// dated from the order's `expires_at` on is that expiry, and must be
+    /// announced as one, not as a cancel nobody made (#917).
+    #[tokio::test]
+    async fn a_public_canceled_past_the_take_window_announces_an_expiry() {
+        // Arrange: the maker's order rests in the book; it closed at 1 000.
+        let path = std::env::temp_dir().join(format!(
+            "mostro_public_canceled_expiry_{}.db",
+            std::process::id()
+        ));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let order_id = uuid::Uuid::new_v4().to_string();
+        save_pending_maker_row(&order_id).await;
+        let mut rx = trade_updates_tx().subscribe();
+        let mut expired = wire_order(&order_id, OrderStatus::Canceled);
+        expired.expires_at = Some(1_000);
+
+        // Act: the node's expiry job ran 17 s after the window closed.
+        apply_single_order_update(expired, Some(1_017)).await;
+
+        // Assert
+        assert!(
+            trade_row_gone(&order_id).await,
+            "the expired order is wiped like a cancel"
+        );
+        assert_eq!(
+            drain_dated_updates(&mut rx, &order_id),
+            vec![(OrderStatus::Expired, None, 1_017)],
+            "an expiry must not read as a cancel"
+        );
+    }
+
+    /// Before its take window closed, a `canceled` is a cancel: the maker's
+    /// own from another device, or the operator's.
+    #[tokio::test]
+    async fn a_public_canceled_inside_the_take_window_stays_a_cancel() {
+        let path = std::env::temp_dir().join(format!(
+            "mostro_public_canceled_in_window_{}.db",
+            std::process::id()
+        ));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let order_id = uuid::Uuid::new_v4().to_string();
+        save_pending_maker_row(&order_id).await;
+        let mut rx = trade_updates_tx().subscribe();
+        let mut canceled = wire_order(&order_id, OrderStatus::Canceled);
+        canceled.expires_at = Some(1_000);
+
+        apply_single_order_update(canceled, Some(999)).await;
+
+        assert!(
+            trade_row_gone(&order_id).await,
+            "precondition: the order is wiped"
+        );
+        assert_eq!(
+            drain_dated_updates(&mut rx, &order_id),
+            vec![(OrderStatus::Canceled, None, 999)]
+        );
+    }
+
+    /// The book feed ends a never-active trade of ours through the same wipe
+    /// as the d-tag subscription, and must tell an expiry apart the same way
+    /// (#917).
+    #[tokio::test]
+    async fn an_expiry_seen_by_the_book_feed_is_announced_as_one() {
+        // Arrange: the maker's order rests in the book; its window closed a
+        // minute ago.
+        let path =
+            std::env::temp_dir().join(format!("mostro_book_feed_expiry_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let order_id = uuid::Uuid::new_v4().to_string();
+        save_pending_maker_row(&order_id).await;
+        store_trade_key_index(&order_id, 1).await;
+        let mut rx = trade_updates_tx().subscribe();
+        let closed = (crate::rt::unix_now() - 60).to_string();
+        let expired = book_event_tagged(
+            &order_id,
+            "canceled",
+            "0",
+            &nostr_sdk::prelude::Keys::generate(),
+            &[("expires_at", &closed)],
+        );
+
+        // Act
+        ingest_order_event_with(&expired, Publish::WhenBatchEnds).await;
+
+        // Assert
+        let statuses: Vec<OrderStatus> = drain_dated_updates(&mut rx, &order_id)
+            .into_iter()
+            .map(|(status, _, _)| status)
+            .collect();
+        assert!(
+            trade_row_gone(&order_id).await,
+            "precondition: the order is wiped"
+        );
+        assert_eq!(statuses, vec![OrderStatus::Expired]);
+    }
+
     /// mostrod answers a rating with `rate-received`, sent to the rater
     /// alone (mostro `app/rate_user.rs`). Replayed after a restore, it is the
     /// only record that this identity already rated the trade, and it closes
@@ -20272,15 +20419,21 @@ mod tests {
             .expect("lookup")
             .expect("row kept");
         assert_eq!(row.order.status, crate::api::types::OrderStatus::Pending);
-        let mut emitted = false;
+        let mut reasons = Vec::new();
         while let Ok(update) = rx.try_recv() {
             if update.order_id == order_id
                 && update.status == crate::api::types::OrderStatus::Pending
             {
-                emitted = true;
+                reasons.push(update.reason);
             }
         }
-        assert!(emitted, "the UI must learn the order is pending again");
+        // `pending` alone raises no card; the reason tells the maker their
+        // trade is over and the order is back in the book (#917).
+        assert_eq!(
+            reasons,
+            vec![Some(crate::api::types::TradeUpdateReason::TakerLeft)],
+            "the UI must learn the order is pending again, and why"
+        );
     }
 
     /// A maker's row for a range order `10 – 1000 ARS`, at `status`.
@@ -20731,6 +20884,48 @@ mod tests {
             payout_amount(order_id).await.unwrap(),
             None,
             "the previous take's payout amount survived the sweep"
+        );
+    }
+
+    /// When the daemon's `new-order` never landed, the sweep is what tells
+    /// the maker their order is back in the book, and it must say why, as
+    /// the message would have (#917).
+    #[tokio::test]
+    async fn the_sweep_tells_the_maker_the_taker_left() {
+        // Arrange: a maker's waiting trade past the sweep's age gate, and the
+        // book saying the order is back.
+        let path =
+            std::env::temp_dir().join(format!("mostro_sweep_taker_left_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+        let order_id = uuid::Uuid::new_v4().to_string();
+        let mut order_info = dummy_order_info(&order_id);
+        order_info.status = crate::api::types::OrderStatus::WaitingPayment;
+        order_info.is_mine = true;
+        let mut row = cancel_test_row(order_info.clone());
+        row.trade_key_index = 7;
+        row.started_at = crate::rt::unix_now() - SWEEP_MIN_AGE_SECS - 60;
+        row.timeout_at = None;
+        db.save_trade(&row).await.expect("save the maker's row");
+        order_info.status = crate::api::types::OrderStatus::Pending;
+        order_book().upsert_order(order_info).await;
+        let mut rx = trade_updates_tx().subscribe();
+
+        // Act
+        sweep_trades(db, vec![row], &Default::default(), no_relay_lookup).await;
+
+        // Assert
+        let mut reasons = Vec::new();
+        while let Ok(update) = rx.try_recv() {
+            if update.order_id == order_id
+                && update.status == crate::api::types::OrderStatus::Pending
+            {
+                reasons.push(update.reason);
+            }
+        }
+        assert_eq!(
+            reasons,
+            vec![Some(crate::api::types::TradeUpdateReason::TakerLeft)]
         );
     }
 

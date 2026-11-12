@@ -5136,6 +5136,13 @@ class AppLocalizationsNl extends AppLocalizations {
       'Je order staat nu in het orderboek en andere gebruikers kunnen hem aannemen.';
 
   @override
+  String get tradeCardTakerLeftTitle => 'Order weer in het orderboek';
+
+  @override
+  String get tradeCardTakerLeftMessage =>
+      'De andere partij heeft de trade niet voortgezet. Je order staat weer in het orderboek en andere gebruikers kunnen hem aannemen.';
+
+  @override
   String get payoutInvoiceLabel => 'Invoice';
 
   @override

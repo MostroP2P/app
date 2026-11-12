@@ -1375,6 +1375,8 @@
   "tradeCardPayoutFailedMessage": "Mostro n'a pas pu envoyer vos sats à l'adresse ou à la facture que vous avez donnée. Ouvrez la transaction pour voir laquelle a échoué, et ajoutez une nouvelle facture si c'est encore nécessaire.",
   "tradeCardOrderPublishedTitle": "Ordre publié",
   "tradeCardOrderPublishedMessage": "Votre ordre est maintenant dans le carnet d'ordres, et d'autres utilisateurs peuvent le prendre.",
+  "tradeCardTakerLeftTitle": "Ordre de retour dans le carnet",
+  "tradeCardTakerLeftMessage": "L'autre partie n'a pas poursuivi la transaction. Votre ordre est de retour dans le carnet d'ordres, et d'autres utilisateurs peuvent le prendre.",
   "payoutInvoiceLabel": "Facture",
   "payoutInvoiceCopied": "Facture copiée",
   "payoutWillGoToLabel": "Les sats iront à",

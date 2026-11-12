@@ -747,7 +747,7 @@ TradeUpdate {
 
 TradeUpdateReason: UserCanceled | MakerCanceled | BondLostRace | BondExpired
                  | CooperativeCancelRequestedByMe | CooperativeCancelRequestedByPeer
-                 | Replayed | PayoutFailed | OrderPublished
+                 | Replayed | PayoutFailed | OrderPublished | TakerLeft
 ```
 
 The two `CooperativeCancelRequested*` reasons ride on an emission whose
@@ -757,7 +757,7 @@ by the counterparty. Consumers keyed on status alone (the trade screen's
 status provider) see nothing new; the Notifications cards key on status
 **and** reason, so each request gets its own card, once.
 
-Three more reasons tell a status apart from the same status with another
+Four more reasons tell a status apart from the same status with another
 meaning:
 
 - `Replayed`: a status Rust only re-states, dated now — a restore filing an
@@ -769,8 +769,14 @@ meaning:
   the `new-order`, dated by that message, or the public book carrying the
   order first, dated now. It is also a confirmation that arrived after the
   create timed out. It raises the "Order published" card, which is what the
-  maker's push was about. A `Pending` without it (the book's bucket, a
-  republish after a taker left) raises none.
+  maker's push was about. A `Pending` without it (the book's bucket) raises
+  none.
+- `TakerLeft`: rides on `Pending` when a maker's trade leaves a waiting step
+  because its taker walked away (cancelled, or let the window lapse) and the
+  node put the order back in the book: the `new-order` republish, dated by
+  that message, or the stale sweep's `SyncPending` when that message never
+  landed, dated now. It raises the "Order back in the book" card: the
+  maker's last card said the order was in a trade (#917).
 
 ### on_order_status_changed(order_id: String) → Stream<OrderStatus>
 Emits when a specific order's status changes.
@@ -1090,8 +1096,13 @@ Invariants:
   cancel (or a take whose maker cancelled) would end in My Trades or out of
   it depending on arrival order. The event is also the only report of an
   expired pending order: mostrod publishes `Expired` as `canceled` and sends
-  no message. The decision reads the trade row itself, never the book, so a
-  stranger's `pending` order cannot pass for a never-active trade of ours;
+  no message. The wipe announces it as `Expired`, not `Canceled`, when the
+  row was still in the book (`Pending` or `WaitingTakerBond`) and the event
+  is dated from its `expires_at` tag on: the node refuses takes from then and
+  its expiry job ends the order within a minute (#917). Without either time
+  the event reads as the cancel it says. The decision reads the trade row
+  itself, never the book, so a stranger's `pending` order cannot pass for a
+  never-active trade of ours;
   a trade further along keeps its row, marked `Canceled`. When the event
   wins, the `Canceled` that follows is dropped by the tombstone below.
 - Every such wipe — the daemon's `Canceled`, the public `canceled` and the
