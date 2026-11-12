@@ -3,13 +3,15 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mostro/core/app_theme.dart';
-import 'package:mostro/features/settings/widgets/currency_selector_dialog.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/utils/fiat_currencies.dart';
 import 'package:mostro/shared/widgets/currency_group_header.dart';
 import 'package:mostro/shared/widgets/currency_mark.dart';
+import 'package:mostro/shared/widgets/currency_picker_dialog.dart';
 
-import '../../../support/catalogue_fixtures.dart';
+import '../../support/catalogue_fixtures.dart';
 
+/// Opens the picker over the whole catalogue, as Settings does.
 Future<void> _pump(
   WidgetTester tester, {
   Locale locale = const Locale('en'),
@@ -34,22 +36,35 @@ Future<void> _pump(
           GlobalCupertinoLocalizations.delegate,
         ],
         supportedLocales: AppLocalizations.supportedLocales,
-        home: const CurrencySelectorDialog(),
+        home: Scaffold(
+          body: Builder(
+            builder: (context) => TextButton(
+              onPressed: () => showCurrencyPickerDialog(
+                context,
+                currencies: fiatCurrenciesProvider,
+                selected: null,
+                onSelect: (_) {},
+              ),
+              child: const Text('open'),
+            ),
+          ),
+        ),
       ),
     ),
   );
+  await tester.tap(find.text('open'));
   await tester.pumpAndSettle();
 }
 
 void main() {
-  group('CurrencySelectorDialog (Settings default currency)', () {
+  group('currency picker', () {
     testWidgets('lists the catalogue with the stablecoins under a header', (
       tester,
     ) async {
       await _pump(tester);
 
-      expect(find.text('USD — US Dollar'), findsOneWidget);
-      expect(find.text('USDT — Tether USD'), findsOneWidget);
+      expect(find.text('US Dollar'), findsOneWidget);
+      expect(find.text('Tether USD'), findsOneWidget);
       expect(find.byType(StablecoinsGroupHeader), findsOneWidget);
       expect(find.text('STABLECOINS'), findsOneWidget);
       // The coin is drawn, the fiats keep their flags.
@@ -59,12 +74,9 @@ void main() {
       final header = tester.getTopLeft(find.byType(StablecoinsGroupHeader));
       expect(
         header.dy,
-        greaterThan(tester.getTopLeft(find.text('ARS — Argentine Peso')).dy),
+        greaterThan(tester.getTopLeft(find.text('Argentine Peso')).dy),
       );
-      expect(
-        header.dy,
-        lessThan(tester.getTopLeft(find.text('USDT — Tether USD')).dy),
-      );
+      expect(header.dy, lessThan(tester.getTopLeft(find.text('USDT')).dy));
     });
 
     testWidgets('searching by name narrows to the coin, header kept', (
@@ -74,8 +86,8 @@ void main() {
       await tester.enterText(find.byType(TextField), 'teth');
       await tester.pumpAndSettle();
 
-      expect(find.text('USDT — Tether USD'), findsOneWidget);
-      expect(find.text('USD — US Dollar'), findsNothing);
+      expect(find.text('Tether USD'), findsOneWidget);
+      expect(find.text('US Dollar'), findsNothing);
       expect(find.byType(StablecoinsGroupHeader), findsOneWidget);
     });
 
@@ -96,7 +108,7 @@ void main() {
       await tester.enterText(find.byType(TextField), 'euro');
       await tester.pumpAndSettle();
 
-      expect(find.text('EUR — Euro'), findsOneWidget);
+      expect(find.text('Euro'), findsOneWidget);
       expect(find.byType(StablecoinsGroupHeader), findsNothing);
     });
   });

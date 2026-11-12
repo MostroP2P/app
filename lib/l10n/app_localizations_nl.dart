@@ -422,7 +422,7 @@ class AppLocalizationsNl extends AppLocalizations {
   String get appearanceDialogTitle => 'Weergave';
 
   @override
-  String get allCurrencies => 'Alle valuta';
+  String get fiatCurrencyUnset => 'Niet ingesteld';
 
   @override
   String get lightningAddressSettingTitle => 'Lightning-adres';

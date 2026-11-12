@@ -511,9 +511,9 @@
   "@appearanceDialogTitle": {
     "description": "Dialog title for the appearance/theme picker"
   },
-  "allCurrencies": "All currencies",
-  "@allCurrencies": {
-    "description": "Option label meaning no currency filter is applied"
+  "fiatCurrencyUnset": "Not set",
+  "@fiatCurrencyUnset": {
+    "description": "Settings value when no default fiat currency is chosen"
   },
   "lightningAddressSettingTitle": "Lightning Address",
   "@lightningAddressSettingTitle": {

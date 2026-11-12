@@ -114,7 +114,7 @@
   "languageSettingTitle": "Taal",
   "appearanceSettingTitle": "Weergave",
   "appearanceDialogTitle": "Weergave",
-  "allCurrencies": "Alle valuta",
+  "fiatCurrencyUnset": "Niet ingesteld",
   "lightningAddressSettingTitle": "Lightning-adres",
   "nwcWalletSettingTitle": "NWC-wallet",
   "relaysSettingTitle": "Relays",

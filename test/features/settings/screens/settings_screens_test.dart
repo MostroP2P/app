@@ -205,6 +205,16 @@ final _masterToggle = find.byWidgetPredicate(
 Color _colorOf(WidgetTester tester, String text) =>
     tester.widget<Text>(find.text(text)).style!.color!;
 
+/// The Lightning address row's "Not set": the default currency's row says
+/// the same while it has none.
+final _addressNotSet = find.descendant(
+  of: find.ancestor(
+    of: find.text('Lightning Address'),
+    matching: find.byType(SettingsRow),
+  ),
+  matching: find.text('Not set'),
+);
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
@@ -250,7 +260,10 @@ void main() {
       await _pump(tester, const SettingsScreen());
 
       expect(_colorOf(tester, 'Not connected'), SettingsPalette.dark.warnInk);
-      expect(_colorOf(tester, 'Not set'), SettingsPalette.dark.warnInk);
+      expect(
+        tester.widget<Text>(_addressNotSet).style!.color,
+        SettingsPalette.dark.warnInk,
+      );
     });
 
     testWidgets('saving a lightning address closes the dialog cleanly', (
@@ -268,7 +281,7 @@ void main() {
         ],
       );
 
-      await tester.tap(find.text('Not set'));
+      await tester.tap(_addressNotSet);
       await tester.pumpAndSettle();
       final dialog = find.byType(MostroDialog);
       await tester.enterText(
@@ -305,7 +318,7 @@ void main() {
         ],
       );
 
-      await tester.tap(find.text('Not set'));
+      await tester.tap(_addressNotSet);
       await tester.pumpAndSettle();
       final dialog = find.byType(MostroDialog);
       await tester.enterText(
