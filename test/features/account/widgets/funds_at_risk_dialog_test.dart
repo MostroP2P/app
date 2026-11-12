@@ -44,4 +44,36 @@ void main() {
     expect(find.textContaining('2,100'), findsOneWidget);
     expect(find.textContaining('Order'), findsNothing);
   });
+
+  testWidgets('open Cashu invoices are named, paid or not', (tester) async {
+    // Invoices not minted yet live only in this identity's proof store: one
+    // paid while the app was closed reads unpaid until its mint is asked.
+    await _pump(tester, [
+      const FundsAtRisk(
+        orderId: '',
+        reason: FundsAtRiskReason.cashuPendingInvoices,
+        amountSats: null,
+      ),
+    ]);
+
+    expect(find.text('Cashu invoices that may have been paid'), findsOneWidget);
+    expect(find.text("Only this user's words bring it back"), findsOneWidget);
+    expect(find.textContaining('Order'), findsNothing);
+    // None known paid yet: no figure to show.
+    expect(find.textContaining(RegExp(r'\d')), findsNothing);
+  });
+
+  testWidgets('the sats known paid are shown with the invoices', (
+    tester,
+  ) async {
+    await _pump(tester, [
+      FundsAtRisk(
+        orderId: '',
+        reason: FundsAtRiskReason.cashuPendingInvoices,
+        amountSats: BigInt.from(210),
+      ),
+    ]);
+
+    expect(find.textContaining('210'), findsOneWidget);
+  });
 }

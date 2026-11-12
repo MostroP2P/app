@@ -58,6 +58,12 @@ final Map<String, String Function(AppLocalizations)> _messages = {
   // Not `CashuInsufficientFunds` (escrow) — neither contains the other.
   'CashuMeltInsufficientFunds': (l) => l.cashuErrorMeltInsufficientFunds,
   'CashuMeltFailed': (l) => l.cashuErrorMeltFailed,
+  // Receiving over Lightning (phase C3b-2). Up here for the same reason: a
+  // cdk detail in their tail must not read as a later marker.
+  'CashuMintUnsupported': (l) => l.cashuErrorMintUnsupported,
+  'CashuMintAmountOutOfRange': (l) => l.cashuErrorMintAmountOutOfRange,
+  'CashuMintQuoteUnknown': (l) => l.cashuErrorMintQuoteUnknown,
+  'CashuMintQuoteFailed': (l) => l.cashuErrorMintQuoteFailed,
   'CashuInsufficientFunds': (l) => l.lockEscrowInsufficientFunds,
   'CashuMintNotSupported': (l) => l.lockEscrowMintNotSupported,
   // The wallet's mint is the user's and can differ from the node's: the fix

@@ -126,6 +126,7 @@ fn severity(reason: &FundsAtRiskReason) -> u8 {
         // Not a trade risk: `api::identity::funds_at_risk` lists it after
         // the ones this module ranks.
         FundsAtRiskReason::CashuWalletBalance => 5,
+        FundsAtRiskReason::CashuPendingInvoices => 6,
     }
 }
 

@@ -21,7 +21,9 @@ use std::sync::{Arc, OnceLock};
 use tokio::sync::broadcast::error::RecvError;
 use tokio::sync::{broadcast, RwLock};
 
-use crate::api::types::{CashuMeltQuote, CashuMeltResult, CashuWalletStatus};
+use crate::api::types::{
+    CashuMeltQuote, CashuMeltResult, CashuMintQuote, CashuMintQuoteState, CashuWalletStatus,
+};
 use crate::cashu::CashuWallet;
 use crate::db::{settings_keys, Storage};
 use crate::mostro::escrow_mode;
@@ -217,6 +219,35 @@ pub(crate) async fn identity_balance_at_risk() -> Result<Option<u64>> {
     };
     let sats = crate::cashu::stored_balance(&proof_store_path(&identity)?, None).await?;
     Ok((sats > 0).then_some(sats))
+}
+
+/// The loaded identity's Cashu invoices not minted yet, as a funds-at-risk
+/// entry, or `None` when it has none — phase C3b-2.
+///
+/// Read from its proof store without contacting a mint, so an invoice paid
+/// while the app was closed still reads unpaid: every open one counts, not
+/// only those known paid. They are collected when this identity's words are
+/// loaded again.
+///
+/// **Errors**: `CashuStoreUnavailable`.
+pub(crate) async fn identity_invoices_at_risk() -> Result<Option<crate::api::types::FundsAtRisk>> {
+    let Some(identity) = current_identity().await else {
+        return Ok(None);
+    };
+    let pending = crate::cashu::stored_pending_quotes(&proof_store_path(&identity)?, None).await?;
+    Ok(invoices_at_risk(pending))
+}
+
+/// [`identity_invoices_at_risk`]'s entry for `pending`: one line for all the
+/// open invoices, with the sats known paid when there are any.
+fn invoices_at_risk(
+    pending: crate::cashu::PendingQuotes,
+) -> Option<crate::api::types::FundsAtRisk> {
+    (pending.open > 0).then(|| crate::api::types::FundsAtRisk {
+        order_id: String::new(),
+        reason: crate::api::types::FundsAtRiskReason::CashuPendingInvoices,
+        amount_sats: (pending.paid_sats > 0).then_some(pending.paid_sats),
+    })
 }
 
 /// The file `name` next to `app_db`, or `CashuStoreUnavailable` when the app
@@ -419,6 +450,14 @@ async fn snapshot() -> CashuWalletStatus {
                 .map(str::to_string)
                 .collect(),
             can_send_lightning: wallet.capabilities().nut05_bolt11,
+            can_receive_lightning: wallet.capabilities().nut04_bolt11,
+            receiving_sats: match wallet.pending_quotes().await {
+                Ok(pending) => pending.paid_sats,
+                Err(e) => {
+                    log::warn!("[cashu] pending invoices unreadable: {e}");
+                    0
+                }
+            },
         },
         None => {
             // Not bound, but a mint may be set that is not answering right
@@ -426,9 +465,12 @@ async fn snapshot() -> CashuWalletStatus {
             // about to replace it sees what stays behind there. With no mint
             // set, a wallet genuinely holds nothing — a known zero.
             let mint_url = stored_wallet_mint().await.ok().flatten();
-            let balance_sats = match &mint_url {
-                Some(mint_url) => offline_balance(mint_url).await,
-                None => Some(0),
+            let (balance_sats, receiving_sats) = match &mint_url {
+                Some(mint_url) => (
+                    offline_balance(mint_url).await,
+                    offline_receiving(mint_url).await,
+                ),
+                None => (Some(0), 0),
             };
             CashuWalletStatus {
                 connected: false,
@@ -436,6 +478,8 @@ async fn snapshot() -> CashuWalletStatus {
                 balance_sats,
                 missing_capabilities: Vec::new(),
                 can_send_lightning: false,
+                can_receive_lightning: false,
+                receiving_sats,
             }
         }
     }
@@ -450,6 +494,25 @@ async fn offline_balance(mint_url: &str) -> Option<u64> {
         .await
         .map_err(|e| log::warn!("[cashu] offline balance unreadable: {e}"))
         .ok()
+}
+
+/// What the loaded identity's store knows was paid at `mint_url` and not
+/// minted yet, without contacting it; 0 when that cannot be read. A mint
+/// that is down at start is exactly when this shows.
+async fn offline_receiving(mint_url: &str) -> u64 {
+    let Some(identity) = current_identity().await else {
+        return 0;
+    };
+    let Ok(path) = proof_store_path(&identity) else {
+        return 0;
+    };
+    crate::cashu::stored_pending_quotes(&path, Some(mint_url))
+        .await
+        .map(|pending| pending.paid_sats)
+        .unwrap_or_else(|e| {
+            log::warn!("[cashu] offline pending invoices unreadable: {e}");
+            0
+        })
 }
 
 async fn notify() {
@@ -593,8 +656,9 @@ pub async fn cashu_create_token(amount_sats: u64) -> Result<String> {
 }
 
 /// Reconcile the proof store with the mint: proofs the mint reports spent are
-/// forgotten, melts still in flight are settled as the mint reports them, and
-/// the new balance is broadcast.
+/// forgotten, melts still in flight are settled as the mint reports them,
+/// invoices paid and not yet minted are collected at every mint
+/// ([`cashu_collect_pending_quotes`]), and the new balance is broadcast.
 ///
 /// The melts are settled here because a bound wallet is reused, not
 /// reconnected: without this, a melt that answered `Pending` would keep its
@@ -606,9 +670,9 @@ pub async fn cashu_create_token(amount_sats: u64) -> Result<String> {
 /// its saga is on record as in flight, and settling it now would roll back a
 /// payment the mint may still make (#864). The next sync settles them.
 ///
-/// Both steps run whatever the other did, and the balance is broadcast after
-/// them even when one fails: either may have moved proofs. The first error is
-/// returned.
+/// Every step runs whatever the others did, and the balance is broadcast
+/// after them even when one fails: any may have moved proofs. The first error
+/// of the sweep or the melts is returned; the collection only logs.
 ///
 /// **Returns nothing on purpose.** It reclaims neither an unredeemed token of
 /// ours nor the proofs of a half-finished send — cdk's state check cannot see
@@ -621,6 +685,12 @@ pub async fn cashu_sweep_spent_proofs() -> Result<()> {
     let wallet = active_wallet().await?;
     let swept = wallet.sweep_spent_proofs().await;
     let settled = wallet.finalize_pending_melts().await;
+    // Paid invoices too, at every mint: Sync is where a user who paid one
+    // with the wallet open, but the dialog closed, looks for it. Asked for by
+    // the user, so long-silent mints are tried again as well.
+    if let Err(e) = collect_pending_quotes(crate::cashu::Collect::Everything).await {
+        log::warn!("[cashu] collecting paid invoices failed: {e}");
+    }
     notify().await;
     swept.and(settled)
 }
@@ -676,6 +746,110 @@ pub async fn cashu_melt(quote_id: String, max_total_sats: u64) -> Result<CashuMe
         },
         crate::cashu::MeltOutcomeInfo::Pending => CashuMeltResult::Pending,
     })
+}
+
+/// An invoice for `amount_sats` that funds the wallet once paid, from any
+/// Lightning wallet — phase C3b-2.
+///
+/// The quote is stored before this returns, so an invoice paid after the app
+/// was closed is still collected.
+///
+/// **Errors**: `CashuNotConnected`, `CashuMintUnsupported`,
+/// `CashuMintAmountOutOfRange`, `CashuMintQuoteFailed`.
+pub async fn cashu_mint_quote(amount_sats: u64) -> Result<CashuMintQuote> {
+    let quote = active_wallet().await?.mint_quote(amount_sats).await?;
+    Ok(CashuMintQuote {
+        quote_id: quote.quote_id,
+        invoice: quote.invoice,
+        amount_sats: quote.amount_sats,
+        expires_at: quote.expires_at,
+    })
+}
+
+/// Whether the invoice of [`cashu_mint_quote`] `quote_id` was paid, minting
+/// its ecash into the wallet when it was. Meant to be polled while the
+/// invoice is on screen; the balance is broadcast once it is issued.
+///
+/// `Waiting` also covers a mint that did not answer and a round skipped
+/// because the quote was being checked elsewhere: neither is an error.
+///
+/// **Errors**: `CashuNotConnected`, `CashuMintQuoteUnknown` (not a quote of
+/// this wallet's mint, e.g. after a change of mint), `CashuMintQuoteFailed`.
+pub async fn cashu_claim_mint_quote(quote_id: String) -> Result<CashuMintQuoteState> {
+    let status = active_wallet()
+        .await?
+        .claim_mint_quote(&quote_id)
+        .await?;
+    Ok(match status {
+        crate::cashu::MintQuoteStatus::Waiting => CashuMintQuoteState::Waiting,
+        crate::cashu::MintQuoteStatus::Issued { amount_sats } => {
+            notify().await;
+            CashuMintQuoteState::Issued { amount_sats }
+        }
+        crate::cashu::MintQuoteStatus::Expired => CashuMintQuoteState::Expired,
+    })
+}
+
+/// Collect the loaded identity's invoices that were paid and not yet minted,
+/// at every mint it holds quotes for — phase C3b-2. The wallet's status is
+/// broadcast once it ran.
+///
+/// For the invoice paid while the app was closed or in the background: Dart
+/// calls it, unawaited, at start and on resume; Sync runs it too. Quiet by
+/// design: with nothing pending it contacts no mint and builds no wallet,
+/// and it never fails — a mint that does not answer is tried at the next
+/// run. A no-op on web and for an identity without secret words, which has
+/// no wallet. A mint whose quotes all expired a month ago or more, without
+/// it ever answering for them, is left to Sync ([`crate::cashu::Collect`]).
+///
+/// Runs may overlap — start, resume and Sync each start one, unawaited —
+/// and that is allowed: each mint's issue mark lets one run work a mint
+/// while the others skip it, and a skipped mint is collected by a later
+/// run. The status may then be broadcast once per run.
+///
+/// It writes only to the identity's own proof store, which outlives the
+/// identity's deletion on purpose (importing its words brings the balance
+/// back), so a run that ends after a deletion or an import fills that
+/// identity's file, never the next one's. Not stopped by the teardown
+/// either: an abort between the mint's answer and storing its proofs is the
+/// interrupted issue this phase guards against.
+pub async fn cashu_collect_pending_quotes() -> Result<()> {
+    if let Err(e) = collect_pending_quotes(crate::cashu::Collect::Live).await {
+        log::warn!("[cashu] collecting paid invoices failed: {e}");
+    }
+    Ok(())
+}
+
+async fn collect_pending_quotes(which: crate::cashu::Collect) -> Result<()> {
+    let Some(identity) = current_identity().await else {
+        return Ok(());
+    };
+    let db_path = proof_store_path(&identity)?;
+    if !std::path::Path::new(&db_path).exists() {
+        return Ok(());
+    }
+    let seed = match crate::api::identity::current_bip39_seed().await {
+        Ok(seed) => seed,
+        // An identity imported from a private key has no wallet to fill.
+        Err(e) if e.to_string() == "CashuNoMnemonic" => return Ok(()),
+        // Anything else — the identity swapped out mid-run, a seed that does
+        // not derive — skips a collection the next run makes up: say so.
+        Err(e) => {
+            log::warn!("[cashu] paid invoices not collected, no seed: {e}");
+            return Ok(());
+        }
+    };
+    // The seed must be this identity's, as in `open_wallet`: one swapped in
+    // between would mint with the wrong key into this store.
+    if current_identity().await.as_deref() != Some(identity.as_str()) {
+        return Ok(());
+    }
+    let active = live_wallet().await;
+    crate::cashu::collect_pending_quotes(&db_path, &seed, active.as_deref(), which).await?;
+    // Whatever came of it: sats minted move the balance, and a quote found
+    // paid but not minted moves "receiving".
+    notify().await;
+    Ok(())
 }
 
 /// Drop the in-memory wallet. Proofs stay on disk and the wallet's mint stays
@@ -1305,6 +1479,34 @@ pub fn on_cashu_wallet_changed() -> CashuWalletStream {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn open_invoices_are_at_risk_paid_or_not() {
+        use crate::api::types::FundsAtRiskReason;
+        use crate::cashu::PendingQuotes;
+
+        // None open: nothing to warn about.
+        assert!(invoices_at_risk(PendingQuotes::default()).is_none());
+
+        // Open and none known paid: still a risk, one paid while the app was
+        // closed reads unpaid here. No amount to name.
+        let maybe = invoices_at_risk(PendingQuotes {
+            paid_sats: 0,
+            open: 2,
+        })
+        .expect("open invoices are at risk");
+        assert_eq!(maybe.reason, FundsAtRiskReason::CashuPendingInvoices);
+        assert_eq!(maybe.amount_sats, None);
+        assert!(maybe.order_id.is_empty(), "not tied to an order");
+
+        // Some known paid: those sats are named.
+        let paid = invoices_at_risk(PendingQuotes {
+            paid_sats: 210,
+            open: 3,
+        })
+        .unwrap();
+        assert_eq!(paid.amount_sats, Some(210));
+    }
 
     /// The escrow globals are process-wide, and so is the lock that guards
     /// them: a private mutex here would serialize this module against itself

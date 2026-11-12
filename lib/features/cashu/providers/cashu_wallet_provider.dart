@@ -70,6 +70,17 @@ class CashuWalletController {
   /// `CashuMeltFeeChanged`, with nothing spent, when it no longer holds.
   Future<CashuMeltResult> melt(String quoteId, BigInt maxTotalSats) =>
       cashu_api.cashuMelt(quoteId: quoteId, maxTotalSats: maxTotalSats);
+
+  /// An invoice for [amountSats] that funds the wallet once paid — phase
+  /// C3b-2. Throws `CashuMintUnsupported` or `CashuMintAmountOutOfRange`
+  /// before the mint is asked, `CashuMintQuoteFailed` when it gives none.
+  Future<CashuMintQuote> mintQuote(BigInt amountSats) =>
+      cashu_api.cashuMintQuote(amountSats: amountSats);
+
+  /// Whether the invoice [quoteId] was paid, minting its ecash when it was.
+  /// `Waiting` is not an error: ask again.
+  Future<CashuMintQuoteState> claimMintQuote(String quoteId) =>
+      cashu_api.cashuClaimMintQuote(quoteId: quoteId);
 }
 
 final cashuWalletControllerProvider = Provider<CashuWalletController>(
