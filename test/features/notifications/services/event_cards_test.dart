@@ -173,9 +173,43 @@ void main() {
       );
 
       final card = stateOf(notifier).single;
-      expect(card.id, 'trade-order-1-pending-takerLeft');
+      expect(card.id, 'trade-order-1-pending-takerLeft-1757860000');
       expect(card.tradeStatus, 'pending');
       expect(card.tradeReason, 'takerLeft');
+    });
+
+    test('a second taker walking away raises a second card', () async {
+      // The node keeps the maker's order id across takes, so each departure
+      // needs its own identity or the first one silences the rest.
+      await cards.onTradeUpdate(
+        update(
+          OrderStatus.pending,
+          reason: TradeUpdateReason.takerLeft,
+          at: 1757860000,
+        ),
+      );
+      await cards.onTradeUpdate(
+        update(
+          OrderStatus.pending,
+          reason: TradeUpdateReason.takerLeft,
+          at: 1757863600,
+        ),
+      );
+
+      expect(stateOf(notifier), hasLength(2));
+    });
+
+    test('the same departure seen twice raises one card', () async {
+      final left = update(
+        OrderStatus.pending,
+        reason: TradeUpdateReason.takerLeft,
+        at: 1757860000,
+      );
+
+      await cards.onTradeUpdate(left);
+      await cards.onTradeUpdate(left);
+
+      expect(stateOf(notifier), hasLength(1));
     });
 
     test('a taker walking away answers to the trade updates toggle', () async {
