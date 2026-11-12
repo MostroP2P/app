@@ -3722,7 +3722,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get tradeCardWaitingTakerBondMessage =>
-      'Il deposito anti-abuso di chi prende l\'ordine deve essere pagato prima dell\'inizio dell\'operazione.';
+      'L\'operazione prosegue quando il deposito è pagato.';
 
   @override
   String get tradeCardActiveTitle => 'Operazione attiva';
@@ -3819,6 +3819,49 @@ class AppLocalizationsIt extends AppLocalizations {
   @override
   String get tradeCardCanceledBondExpiredMessage =>
       'La fattura del deposito è scaduta senza essere pagata.';
+
+  @override
+  String get tradeCardWaitingBuyerInvoiceBuyerTitle =>
+      'Aggiungi la tua fattura';
+
+  @override
+  String get tradeCardWaitingBuyerInvoiceBuyerMessage =>
+      'Aggiungi una fattura Lightning per ricevere i sats. L\'operazione prosegue appena lo fai.';
+
+  @override
+  String get tradeCardWaitingPaymentSellerTitle => 'Blocca i sats';
+
+  @override
+  String get tradeCardWaitingPaymentSellerMessage =>
+      'L\'operazione prosegue appena sono in custodia.';
+
+  @override
+  String get tradeCardActiveBuyerMessage =>
+      'I sats sono bloccati. Ora puoi inviare il pagamento.';
+
+  @override
+  String get tradeCardActiveSellerMessage =>
+      'I tuoi sats sono bloccati. L\'acquirente può ora inviare il pagamento.';
+
+  @override
+  String get tradeCardFiatSentBuyerMessage =>
+      'Hai segnato il pagamento come inviato. Il venditore lo verifica e rilascia i sats.';
+
+  @override
+  String get tradeCardFiatSentSellerMessage =>
+      'L\'acquirente ha segnato il pagamento come inviato. Verifica che sia arrivato prima di rilasciare i sats.';
+
+  @override
+  String get tradeCardSettledHoldInvoiceBuyerMessage =>
+      'Il venditore ha rilasciato i sats. Il tuo pagamento è in arrivo.';
+
+  @override
+  String get tradeCardSettledHoldInvoiceSellerMessage =>
+      'Hai rilasciato i sats. Il pagamento all\'acquirente è in arrivo.';
+
+  @override
+  String get tradeCardSettledByAdminBuyerMessage =>
+      'Il mediatore della disputa ti ha rilasciato i sats.';
 
   @override
   String get chatCardTitle => 'Nuovi messaggi';

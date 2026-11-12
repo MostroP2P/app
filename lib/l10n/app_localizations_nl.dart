@@ -3725,7 +3725,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get tradeCardWaitingTakerBondMessage =>
-      'De borg tegen misbruik van wie de order accepteert moet betaald zijn voordat de trade begint.';
+      'De trade gaat verder zodra de borg betaald is.';
 
   @override
   String get tradeCardActiveTitle => 'Trade actief';
@@ -3821,6 +3821,48 @@ class AppLocalizationsNl extends AppLocalizations {
   @override
   String get tradeCardCanceledBondExpiredMessage =>
       'De borg-invoice is onbetaald verlopen.';
+
+  @override
+  String get tradeCardWaitingBuyerInvoiceBuyerTitle => 'Voeg je invoice toe';
+
+  @override
+  String get tradeCardWaitingBuyerInvoiceBuyerMessage =>
+      'Voeg een Lightning-invoice toe om de sats te ontvangen. Daarna gaat de trade verder.';
+
+  @override
+  String get tradeCardWaitingPaymentSellerTitle => 'Zet de sats vast';
+
+  @override
+  String get tradeCardWaitingPaymentSellerMessage =>
+      'De trade gaat verder zodra ze in de escrow staan.';
+
+  @override
+  String get tradeCardActiveBuyerMessage =>
+      'De sats staan vast. Je kunt nu betalen.';
+
+  @override
+  String get tradeCardActiveSellerMessage =>
+      'Je sats staan vast. De koper kan nu betalen.';
+
+  @override
+  String get tradeCardFiatSentBuyerMessage =>
+      'Je hebt de betaling als verstuurd gemeld. De verkoper controleert die en geeft de sats vrij.';
+
+  @override
+  String get tradeCardFiatSentSellerMessage =>
+      'De koper heeft de betaling als verstuurd gemeld. Controleer of die is aangekomen voordat je de sats vrijgeeft.';
+
+  @override
+  String get tradeCardSettledHoldInvoiceBuyerMessage =>
+      'De verkoper heeft de sats vrijgegeven. Je uitbetaling is onderweg.';
+
+  @override
+  String get tradeCardSettledHoldInvoiceSellerMessage =>
+      'Je hebt de sats vrijgegeven. De uitbetaling aan de koper is onderweg.';
+
+  @override
+  String get tradeCardSettledByAdminBuyerMessage =>
+      'De solver heeft de sats aan jou vrijgegeven.';
 
   @override
   String get chatCardTitle => 'Nieuwe berichten';

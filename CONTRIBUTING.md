@@ -47,11 +47,11 @@ Changes that affect Nostr event kinds, tags, or the transport layer are **protoc
 A pull request has to prove two things before a reviewer reads the diff: that the problem it addresses exists, and that the change does not break anything else. The rules below are about the evidence a pull request carries, not about how it was written.
 
 1. **AI tools are allowed.** You are responsible for every line and must be able to explain any of it when a reviewer asks. "The tool wrote it" is not an answer.
-2. A pull request that does not follow the [template](#pull-request-template), does not link an [accepted issue](#issue-before-pull-request) when one is required, or does not meet the [Manual testing](#manual-testing), [Screenshots](#screenshots) and [Red test](#red-test) rules below, **is closed without technical review**, with the [standard message](.github/quality/close-message.md). You can reopen it once it meets the bar.
+2. A pull request that does not follow the [template](#pull-request-template), does not link an [accepted issue](#issue-before-pull-request) when one is required, or does not meet the [Manual testing](#manual-testing), [Screenshots](#screenshots) and [Red test](#red-test) rules below, **is closed without technical review**, with the [standard message](.github/quality/close-message.md). You can reopen it once it meets the bar. Pull requests also keep to the [size limit](#pull-request-size).
 3. A pull request whose description does not match its diff, whose Manual testing steps do not work when a reviewer follows them, or whose screenshots do not match what the branch shows, is closed the same way.
 4. An account that repeatedly opens pull requests closed under this policy may be blocked from the organisation.
 
-**Exempt** from the accepted issue, the template, Manual testing, Screenshots and the Red test: pull requests that only change Markdown files, pull requests from maintainers and bots, and pull requests a maintainer labels `quality:exempt`. Signed commits and, for first-time contributors, the size limits apply to everyone but bots.
+**Exempt** from the accepted issue, the template, Manual testing, Screenshots and the Red test: pull requests that only change Markdown files, pull requests from maintainers and bots, and pull requests a maintainer labels `quality:exempt`. Signed commits and the [size limit](#pull-request-size) apply to everyone but bots.
 
 For now maintainers apply these rules by hand. Automated checks will first only add labels and comments; nothing is closed automatically without a separate, announced decision. The design is in [docs/CONTRIBUTION_QUALITY_SPEC.md](docs/CONTRIBUTION_QUALITY_SPEC.md).
 
@@ -64,6 +64,22 @@ Every pull request that is not [exempt](#contribution-quality-bar) links an issu
 - A UI or design change needs the issue to show the intended result: a mockup, the v1 screen it matches, or a reference to `docs/design/`. The result must keep the [design guide](.specify/DESIGN_SYSTEM.md): a proposal that breaks one of its MUST rules is declined, or it changes the guide first.
 - If there is no accepted issue yet, comment on the issue instead of opening the pull request.
 
+### Pull request size
+
+A pull request has at most **1,500 changed lines** (additions plus deletions), **not counting** tests, generated files, documentation and translations. The limit exists so a reviewer can read the whole change: a large diff gets a shallower review.
+
+- **Tests do not count:** `test/**`, `*_test.dart`, `rust/tests/**`, and `#[cfg(test)]` items and `#[test]` functions inside `rust/src/`. Write as many tests as the change needs.
+- **Generated files do not count:** `lib/src/rust/**`, `rust/src/frb_generated.rs`, the generated localizations, lockfiles and golden images.
+- **Documentation does not count:** Markdown files, `docs/`, `specs/` and `.specify/`.
+- **Translations do not count:** the `.arb` files in `lib/l10n/`.
+- Everything else counts: Rust and Dart production code, platform code, CI and tooling.
+
+Over the limit, split the work into pull requests that each build, pass the tests and can be reviewed on their own, for example one per phase of a feature. If the size cannot be avoided (a bindings regeneration, a migration, a large dependency bump), say why in the description; a maintainer may apply `size:exempt`.
+
+The **Pull request size** check counts the lines when a pull request is opened, reopened, marked ready for review or updated; draft pull requests are counted once they are marked ready for review. It skips bots and pull requests labelled `size:exempt`. Over the limit it adds `quality:too-large` and one comment with the breakdown. It does not block the merge.
+
+A first-time contributor's first pull request has a tighter limit: 400 changed lines, including tests and documentation but not generated files. Maintainers apply that limit by hand for now; the size check does not.
+
 ### Pull request template
 
 Fill in every section of [`.github/pull_request_template.md`](.github/pull_request_template.md). A section that is missing, empty or left with only its placeholder comment counts as not filled in.
@@ -74,7 +90,7 @@ Fill in every section of [`.github/pull_request_template.md`](.github/pull_reque
 
 The **Manual testing** section is a step-by-step procedure that tests this specific pull request end to end, in the app built from your branch, against a running Mostro node. **A person runs it by hand** and writes down what they saw; a reviewer must be able to follow the same steps and see the same results.
 
-Mostro's developers also run end-to-end suites with an internal tool (Mortsom). It is not available to external contributors and nothing here requires it: you test with the same app a user runs.
+Mostro's developers also run end-to-end suites with [Mortsom](https://github.com/MostroP2P/mortsom), which drives two copies of the app through complete trades on a regtest stack. Nothing here requires it: you test with the same app a user runs.
 
 - **Setup** says how you built the app (`flutter run` from the branch, which platform and device, debug or release; `./scripts/build-web.sh` for web), which Mostro node and relays when they differ from the defaults, how each actor pays and gets paid (Lightning wallet, NWC or manual invoices), which client each other actor uses (a second copy of this app, the v1 app or mostro-cli), and the state the steps start from (fresh install, existing identity, privacy mode…).
 - **Steps** are numbered. Each step names one actor (maker, taker, buyer, seller, solver), one action in the UI, and an `Expected:` line with an observable result: the screen shown, a status or chip, a notification, a chat message, a button enabled or hidden, a payment received in the wallet, or, when the UI does not show it, the order status on the public event (kind 38383).

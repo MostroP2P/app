@@ -1,0 +1,26 @@
+name: Mortsom map
+
+# The Mortsom gate's map and scripts (docs/MORTSOM_PR_E2E_SPEC.md § 4.4):
+# unit tests, every tracked file mapped, every map name in the catalog, and
+# the workflows pinned to the map's mortsom_ref. Runs on every pull request,
+# independent of mortsom-pr.yml and its skip paths.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  map:
+    name: Map and scripts
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Unit tests
+        run: python3 -m unittest discover -s .github/mortsom/tests -v

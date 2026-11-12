@@ -1,7 +1,8 @@
 # Contribution Quality Bar — Spec
 
 **Status:** Phase 1 (policy in `CONTRIBUTING.md`, `AGENTS.md` and `CLAUDE.md`, pull
-request template, close message). Maintainers apply it by hand.
+request template, close message), plus the pull request size check of §7.6.
+Maintainers apply the rest by hand.
 **Adapted from:** the daemon's
 [Contribution Quality Bar](https://github.com/MostroP2P/mostro/blob/main/docs/CONTRIBUTION_QUALITY_SPEC.md).
 The principle, the layers and the rollout are the same; what changes is
@@ -55,7 +56,7 @@ expensive one runs.
 | 1 | Written policy | Gives a reason to close without debate | Docs only | §3 |
 | 2 | Issue before pull request | Fixes for bugs that do not exist, features nobody agreed to | Docs and a label | §4 |
 | 3 | Pull request template, with **Manual testing** and **Screenshots** | Authors who do not know which screen or flow they changed, or never ran the app | Docs only | §5, §6 |
-| 4 | Triage bot | Missing issue, template, test, screenshots or signatures; oversized first pull requests; silent automation-id changes | One workflow, no build | §7 |
+| 4 | Triage bot and size check | Missing issue, template, test, screenshots or signatures; pull requests too large to review; silent automation-id changes | Two workflows, no build | §7 |
 | 5 | Red test on `main` | Fixes whose test also passes without the fix | Two test runs per fix | §8 |
 | 6 | Mortsom e2e gate | "Fixes one flow, breaks another" | Separate spec | §9 |
 
@@ -110,7 +111,11 @@ If you are an AI agent preparing a pull request, follow
   branch, against a Mostro node, or, for a change with no app flow (CI,
   scripts, tooling, tests only), on the command or workflow it changes.
   Do not present steps nobody ran as results.
-  Mortsom is an internal tool of the Mostro developers; do not use or cite it.
+- Keep the pull request under 1,500 changed lines, not counting tests,
+  generated files, documentation and translations
+  (`CONTRIBUTING.md § Pull request size`).
+  If the work is larger, split it into pull requests that each build and
+  pass the tests on their own.
 - Any visible change carries before and after screenshots; write
   `No visible change` only when that is true.
 - For a fix, the commits are, in order: `refactor:` commits only if the test
@@ -455,6 +460,52 @@ without a new push or an edit to the description, with the standard
 message of §3. Before Phase 4 it only applies `quality:would-close` and
 comments that the pull request **would** have been closed.
 
+### 7.6 Pull request size — `quality-size.yml`
+
+Every pull request has at most `max_lines` (default 1,500) changed lines,
+additions plus deletions, **not counting** tests, generated files,
+documentation and translations. The point is a change a reviewer can read whole: the review
+of a large diff is shallower, and the bugs of large changes surface later.
+It applies to everyone but bots, in addition to the first-time
+contributor limit of §7.1.
+
+What does not count, all listed in `.github/quality/config.toml` `[size]`:
+
+- **Tests:** `test/**`, `integration_test/**`, `test_driver/**`,
+  `*_test.dart`, `rust/tests/**`, `.github/**/tests/**`, the out-of-line
+  modules declared with `#[cfg(test)] mod name;` (listed in `config.toml`,
+  kept complete by a unit test that scans `rust/src`), and, line by line, the `#[cfg(test)]`
+  items and `#[test]` / `#[tokio::test]` functions inside `rust/src/**/*.rs`.
+- **Generated files:** the list of §7.4.
+- **Documentation:** `*.md`, `docs/**`, `specs/**`, `.specify/**`.
+- **Translations:** `lib/l10n/*.arb`.
+
+The check ships ahead of the triage bot as its own workflow and script
+(`run_size_check.py`, pure logic in `size_check.py`, the Rust test-item
+detector in `rust_tests.py`, unit tests in `.github/quality/tests/`), with
+the same safety model: `pull_request_target`, scripts from `main`, no pull
+request code checked out or run. It reads the changed files and their
+patches from the API, and for a changed Rust source the file at the merge
+base and at the head, to tell test lines apart. When GitHub omits the
+patch of a very large file, the check diffs those two versions itself and
+applies the share of test lines it finds to GitHub's own line counts, so
+the total always matches what GitHub reports. When
+a source cannot be read, every line of that file counts, and the comment
+says so.
+
+- Over the limit: label `quality:too-large` and one comment, edited in
+  place, with the breakdown (counted, tests, generated, docs,
+  translations, total).
+- Within the limit, or exempt: the label and the comment are removed.
+- The check run `Pull request size` is `neutral` over the limit and
+  `success` otherwise, never `failure`: it does not block a merge.
+- A maintainer applies `size:exempt` when the size cannot be avoided (a
+  bindings regeneration, a migration, a large dependency bump) and the
+  description says why.
+
+When the triage bot of §7 lands, the size check can move into it as one
+more check; its config section and labels stay the same.
+
 ## 8. Red test on `main` — `quality-red-test.yml`
 
 The strongest filter against fixes for problems that do not exist: the
@@ -580,10 +631,10 @@ reads the test, and the Manual testing covers the platforms.
 
 ## 9. Mortsom
 
-[Mortsom](https://github.com/MostroP2P/mortsom) (private) drives two real
+[Mortsom](https://github.com/MostroP2P/mortsom) drives two real
 copies of the app through complete trades against a regtest stack, on
 Linux and web. It already builds the app from a pull request
-(`mortsom run --app-ref <PR URL>`), and the UI contract it relies on is
+(`mortsom run --ref <PR URL>`), and the UI contract it relies on is
 `docs/automation-contract.md`.
 
 ### 9.1 Gate on pull requests (separate spec)
@@ -591,9 +642,9 @@ Linux and web. It already builds the app from a pull request
 The daemon runs its e2e harness on pull requests and labels the result
 (`ORTSOM_PR_E2E_SPEC.md` in `MostroP2P/mostro`). The equivalent here
 runs the Mortsom scenarios selected by what a pull request touches and
-labels regressions. It needs its own spec, written in this repository
-before it is built; this spec only reserves its place in the layers and
-its labels (`mortsom:*`).
+labels regressions. Its design is
+[`docs/MORTSOM_PR_E2E_SPEC.md`](MORTSOM_PR_E2E_SPEC.md); it starts in
+shadow mode, with labels (`mortsom:*`) and one comment.
 
 ### 9.2 Per-PR scenario from the Manual testing steps (future)
 
@@ -649,6 +700,8 @@ If one is ever added, it only applies an informational label
 | `quality:bug-not-reproduced` | Verdict | The §8 test passes on `main` |
 | `quality:test-fails` | Verdict | The §8 test fails on head |
 | `quality:red-test-inconclusive` | Verdict | The §8 test does not compile without the fix |
+| `quality:too-large` | Size check | More changed lines than §7.6 allows |
+| `size:exempt` | Maintainer | The size cannot be avoided; skip §7.6 |
 | `mortsom:*` | Mortsom verdict | §9.1, defined in its own spec |
 
 ## 13. Rollout
@@ -657,6 +710,7 @@ If one is ever added, it only applies an informational label
 |---|---|---|
 | 0 | app | This spec (lands together with Phase 1) |
 | 1 | app | `CONTRIBUTING.md` sections (quality bar, Manual testing, Screenshots, red test commit convention), the `AGENTS.md` section of §3.1 and its pointer in `CLAUDE.md`, `.github/pull_request_template.md`, `.github/quality/close-message.md`, labels. Maintainers apply the policy by hand |
+| 1b | app | `quality-size.yml`, `size_check.py` with tests, `config.toml` (§7.6). Labels and comment only, `neutral` check run |
 | 2 | app | `quality-triage.yml`, `triage.py` with tests, `config.toml`, adapted from the daemon's. **Shadow**: labels and comment only, `neutral` check run |
 | 3 | app | `quality-red-test.yml` and `quality-verdict.yml`. **Shadow** |
 | 4 | app | Enforcement: `quality-stale.yml` closes after 7 days of `quality:needs-info`. Needs a separate, explicit decision after reviewing the shadow labels |

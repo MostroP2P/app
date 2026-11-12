@@ -72,6 +72,7 @@ fails on `main`, or why no test can (CONTRIBUTING.md § Red test). -->
 - [ ] Changed an automation identifier: coordinated in the linked issue (docs/automation-contract.md)
 - [ ] Protocol or transport change: impact on the daemon and other clients stated (CONTRIBUTING.md § Protocol / Transport Changes)
 - [ ] Behaviour or contract change: matching spec under `specs/` or `.specify/` updated
+- [ ] At most 1,500 changed lines, not counting tests, generated files, docs and translations (CONTRIBUTING.md § Pull request size), or the description says why it cannot be split
 - [ ] Commits are signed
 - [ ] I ran the Manual testing steps myself and can explain every line of this diff
 

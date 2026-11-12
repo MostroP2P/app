@@ -127,6 +127,25 @@ void main() {
     expect(noticeIcon(_system(1)), Icons.info_outline);
   });
 
+  test('the icon of a waiting status says whose turn it is (#845)', () {
+    expect(
+      noticeIcon(_status('waitingPayment'), isBuyer: false),
+      Icons.bolt_rounded,
+    );
+    expect(
+      noticeIcon(_status('waitingPayment'), isBuyer: true),
+      Icons.hourglass_top_rounded,
+    );
+    expect(
+      noticeIcon(_status('waitingBuyerInvoice'), isBuyer: true),
+      Icons.receipt_long_outlined,
+    );
+    expect(
+      noticeIcon(_status('waitingBuyerInvoice'), isBuyer: false),
+      Icons.hourglass_top_rounded,
+    );
+  });
+
   group('sectionNotices', () {
     test('pins trades that need the user now, the rest in one timeline', () {
       // Arrange

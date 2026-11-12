@@ -1,0 +1,1246 @@
+{
+  "schema": 1,
+  "mortsom_version": "0.2.0",
+  "scenarios": [
+    {
+      "name": "background_at_taken",
+      "family": "recovery",
+      "tags": [
+        "recovery",
+        "interruption"
+      ],
+      "moves_value": false,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [
+        "background"
+      ],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "buyer-invoice"
+      ],
+      "timeout_secs": 1200
+    },
+    {
+      "name": "bond_claim_fails_then_replaced",
+      "family": "bond",
+      "tags": [
+        "bond"
+      ],
+      "moves_value": true,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": true,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "bond",
+        "cancel"
+      ],
+      "timeout_secs": 2400
+    },
+    {
+      "name": "bonds_released_by_solver_ruling",
+      "family": "bond",
+      "tags": [
+        "bond"
+      ],
+      "moves_value": true,
+      "needs_solver": true,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": true,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "bond",
+        "hold-invoice-payment",
+        "buyer-invoice",
+        "fiat-sent",
+        "dispute",
+        "cancel"
+      ],
+      "timeout_secs": 2100
+    },
+    {
+      "name": "buyer_invoice_deadline",
+      "family": "expiration",
+      "tags": [
+        "expiration"
+      ],
+      "moves_value": true,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "hold-invoice-payment",
+        "buyer-invoice"
+      ],
+      "timeout_secs": 2700
+    },
+    {
+      "name": "buyer_maker_bond_slashed_on_timeout",
+      "family": "bond",
+      "tags": [
+        "bond"
+      ],
+      "moves_value": true,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": true,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "bond",
+        "hold-invoice-payment",
+        "buyer-invoice",
+        "cancel"
+      ],
+      "timeout_secs": 2400
+    },
+    {
+      "name": "buyer_taker_bond_slashed_on_timeout",
+      "family": "bond",
+      "tags": [
+        "bond"
+      ],
+      "moves_value": true,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": true,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "bond",
+        "cancel"
+      ],
+      "timeout_secs": 2400
+    },
+    {
+      "name": "cancel_after_take_unpaid",
+      "family": "cancellation",
+      "tags": [
+        "cancellation"
+      ],
+      "moves_value": false,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "buyer-invoice"
+      ],
+      "timeout_secs": 2700
+    },
+    {
+      "name": "cancel_before_taken",
+      "family": "cancellation",
+      "tags": [
+        "smoke",
+        "cancellation",
+        "parity"
+      ],
+      "moves_value": false,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "buyer-invoice",
+        "cancel"
+      ],
+      "timeout_secs": 1200
+    },
+    {
+      "name": "cooperative_cancel",
+      "family": "cancellation",
+      "tags": [
+        "cancellation",
+        "parity"
+      ],
+      "moves_value": true,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "hold-invoice-payment",
+        "buyer-invoice",
+        "cancel"
+      ],
+      "timeout_secs": 2100
+    },
+    {
+      "name": "dispute_canceled_by_solver",
+      "family": "dispute",
+      "tags": [
+        "dispute"
+      ],
+      "moves_value": true,
+      "needs_solver": true,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "hold-invoice-payment",
+        "buyer-invoice",
+        "fiat-sent",
+        "release",
+        "completed-observation",
+        "dispute"
+      ],
+      "timeout_secs": 2100
+    },
+    {
+      "name": "dispute_released_by_seller",
+      "family": "dispute",
+      "tags": [
+        "dispute"
+      ],
+      "moves_value": true,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "hold-invoice-payment",
+        "buyer-invoice",
+        "fiat-sent",
+        "release",
+        "completed-observation",
+        "dispute"
+      ],
+      "timeout_secs": 2100
+    },
+    {
+      "name": "dispute_settled_by_solver",
+      "family": "dispute",
+      "tags": [
+        "dispute"
+      ],
+      "moves_value": true,
+      "needs_solver": true,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "hold-invoice-payment",
+        "buyer-invoice",
+        "fiat-sent",
+        "release",
+        "completed-observation",
+        "dispute"
+      ],
+      "timeout_secs": 2100
+    },
+    {
+      "name": "duplicate_events_at_taken",
+      "family": "recovery",
+      "tags": [
+        "recovery",
+        "interruption",
+        "relay"
+      ],
+      "moves_value": false,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [
+        "relay-faults"
+      ],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "buyer-invoice"
+      ],
+      "timeout_secs": 1200
+    },
+    {
+      "name": "full_trade_with_rating",
+      "family": "happy-path",
+      "tags": [
+        "happy-path"
+      ],
+      "moves_value": true,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "hold-invoice-payment",
+        "buyer-invoice",
+        "fiat-sent",
+        "release",
+        "completed-observation",
+        "rating"
+      ],
+      "timeout_secs": 2100
+    },
+    {
+      "name": "happy_buy",
+      "family": "happy-path",
+      "tags": [
+        "smoke",
+        "happy-path",
+        "parity"
+      ],
+      "moves_value": true,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "hold-invoice-payment",
+        "buyer-invoice",
+        "fiat-sent",
+        "release",
+        "completed-observation"
+      ],
+      "timeout_secs": 1800
+    },
+    {
+      "name": "happy_sell",
+      "family": "happy-path",
+      "tags": [
+        "smoke",
+        "happy-path",
+        "parity"
+      ],
+      "moves_value": true,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "hold-invoice-payment",
+        "buyer-invoice",
+        "fiat-sent",
+        "release",
+        "completed-observation"
+      ],
+      "timeout_secs": 1800
+    },
+    {
+      "name": "hold_invoice_expires",
+      "family": "expiration",
+      "tags": [
+        "expiration"
+      ],
+      "moves_value": false,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "buyer-invoice"
+      ],
+      "timeout_secs": 2700
+    },
+    {
+      "name": "maker_bond_abandoned",
+      "family": "bond",
+      "tags": [
+        "bond"
+      ],
+      "moves_value": false,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": true,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "bond",
+        "cancel"
+      ],
+      "timeout_secs": 2100
+    },
+    {
+      "name": "maker_bond_expires_unpaid",
+      "family": "bond",
+      "tags": [
+        "bond"
+      ],
+      "moves_value": false,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": true,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "bond",
+        "cancel"
+      ],
+      "timeout_secs": 2400
+    },
+    {
+      "name": "maker_bond_locked_before_publish",
+      "family": "bond",
+      "tags": [
+        "bond"
+      ],
+      "moves_value": true,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": true,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "bond",
+        "cancel"
+      ],
+      "timeout_secs": 2100
+    },
+    {
+      "name": "maker_bond_slashed_by_solver",
+      "family": "bond",
+      "tags": [
+        "bond"
+      ],
+      "moves_value": true,
+      "needs_solver": true,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": true,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "bond",
+        "hold-invoice-payment",
+        "buyer-invoice",
+        "fiat-sent",
+        "dispute",
+        "cancel"
+      ],
+      "timeout_secs": 2100
+    },
+    {
+      "name": "market_price_order",
+      "family": "happy-path",
+      "tags": [
+        "happy-path"
+      ],
+      "moves_value": true,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "market-price-order",
+        "take-order",
+        "hold-invoice-payment",
+        "buyer-invoice",
+        "fiat-sent",
+        "release",
+        "completed-observation"
+      ],
+      "timeout_secs": 2100
+    },
+    {
+      "name": "network_loss_at_taken",
+      "family": "recovery",
+      "tags": [
+        "recovery",
+        "interruption"
+      ],
+      "moves_value": false,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [
+        "connectivity"
+      ],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "buyer-invoice"
+      ],
+      "timeout_secs": 1200
+    },
+    {
+      "name": "nwc_cancel_payment",
+      "family": "recovery",
+      "tags": [
+        "recovery",
+        "wallet"
+      ],
+      "moves_value": false,
+      "needs_solver": false,
+      "needs_app_wallet": true,
+      "needs_bonded_daemon": false,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "buyer-invoice",
+        "hold-invoice-payment",
+        "cancel"
+      ],
+      "timeout_secs": 1200
+    },
+    {
+      "name": "payout_fails_then_replaced",
+      "family": "payment-failure",
+      "tags": [
+        "payment-failure"
+      ],
+      "moves_value": true,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "hold-invoice-payment",
+        "buyer-invoice",
+        "fiat-sent",
+        "release",
+        "completed-observation"
+      ],
+      "timeout_secs": 2100
+    },
+    {
+      "name": "payout_invoice_below_expiry_floor",
+      "family": "payment-failure",
+      "tags": [
+        "payment-failure"
+      ],
+      "moves_value": false,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "buyer-invoice"
+      ],
+      "timeout_secs": 2100
+    },
+    {
+      "name": "payout_slots_capped_per_destination",
+      "family": "payment-failure",
+      "tags": [
+        "payment-failure"
+      ],
+      "moves_value": true,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "hold-invoice-payment",
+        "buyer-invoice",
+        "fiat-sent",
+        "release",
+        "completed-observation"
+      ],
+      "timeout_secs": 2400
+    },
+    {
+      "name": "pending_order_expires",
+      "family": "expiration",
+      "tags": [
+        "expiration"
+      ],
+      "moves_value": false,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "buyer-invoice",
+        "cancel",
+        "order-expiry"
+      ],
+      "timeout_secs": 2700
+    },
+    {
+      "name": "range_buy_order",
+      "family": "happy-path",
+      "tags": [
+        "happy-path"
+      ],
+      "moves_value": true,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "range-order",
+        "take-order",
+        "hold-invoice-payment",
+        "buyer-invoice",
+        "fiat-sent",
+        "release",
+        "completed-observation",
+        "cancel"
+      ],
+      "timeout_secs": 2100
+    },
+    {
+      "name": "range_order",
+      "family": "happy-path",
+      "tags": [
+        "happy-path"
+      ],
+      "moves_value": true,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "range-order",
+        "take-order",
+        "hold-invoice-payment",
+        "buyer-invoice",
+        "fiat-sent",
+        "release",
+        "completed-observation",
+        "cancel"
+      ],
+      "timeout_secs": 2100
+    },
+    {
+      "name": "relay_restart_at_taken",
+      "family": "recovery",
+      "tags": [
+        "recovery",
+        "interruption",
+        "relay"
+      ],
+      "moves_value": false,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [
+        "relay-faults"
+      ],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "buyer-invoice"
+      ],
+      "timeout_secs": 1200
+    },
+    {
+      "name": "restart_at_active",
+      "family": "recovery",
+      "tags": [
+        "recovery",
+        "restart"
+      ],
+      "moves_value": true,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "hold-invoice-payment",
+        "buyer-invoice",
+        "fiat-sent",
+        "release",
+        "completed-observation"
+      ],
+      "timeout_secs": 2100
+    },
+    {
+      "name": "restart_at_completed",
+      "family": "recovery",
+      "tags": [
+        "recovery",
+        "restart"
+      ],
+      "moves_value": true,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "hold-invoice-payment",
+        "buyer-invoice",
+        "fiat-sent",
+        "release",
+        "completed-observation"
+      ],
+      "timeout_secs": 2100
+    },
+    {
+      "name": "restart_at_fiat_sent",
+      "family": "recovery",
+      "tags": [
+        "recovery",
+        "restart"
+      ],
+      "moves_value": true,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "hold-invoice-payment",
+        "buyer-invoice",
+        "fiat-sent",
+        "release",
+        "completed-observation"
+      ],
+      "timeout_secs": 2100
+    },
+    {
+      "name": "restart_at_pending",
+      "family": "recovery",
+      "tags": [
+        "recovery",
+        "restart"
+      ],
+      "moves_value": false,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "buyer-invoice"
+      ],
+      "timeout_secs": 1200
+    },
+    {
+      "name": "restart_at_taken",
+      "family": "recovery",
+      "tags": [
+        "recovery",
+        "restart",
+        "parity"
+      ],
+      "moves_value": false,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "buyer-invoice"
+      ],
+      "timeout_secs": 1200
+    },
+    {
+      "name": "rotation_at_taken",
+      "family": "recovery",
+      "tags": [
+        "recovery",
+        "interruption"
+      ],
+      "moves_value": false,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [
+        "rotation"
+      ],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "buyer-invoice"
+      ],
+      "timeout_secs": 1200
+    },
+    {
+      "name": "seller_maker_bond_slashed_on_timeout",
+      "family": "bond",
+      "tags": [
+        "bond"
+      ],
+      "moves_value": true,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": true,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "bond",
+        "hold-invoice-payment",
+        "buyer-invoice",
+        "cancel"
+      ],
+      "timeout_secs": 2400
+    },
+    {
+      "name": "seller_taker_bond_slashed_on_timeout",
+      "family": "bond",
+      "tags": [
+        "bond"
+      ],
+      "moves_value": true,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": true,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "bond",
+        "hold-invoice-payment",
+        "buyer-invoice",
+        "cancel"
+      ],
+      "timeout_secs": 2400
+    },
+    {
+      "name": "seller_taker_bond_then_escrow",
+      "family": "bond",
+      "tags": [
+        "bond"
+      ],
+      "moves_value": true,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": true,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "bond",
+        "hold-invoice-payment",
+        "buyer-invoice",
+        "fiat-sent",
+        "release",
+        "completed-observation"
+      ],
+      "timeout_secs": 2100
+    },
+    {
+      "name": "stale_event_at_taken",
+      "family": "recovery",
+      "tags": [
+        "recovery",
+        "interruption",
+        "relay"
+      ],
+      "moves_value": false,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [
+        "relay-faults"
+      ],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "buyer-invoice"
+      ],
+      "timeout_secs": 1200
+    },
+    {
+      "name": "taker_bond_declined",
+      "family": "bond",
+      "tags": [
+        "bond"
+      ],
+      "moves_value": true,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": true,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "bond",
+        "cancel"
+      ],
+      "timeout_secs": 2100
+    },
+    {
+      "name": "taker_bond_expires_unpaid",
+      "family": "bond",
+      "tags": [
+        "bond"
+      ],
+      "moves_value": true,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": true,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "bond",
+        "cancel"
+      ],
+      "timeout_secs": 2400
+    },
+    {
+      "name": "taker_bond_released_after_trade",
+      "family": "bond",
+      "tags": [
+        "bond"
+      ],
+      "moves_value": true,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": true,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "bond",
+        "hold-invoice-payment",
+        "buyer-invoice",
+        "fiat-sent",
+        "release",
+        "completed-observation"
+      ],
+      "timeout_secs": 2100
+    },
+    {
+      "name": "taker_bond_slashed_by_solver",
+      "family": "bond",
+      "tags": [
+        "bond"
+      ],
+      "moves_value": true,
+      "needs_solver": true,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": true,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "bond",
+        "hold-invoice-payment",
+        "buyer-invoice",
+        "fiat-sent",
+        "dispute",
+        "cancel"
+      ],
+      "timeout_secs": 2100
+    },
+    {
+      "name": "taker_cancel_at_taken",
+      "family": "cancellation",
+      "tags": [
+        "cancellation"
+      ],
+      "moves_value": false,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "buyer-invoice",
+        "cancel"
+      ],
+      "timeout_secs": 1200
+    },
+    {
+      "name": "unauthorized_actions_at_taken",
+      "family": "regression",
+      "tags": [
+        "regression",
+        "permissions",
+        "parity"
+      ],
+      "moves_value": false,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "buyer-invoice",
+        "offered-actions"
+      ],
+      "timeout_secs": 1200
+    },
+    {
+      "name": "unilateral_cancel_rejected",
+      "family": "cancellation",
+      "tags": [
+        "cancellation"
+      ],
+      "moves_value": true,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "hold-invoice-payment",
+        "buyer-invoice",
+        "cancel"
+      ],
+      "timeout_secs": 2100
+    },
+    {
+      "name": "wallet_unavailable_then_pay",
+      "family": "recovery",
+      "tags": [
+        "recovery",
+        "wallet"
+      ],
+      "moves_value": true,
+      "needs_solver": false,
+      "needs_app_wallet": false,
+      "needs_bonded_daemon": false,
+      "needs": [
+        "connectivity"
+      ],
+      "requires": [
+        "onboarding",
+        "custom-node-selection",
+        "local-relay-configuration",
+        "nwc",
+        "create-order",
+        "take-order",
+        "hold-invoice-payment",
+        "buyer-invoice",
+        "fiat-sent",
+        "release",
+        "completed-observation"
+      ],
+      "timeout_secs": 2100
+    }
+  ]
+}

@@ -1,0 +1,86 @@
+name: Mortsom PR
+
+# The Mortsom e2e gate's pull request run (docs/MORTSOM_PR_E2E_SPEC.md § 6):
+# selects scenarios from what the pull request changes and runs them with
+# Mortsom's reusable workflow, which builds the app from the pull request.
+# No secrets and a read-only token: the code it builds is untrusted. The
+# verdict (mortsom-verdict.yml) recomputes the selection from main and
+# never trusts this run's.
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review, labeled, unlabeled]
+
+permissions:
+  contents: read
+
+# A new push or a gate label cancels the run in flight. Any other label
+# event lands in a group of its own (its run id), so it cannot cancel a
+# suite that is running; its select job is then skipped.
+concurrency:
+  group: >-
+    mortsom-pr-${{ github.event.pull_request.number }}-${{
+    ((github.event.action == 'labeled' || github.event.action == 'unlabeled')
+    && !contains(fromJSON('["mortsom:run","mortsom:skip","mortsom:expected-break"]'), github.event.label.name))
+    && github.run_id || 'suite' }}
+  cancel-in-progress: true
+
+jobs:
+  select:
+    name: Select scenarios
+    # Labels added by the verdict (GITHUB_TOKEN) never start a run; of the
+    # rest, only the gate's own escape hatches do.
+    if: >-
+      !github.event.pull_request.draft
+      && github.event.pull_request.user.login != 'dependabot[bot]'
+      && !contains(github.event.pull_request.labels.*.name, 'mortsom:skip')
+      && ((github.event.action != 'labeled' && github.event.action != 'unlabeled')
+          || contains(fromJSON('["mortsom:run","mortsom:skip","mortsom:expected-break"]'), github.event.label.name))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      plain: ${{ steps.select.outputs.plain }}
+      bond: ${{ steps.select.outputs.bond }}
+      mode: ${{ steps.select.outputs.mode }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Changed files
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: git diff -z --name-only --no-renames "$BASE...$HEAD" > changed.txt && tr '\0' '\n' < changed.txt
+      - id: select
+        name: Select
+        run: >-
+          python3 .github/mortsom/select_scenarios.py --map .github/mortsom/map.toml
+          --catalog .github/mortsom/scenarios.json --files changed.txt --out selection.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mortsom-pr-meta
+          path: selection.json
+          retention-days: 30
+
+  plain:
+    needs: select
+    if: needs.select.outputs.plain != ''
+    uses: MostroP2P/mortsom/.github/workflows/app-e2e.yml@86d468c310eb896757da5e9d10fe7b7994219bd3
+    with:
+      app_ref: ${{ github.event.pull_request.html_url }}
+      scenarios: ${{ needs.select.outputs.plain }}
+      bond: false
+      mortsom_ref: 86d468c310eb896757da5e9d10fe7b7994219bd3
+      artifact_name: mortsom-pr-plain
+
+  bond:
+    needs: select
+    if: needs.select.outputs.bond != ''
+    uses: MostroP2P/mortsom/.github/workflows/app-e2e.yml@86d468c310eb896757da5e9d10fe7b7994219bd3
+    with:
+      app_ref: ${{ github.event.pull_request.html_url }}
+      scenarios: ${{ needs.select.outputs.bond }}
+      bond: true
+      mortsom_ref: 86d468c310eb896757da5e9d10fe7b7994219bd3
+      artifact_name: mortsom-pr-bond
