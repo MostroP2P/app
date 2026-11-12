@@ -148,6 +148,81 @@ class TestCommentCleanup(unittest.TestCase):
         rv.apply(GH(comments=[mine]), 9, (), verdict.Verdict("not-applicable"), verdict.MARKER)
 
 
+def _zip_of(files):
+    import io
+    import json
+    import zipfile
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        for name, doc in files.items():
+            z.writestr(name, json.dumps(doc))
+    return buf.getvalue()
+
+
+def _serve(handler):
+    import http.server
+    import threading
+
+    server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return server
+
+
+class TestArtifactDownload(unittest.TestCase):
+    """The artifact API answers with a redirect to signed blob storage, which
+    refuses a request that also carries the GitHub token (HTTP 401)."""
+
+    def setUp(self):
+        import http.server
+
+        archive = _zip_of({"summary.json": summary(a="passed")})
+        seen = self.seen = []
+
+        class Storage(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                seen.append(self.headers.get("Authorization"))
+                if self.headers.get("Authorization"):
+                    self.send_response(401)
+                    self.end_headers()
+                    return
+                self.send_response(200)
+                self.send_header("Content-Length", str(len(archive)))
+                self.end_headers()
+                self.wfile.write(archive)
+
+            def log_message(self, *args):
+                pass
+
+        self.storage = _serve(Storage)
+        blob = f"http://127.0.0.1:{self.storage.server_port}/blob?sig=signed"
+
+        class Api(http.server.BaseHTTPRequestHandler):
+            def do_GET(self):
+                self.send_response(302)
+                self.send_header("Location", blob)
+                self.end_headers()
+
+            def log_message(self, *args):
+                pass
+
+        self.api = _serve(Api)
+        self.url = f"http://127.0.0.1:{self.api.server_port}/zip"
+
+    def tearDown(self):
+        for server in (self.api, self.storage):
+            server.shutdown()
+            server.server_close()
+
+    def test_the_token_is_not_sent_to_the_storage_the_api_redirects_to(self):
+        gh = rv.GitHub("MostroP2P/app", "secret-token")
+
+        docs = gh.artifact_json({"name": "mortsom-pr-plain", "archive_download_url": self.url})
+
+        self.assertEqual(self.seen, [None])
+        self.assertEqual(docs, {"summary.json": summary(a="passed")})
+
+
 class TestMain(unittest.TestCase):
     def run_main(self, conclusion, labels):
         import json, os, tempfile
