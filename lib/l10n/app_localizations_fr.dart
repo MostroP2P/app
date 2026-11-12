@@ -3839,7 +3839,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get tradeCardWaitingPaymentSellerMessage =>
-      'Bloquez les sats en séquestre. La transaction reprend dès que c\'est fait.';
+      'La transaction reprend dès qu\'ils sont en séquestre.';
 
   @override
   String get tradeCardActiveBuyerMessage =>

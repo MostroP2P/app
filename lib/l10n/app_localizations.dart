@@ -6351,7 +6351,7 @@ abstract class AppLocalizations {
   /// Notifications card body for the seller when the order waits for them to pay the hold invoice (#845)
   ///
   /// In en, this message translates to:
-  /// **'Lock the sats in escrow. The trade continues once you do.'**
+  /// **'The trade continues once they\'re in escrow.'**
   String get tradeCardWaitingPaymentSellerMessage;
 
   /// Notifications card body for the buyer once the trade is active (#845)

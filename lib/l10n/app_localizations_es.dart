@@ -3826,7 +3826,7 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get tradeCardWaitingPaymentSellerMessage =>
-      'Bloquea los sats en custodia. La operación continúa cuando lo hagas.';
+      'La operación continúa cuando estén en custodia.';
 
   @override
   String get tradeCardActiveBuyerMessage =>

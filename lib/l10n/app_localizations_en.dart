@@ -3802,7 +3802,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tradeCardWaitingPaymentSellerMessage =>
-      'Lock the sats in escrow. The trade continues once you do.';
+      'The trade continues once they\'re in escrow.';
 
   @override
   String get tradeCardActiveBuyerMessage =>

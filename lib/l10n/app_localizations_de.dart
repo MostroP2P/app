@@ -3845,7 +3845,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get tradeCardWaitingPaymentSellerMessage =>
-      'Sperre die Sats in der Treuhand. Danach geht der Trade weiter.';
+      'Der Trade geht weiter, sobald sie in der Treuhand sind.';
 
   @override
   String get tradeCardActiveBuyerMessage =>

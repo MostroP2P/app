@@ -4284,7 +4284,7 @@
   "@tradeCardWaitingBuyerInvoiceBuyerMessage": {"description": "Notifications card body for the buyer when the order waits for their invoice (#845)"},
   "tradeCardWaitingPaymentSellerTitle": "Lock the sats",
   "@tradeCardWaitingPaymentSellerTitle": {"description": "Notifications card title for the seller when the order waits for them to pay the hold invoice (#845)"},
-  "tradeCardWaitingPaymentSellerMessage": "Lock the sats in escrow. The trade continues once you do.",
+  "tradeCardWaitingPaymentSellerMessage": "The trade continues once they're in escrow.",
   "@tradeCardWaitingPaymentSellerMessage": {"description": "Notifications card body for the seller when the order waits for them to pay the hold invoice (#845)"},
   "tradeCardActiveBuyerMessage": "The sats are locked. You can now send the payment.",
   "@tradeCardActiveBuyerMessage": {"description": "Notifications card body for the buyer once the trade is active (#845)"},

@@ -1041,7 +1041,7 @@
   "tradeCardWaitingBuyerInvoiceBuyerTitle": "Ajoutez votre facture",
   "tradeCardWaitingBuyerInvoiceBuyerMessage": "Ajoutez une facture Lightning pour recevoir les sats. La transaction reprend dès que c'est fait.",
   "tradeCardWaitingPaymentSellerTitle": "Bloquez les sats",
-  "tradeCardWaitingPaymentSellerMessage": "Bloquez les sats en séquestre. La transaction reprend dès que c'est fait.",
+  "tradeCardWaitingPaymentSellerMessage": "La transaction reprend dès qu'ils sont en séquestre.",
   "tradeCardActiveBuyerMessage": "Les sats sont bloqués. Vous pouvez maintenant envoyer le paiement.",
   "tradeCardActiveSellerMessage": "Vos sats sont bloqués. L'acheteur peut maintenant envoyer le paiement.",
   "tradeCardFiatSentBuyerMessage": "Vous avez marqué le paiement comme envoyé. Le vendeur le vérifie et libère les sats.",

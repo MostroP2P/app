@@ -1041,7 +1041,7 @@
   "tradeCardWaitingBuyerInvoiceBuyerTitle": "Füge deine Rechnung hinzu",
   "tradeCardWaitingBuyerInvoiceBuyerMessage": "Füge eine Lightning-Rechnung hinzu, um die Sats zu erhalten. Danach geht der Trade weiter.",
   "tradeCardWaitingPaymentSellerTitle": "Sperre die Sats",
-  "tradeCardWaitingPaymentSellerMessage": "Sperre die Sats in der Treuhand. Danach geht der Trade weiter.",
+  "tradeCardWaitingPaymentSellerMessage": "Der Trade geht weiter, sobald sie in der Treuhand sind.",
   "tradeCardActiveBuyerMessage": "Die Sats sind gesperrt. Du kannst jetzt die Zahlung senden.",
   "tradeCardActiveSellerMessage": "Deine Sats sind gesperrt. Der Käufer kann jetzt die Zahlung senden.",
   "tradeCardFiatSentBuyerMessage": "Du hast die Zahlung als gesendet markiert. Der Verkäufer prüft sie und gibt die Sats frei.",

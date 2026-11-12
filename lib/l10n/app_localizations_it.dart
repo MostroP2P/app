@@ -3833,7 +3833,7 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get tradeCardWaitingPaymentSellerMessage =>
-      'Blocca i sats in custodia. L\'operazione prosegue appena lo fai.';
+      'L\'operazione prosegue appena sono in custodia.';
 
   @override
   String get tradeCardActiveBuyerMessage =>

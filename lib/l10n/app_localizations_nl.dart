@@ -3834,7 +3834,7 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get tradeCardWaitingPaymentSellerMessage =>
-      'Zet de sats vast in de escrow. Daarna gaat de trade verder.';
+      'De trade gaat verder zodra ze in de escrow staan.';
 
   @override
   String get tradeCardActiveBuyerMessage =>

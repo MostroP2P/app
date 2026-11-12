@@ -3844,7 +3844,7 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get tradeCardWaitingPaymentSellerMessage =>
-      'Bloqueie os sats na custódia. A operação continua quando você fizer isso.';
+      'A operação continua quando estiverem na custódia.';
 
   @override
   String get tradeCardActiveBuyerMessage =>

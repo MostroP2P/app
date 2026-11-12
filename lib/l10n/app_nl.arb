@@ -1041,7 +1041,7 @@
   "tradeCardWaitingBuyerInvoiceBuyerTitle": "Voeg je invoice toe",
   "tradeCardWaitingBuyerInvoiceBuyerMessage": "Voeg een Lightning-invoice toe om de sats te ontvangen. Daarna gaat de trade verder.",
   "tradeCardWaitingPaymentSellerTitle": "Zet de sats vast",
-  "tradeCardWaitingPaymentSellerMessage": "Zet de sats vast in de escrow. Daarna gaat de trade verder.",
+  "tradeCardWaitingPaymentSellerMessage": "De trade gaat verder zodra ze in de escrow staan.",
   "tradeCardActiveBuyerMessage": "De sats staan vast. Je kunt nu betalen.",
   "tradeCardActiveSellerMessage": "Je sats staan vast. De koper kan nu betalen.",
   "tradeCardFiatSentBuyerMessage": "Je hebt de betaling als verstuurd gemeld. De verkoper controleert die en geeft de sats vrij.",
