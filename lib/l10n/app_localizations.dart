@@ -6162,10 +6162,10 @@ abstract class AppLocalizations {
   /// **'Deposit payment pending'**
   String get tradeCardWaitingTakerBondTitle;
 
-  /// Notifications card body for a trade status change (issue #474); role-neutral, both sides see it
+  /// Notifications card body while a taker's deposit is unpaid (issue #474); role-neutral, it names neither side (#845)
   ///
   /// In en, this message translates to:
-  /// **'The taker\'s deposit must be paid before the trade starts.'**
+  /// **'The trade continues once the deposit is paid.'**
   String get tradeCardWaitingTakerBondMessage;
 
   /// Notifications card title for a trade status change (issue #474); role-neutral, both sides see it
@@ -6329,6 +6329,72 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'The deposit invoice expired unpaid.'**
   String get tradeCardCanceledBondExpiredMessage;
+
+  /// Notifications card title for the buyer when the order waits for their invoice (#845)
+  ///
+  /// In en, this message translates to:
+  /// **'Add your invoice'**
+  String get tradeCardWaitingBuyerInvoiceBuyerTitle;
+
+  /// Notifications card body for the buyer when the order waits for their invoice (#845)
+  ///
+  /// In en, this message translates to:
+  /// **'Add a Lightning invoice to receive the sats. The trade continues once you do.'**
+  String get tradeCardWaitingBuyerInvoiceBuyerMessage;
+
+  /// Notifications card title for the seller when the order waits for them to pay the hold invoice (#845)
+  ///
+  /// In en, this message translates to:
+  /// **'Lock the sats'**
+  String get tradeCardWaitingPaymentSellerTitle;
+
+  /// Notifications card body for the seller when the order waits for them to pay the hold invoice (#845)
+  ///
+  /// In en, this message translates to:
+  /// **'The trade continues once they\'re in escrow.'**
+  String get tradeCardWaitingPaymentSellerMessage;
+
+  /// Notifications card body for the buyer once the trade is active (#845)
+  ///
+  /// In en, this message translates to:
+  /// **'The sats are locked. You can now send the payment.'**
+  String get tradeCardActiveBuyerMessage;
+
+  /// Notifications card body for the seller once the trade is active (#845)
+  ///
+  /// In en, this message translates to:
+  /// **'Your sats are locked. The buyer can now send the payment.'**
+  String get tradeCardActiveSellerMessage;
+
+  /// Notifications card body for the buyer after they marked the fiat payment as sent (#845)
+  ///
+  /// In en, this message translates to:
+  /// **'You marked the payment as sent. The seller checks it and releases the sats.'**
+  String get tradeCardFiatSentBuyerMessage;
+
+  /// Notifications card body for the seller after the buyer marked the fiat payment as sent (#845)
+  ///
+  /// In en, this message translates to:
+  /// **'The buyer marked the payment as sent. Check that it arrived before you release the sats.'**
+  String get tradeCardFiatSentSellerMessage;
+
+  /// Notifications card body for the buyer after the seller released the sats (#845)
+  ///
+  /// In en, this message translates to:
+  /// **'The seller released the sats. Your payout is on its way.'**
+  String get tradeCardSettledHoldInvoiceBuyerMessage;
+
+  /// Notifications card body for the seller after they released the sats (#845)
+  ///
+  /// In en, this message translates to:
+  /// **'You released the sats. The buyer\'s payout is on its way.'**
+  String get tradeCardSettledHoldInvoiceSellerMessage;
+
+  /// Notifications card body for the buyer when the dispute resolver released the sats to them (#845)
+  ///
+  /// In en, this message translates to:
+  /// **'The dispute resolver released the sats to you.'**
+  String get tradeCardSettledByAdminBuyerMessage;
 
   /// Notifications card copy for trades and chat (issue #474)
   ///

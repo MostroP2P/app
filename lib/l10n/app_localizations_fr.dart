@@ -3729,7 +3729,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get tradeCardWaitingTakerBondMessage =>
-      'Le dépôt anti-abus du preneur doit être payé avant le début de la transaction.';
+      'La transaction reprend dès que le dépôt est payé.';
 
   @override
   String get tradeCardActiveTitle => 'Transaction active';
@@ -3826,6 +3826,48 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get tradeCardCanceledBondExpiredMessage =>
       'La facture du dépôt a expiré sans être payée.';
+
+  @override
+  String get tradeCardWaitingBuyerInvoiceBuyerTitle => 'Ajoutez votre facture';
+
+  @override
+  String get tradeCardWaitingBuyerInvoiceBuyerMessage =>
+      'Ajoutez une facture Lightning pour recevoir les sats. La transaction reprend dès que c\'est fait.';
+
+  @override
+  String get tradeCardWaitingPaymentSellerTitle => 'Bloquez les sats';
+
+  @override
+  String get tradeCardWaitingPaymentSellerMessage =>
+      'La transaction reprend dès qu\'ils sont en séquestre.';
+
+  @override
+  String get tradeCardActiveBuyerMessage =>
+      'Les sats sont bloqués. Vous pouvez maintenant envoyer le paiement.';
+
+  @override
+  String get tradeCardActiveSellerMessage =>
+      'Vos sats sont bloqués. L\'acheteur peut maintenant envoyer le paiement.';
+
+  @override
+  String get tradeCardFiatSentBuyerMessage =>
+      'Vous avez marqué le paiement comme envoyé. Le vendeur le vérifie et libère les sats.';
+
+  @override
+  String get tradeCardFiatSentSellerMessage =>
+      'L\'acheteur a marqué le paiement comme envoyé. Vérifiez qu\'il est arrivé avant de libérer les sats.';
+
+  @override
+  String get tradeCardSettledHoldInvoiceBuyerMessage =>
+      'Le vendeur a libéré les sats. Votre paiement est en route.';
+
+  @override
+  String get tradeCardSettledHoldInvoiceSellerMessage =>
+      'Vous avez libéré les sats. Le paiement de l\'acheteur est en route.';
+
+  @override
+  String get tradeCardSettledByAdminBuyerMessage =>
+      'Le médiateur du litige vous a libéré les sats.';
 
   @override
   String get chatCardTitle => 'Nouveaux messages';

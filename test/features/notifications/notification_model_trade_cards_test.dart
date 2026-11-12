@@ -228,4 +228,112 @@ void main() {
       expect(n.isSolverChatCard, isFalse);
     });
   });
+
+  group('NotificationModel.tradeStatus speaks to the user by role (#845)', () {
+    NotificationModel card(String status) => NotificationModel.tradeStatus(
+      orderId: 'order-1',
+      status: status,
+      at: at,
+    );
+
+    test('the seller owes the sats while the order waits for payment', () {
+      final n = card('waitingPayment');
+
+      expect(
+        n.resolvedTitle(en, isBuyer: false),
+        en.tradeCardWaitingPaymentSellerTitle,
+      );
+      expect(
+        n.resolvedMessage(en, isBuyer: false),
+        en.tradeCardWaitingPaymentSellerMessage,
+      );
+      expect(
+        n.resolvedTitle(es, isBuyer: false),
+        isNot(es.tradeCardWaitingPaymentTitle),
+      );
+      // The buyer does wait for the seller.
+      expect(
+        n.resolvedTitle(en, isBuyer: true),
+        en.tradeCardWaitingPaymentTitle,
+      );
+    });
+
+    test('the buyer owes the invoice while the order waits for it', () {
+      final n = card('waitingBuyerInvoice');
+
+      expect(
+        n.resolvedTitle(en, isBuyer: true),
+        en.tradeCardWaitingBuyerInvoiceBuyerTitle,
+      );
+      expect(
+        n.resolvedMessage(en, isBuyer: true),
+        en.tradeCardWaitingBuyerInvoiceBuyerMessage,
+      );
+      expect(
+        n.resolvedTitle(en, isBuyer: false),
+        en.tradeCardWaitingBuyerInvoiceTitle,
+      );
+    });
+
+    test('later statuses name the counterpart and say "you" for the user', () {
+      expect(
+        card('active').resolvedMessage(en, isBuyer: true),
+        en.tradeCardActiveBuyerMessage,
+      );
+      expect(
+        card('active').resolvedMessage(en, isBuyer: false),
+        en.tradeCardActiveSellerMessage,
+      );
+      expect(
+        card('fiatSent').resolvedMessage(en, isBuyer: true),
+        en.tradeCardFiatSentBuyerMessage,
+      );
+      expect(
+        card('fiatSent').resolvedMessage(en, isBuyer: false),
+        en.tradeCardFiatSentSellerMessage,
+      );
+      expect(
+        card('settledHoldInvoice').resolvedMessage(en, isBuyer: true),
+        en.tradeCardSettledHoldInvoiceBuyerMessage,
+      );
+      expect(
+        card('settledHoldInvoice').resolvedMessage(en, isBuyer: false),
+        en.tradeCardSettledHoldInvoiceSellerMessage,
+      );
+      expect(
+        card('settledByAdmin').resolvedMessage(en, isBuyer: true),
+        en.tradeCardSettledByAdminBuyerMessage,
+      );
+      expect(
+        card('settledByAdmin').resolvedMessage(en, isBuyer: false),
+        en.tradeCardSettledByAdminMessage,
+      );
+    });
+
+    test('without a known side the neutral copy stays', () {
+      for (final status in [
+        'waitingBuyerInvoice',
+        'waitingPayment',
+        'active',
+        'fiatSent',
+        'settledHoldInvoice',
+        'settledByAdmin',
+      ]) {
+        final n = card(status);
+        expect(n.resolvedTitle(en, isBuyer: null), n.resolvedTitle(en));
+        expect(n.resolvedMessage(en, isBuyer: null), n.resolvedMessage(en));
+      }
+      expect(
+        card('waitingPayment').resolvedTitle(en),
+        en.tradeCardWaitingPaymentTitle,
+      );
+    });
+
+    test('the taker is told to pay their own deposit', () {
+      expect(
+        card('waitingTakerBond').resolvedMessage(en),
+        isNot(contains("taker's")),
+      );
+    });
+  });
 }

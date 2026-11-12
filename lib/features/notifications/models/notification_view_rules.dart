@@ -76,8 +76,10 @@ NoticeTone noticeTone(NotificationModel n, {bool? isBuyer}) {
   };
 }
 
-/// The icon of a notice: what happened, not how it is stored.
-IconData noticeIcon(NotificationModel n) {
+/// The icon of a notice: what happened, not how it is stored. [isBuyer] is
+/// the user's side, when known: a waiting status shows the user's turn or a
+/// wait (#845).
+IconData noticeIcon(NotificationModel n, {bool? isBuyer}) {
   if (n.isChatCard) {
     return n.isSolverChatCard ? Icons.gavel_rounded : Icons.chat_bubble_outline;
   }
@@ -97,7 +99,11 @@ IconData noticeIcon(NotificationModel n) {
     return Icons.undo_rounded;
   }
   return switch (n.tradeStatus) {
+    // A waiting status reads as the user's turn or as a wait, by side
+    // (#845); unknown keeps the icon it always had.
+    'waitingBuyerInvoice' when isBuyer == false => Icons.hourglass_top_rounded,
     'waitingBuyerInvoice' => Icons.receipt_long_outlined,
+    'waitingPayment' when isBuyer == false => Icons.bolt_rounded,
     'waitingPayment' => Icons.hourglass_top_rounded,
     'waitingTakerBond' => Icons.shield_outlined,
     'active' => Icons.lock_outline,

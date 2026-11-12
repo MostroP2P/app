@@ -480,10 +480,40 @@ class NotificationModel {
   /// bucket never is, told apart by the reason.
   bool get _orderPublished => detail?[_tradeReasonKey] == 'orderPublished';
 
-  String _tradeTitle(AppLocalizations l10n) =>
+  /// The title the user's side reads, when it differs from the neutral one:
+  /// the status is the user's turn.
+  String? _sideTitle(AppLocalizations l10n, bool? isBuyer) =>
+      switch ((detail?[_tradeStatusKey], isBuyer)) {
+        ('waitingBuyerInvoice', true) =>
+          l10n.tradeCardWaitingBuyerInvoiceBuyerTitle,
+        ('waitingPayment', false) => l10n.tradeCardWaitingPaymentSellerTitle,
+        _ => null,
+      };
+
+  /// The message the user's side reads: "you" for the user, the counterpart
+  /// by role. Null where the neutral message already reads right.
+  String? _sideMessage(AppLocalizations l10n, bool? isBuyer) =>
+      switch ((detail?[_tradeStatusKey], isBuyer)) {
+        ('waitingBuyerInvoice', true) =>
+          l10n.tradeCardWaitingBuyerInvoiceBuyerMessage,
+        ('waitingPayment', false) => l10n.tradeCardWaitingPaymentSellerMessage,
+        ('active', true) => l10n.tradeCardActiveBuyerMessage,
+        ('active', false) => l10n.tradeCardActiveSellerMessage,
+        ('fiatSent', true) => l10n.tradeCardFiatSentBuyerMessage,
+        ('fiatSent', false) => l10n.tradeCardFiatSentSellerMessage,
+        ('settledHoldInvoice', true) =>
+          l10n.tradeCardSettledHoldInvoiceBuyerMessage,
+        ('settledHoldInvoice', false) =>
+          l10n.tradeCardSettledHoldInvoiceSellerMessage,
+        ('settledByAdmin', true) => l10n.tradeCardSettledByAdminBuyerMessage,
+        _ => null,
+      };
+
+  String _tradeTitle(AppLocalizations l10n, bool? isBuyer) =>
       _cancelRequestTitle(l10n) ??
       (_payoutFailed ? l10n.tradeCardPayoutFailedTitle : null) ??
       (_orderPublished ? l10n.tradeCardOrderPublishedTitle : null) ??
+      _sideTitle(l10n, isBuyer) ??
       switch (detail?[_tradeStatusKey]) {
         'waitingBuyerInvoice' => l10n.tradeCardWaitingBuyerInvoiceTitle,
         'waitingPayment' => l10n.tradeCardWaitingPaymentTitle,
@@ -502,10 +532,11 @@ class NotificationModel {
         _ => l10n.tradeCardUpdatedTitle,
       };
 
-  String _tradeMessage(AppLocalizations l10n) =>
+  String _tradeMessage(AppLocalizations l10n, bool? isBuyer) =>
       _cancelRequestMessage(l10n) ??
       (_payoutFailed ? l10n.tradeCardPayoutFailedMessage : null) ??
       (_orderPublished ? l10n.tradeCardOrderPublishedMessage : null) ??
+      _sideMessage(l10n, isBuyer) ??
       switch (detail?[_tradeStatusKey]) {
         'waitingBuyerInvoice' => l10n.tradeCardWaitingBuyerInvoiceMessage,
         'waitingPayment' => l10n.tradeCardWaitingPaymentMessage,
@@ -540,9 +571,13 @@ class NotificationModel {
 
   /// Title for display, localized at render time for bond notices and
   /// falling back to the stored [title] for other types.
-  String resolvedTitle(AppLocalizations l10n) {
+  ///
+  /// [isBuyer] is the user's side of the trade, when known: a trade card
+  /// then speaks to the user and names only the counterpart by role (#845).
+  /// Null keeps the neutral copy.
+  String resolvedTitle(AppLocalizations l10n, {bool? isBuyer}) {
     if (isAnnouncement) return _announcementText(l10n, 'title') ?? title;
-    if (_isTradeStatus) return _tradeTitle(l10n);
+    if (_isTradeStatus) return _tradeTitle(l10n, isBuyer);
     if (_isChatCard) {
       return _chatFromSolver ? l10n.chatCardSolverTitle : l10n.chatCardTitle;
     }
@@ -554,9 +589,9 @@ class NotificationModel {
   }
 
   /// Message for display (see [resolvedTitle]).
-  String resolvedMessage(AppLocalizations l10n) {
+  String resolvedMessage(AppLocalizations l10n, {bool? isBuyer}) {
     if (isAnnouncement) return _announcementText(l10n, 'body') ?? message;
-    if (_isTradeStatus) return _tradeMessage(l10n);
+    if (_isTradeStatus) return _tradeMessage(l10n, isBuyer);
     if (_isChatCard) {
       return _chatFromSolver
           ? l10n.chatCardSolverMessage(chatUnreadCount)
