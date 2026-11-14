@@ -3192,16 +3192,16 @@ abstract class AppLocalizations {
   /// **'New order'**
   String get newOrderTitle;
 
-  /// Amount card title when selling
+  /// Amount card title when selling: its field is the currency amount the seller receives
   ///
   /// In en, this message translates to:
-  /// **'How much you sell'**
+  /// **'How much you receive'**
   String get amountSectionSell;
 
-  /// Amount card title when buying
+  /// Amount card title when buying: its field is the currency amount the buyer pays
   ///
   /// In en, this message translates to:
-  /// **'How much you buy'**
+  /// **'How much you pay'**
   String get amountSectionBuy;
 
   /// Segment: one fiat amount
@@ -3293,6 +3293,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'At a fixed price the order does not follow the market: the sats amount stays exactly as you write it.'**
   String get fixedPriceNote;
+
+  /// Label of the fixed sats field when selling: the sats the order sells
+  ///
+  /// In en, this message translates to:
+  /// **'Sats you sell'**
+  String get fixedSatsLabelSell;
+
+  /// Label of the fixed sats field when buying: the sats the order buys
+  ///
+  /// In en, this message translates to:
+  /// **'Sats you buy'**
+  String get fixedSatsLabelBuy;
 
   /// Preview line while no amount has been entered
   ///
