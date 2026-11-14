@@ -3055,7 +3055,11 @@ class AppLocalizationsIt extends AppLocalizations {
 
   @override
   String get tradeInstructionWaitingBond =>
-      'Il nodo trattiene questa presa finché il deposito rimborsabile non viene pagato. Nel frattempo l\'ordine resta aperto ad altri.';
+      'Paga il deposito per assicurarti questo ordine. Fino ad allora resta aperto, e lo ottiene chi paga per primo il proprio deposito. Il deposito viene bloccato, non speso: viene sbloccato quando l\'operazione termina o viene annullata, e puoi perderlo solo se salti la scadenza di un passaggio o perdi una disputa.';
+
+  @override
+  String get tradeInstructionWaitingMakerBond =>
+      'Paga il deposito per pubblicare il tuo ordine. Fino ad allora nessuno lo vede. Il deposito viene bloccato, non speso: viene sbloccato quando l\'ordine termina o viene annullato, e puoi perderlo solo se salti la scadenza di un passaggio o perdi una disputa.';
 
   @override
   String get takeOrderBondNotice =>

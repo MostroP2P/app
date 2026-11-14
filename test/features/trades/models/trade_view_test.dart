@@ -279,9 +279,8 @@ void cancelRequestTests() {
   });
 }
 
-/// `docs/ANTI_ABUSE_BOND.md` Phase 1: the bond window is the user's turn —
-/// pay the deposit — and a taker may still back out (the daemon releases
-/// their bond). The maker variant (no cancel) is Phase 2.
+/// `docs/ANTI_ABUSE_BOND.md` §6.1, §6.2: the bond window is the user's turn —
+/// pay the deposit — and the user may still back out, taker or maker.
 void bondWindowTests() {
   group('waiting for the anti-abuse bond', () {
     for (final isBuyer in [true, false]) {
