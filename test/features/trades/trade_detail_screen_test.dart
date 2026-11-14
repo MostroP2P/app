@@ -3294,4 +3294,69 @@ void main() {
     );
     semantics.dispose();
   });
+
+  // #928: both bond statuses reach this screen as one TradeStatus, but only
+  // a taker's order stays in the book; a maker's is not published until the
+  // deposit locks (docs/ANTI_ABUSE_BOND.md §2.7, §2.8).
+  group('the waiting-for-deposit body follows whose deposit it is', () {
+    BondInfo bond(BondRole role) => BondInfo(
+      role: role,
+      amountSats: BigInt.from(1648),
+      invoice: 'lnbc16480n1bond',
+      state: BondState.requested,
+      requestedAt: intToPlatformInt64(1000),
+    );
+
+    testWidgets('the taker is told the order stays open to others', (
+      tester,
+    ) async {
+      // Arrange + Act
+      await _pumpTradeDetail(
+        tester,
+        orderId: 'order-bond',
+        isBuyer: true,
+        status: OrderStatus.waitingTakerBond,
+        trades: [
+          fakeTrade(
+            id: 'bond',
+            status: OrderStatus.waitingTakerBond,
+            bond: bond(BondRole.taker),
+          ),
+        ],
+      );
+
+      // Assert
+      expect(
+        find.text(_en.tradeInstructionWaitingBond, findRichText: true),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets('the maker is not told their unpublished order is open', (
+      tester,
+    ) async {
+      // Arrange + Act
+      await _pumpTradeDetail(
+        tester,
+        orderId: 'order-bond',
+        isBuyer: false,
+        status: OrderStatus.waitingMakerBond,
+        trades: [
+          fakeTrade(
+            id: 'bond',
+            status: OrderStatus.waitingMakerBond,
+            role: TradeRole.seller,
+            isMine: true,
+            bond: bond(BondRole.maker),
+          ),
+        ],
+      );
+
+      // Assert
+      expect(
+        find.text(_en.tradeInstructionWaitingBond, findRichText: true),
+        findsNothing,
+      );
+    });
+  });
 }
