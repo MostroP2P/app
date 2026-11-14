@@ -4494,9 +4494,17 @@ async fn dispatch_mostro_message(
                         // Sync the Canceled status into the trade DB so My
                         // Trades reflects the cancellation immediately. A row
                         // that already reads Canceled (a replay) writes and
-                        // emits nothing.
+                        // emits nothing. A live trade's cancel is dated
+                        // first (#933): the chat's grace window runs from it,
+                        // as it would from the book's `canceled`.
                         let changed = match crate::db::app_db::db() {
                             Some(db) => {
+                                if opens_chat_grace(
+                                    row_state.trade().map(|t| &t.order.status),
+                                    &crate::api::types::OrderStatus::Canceled,
+                                ) {
+                                    record_completion(db, &oid, event_ts).await;
+                                }
                                 sync_trade_fields_if_changed(
                                     db,
                                     &oid,
@@ -8382,7 +8390,6 @@ async fn apply_single_order_update(mut order: OrderInfo, revision_at: Option<i64
         applies,
         "38383/d-tag",
     );
-    let completes = applies && opens_chat_grace(local.as_ref(), &order.status);
     // The node paid the buyer even if its `purchase-completed` never reaches
     // this device, and whether or not the row already reads `Success` (PR
     // #824 review).
@@ -8393,23 +8400,12 @@ async fn apply_single_order_update(mut order: OrderInfo, revision_at: Option<i64
     // private status must not sneak its amount into the row either (#394
     // review), and an event carrying what the row already holds writes
     // nothing.
-    if applies {
-        if let Some(db) = crate::db::app_db::db() {
-            if let (true, Some(at)) = (completes, revision_at) {
-                record_completion(db, &order.id, at).await;
-            }
-            let row = db.get_trade_by_order_id(&order.id).await.ok().flatten();
-            sync_trade_fields_if_changed(
-                db,
-                &order.id,
-                row.as_ref(),
-                Some(order.status.clone()),
-                None,
-                order.amount_sats,
-            )
-            .await;
+    let completes = match (applies, crate::db::app_db::db()) {
+        (true, Some(db)) => {
+            write_public_status(db, &order.id, &order.status, order.amount_sats, revision_at).await
         }
-    }
+        _ => false,
+    };
     if !applies {
         if let Some(local) = local {
             order.status = local;
@@ -8424,6 +8420,47 @@ async fn apply_single_order_update(mut order: OrderInfo, revision_at: Option<i64
         // The trade ended here, as a daemon message's `success` ends it.
         release_finished_trade_subscriptions(&order_id, None);
     }
+}
+
+/// Write a public Kind 38383 status of an order of ours onto its trade row,
+/// dated by the revision (`revision_at`) where it opens the chat's grace
+/// window (#642, #933). Returns whether it did: the trade ended here, and
+/// its subscriptions are the caller's to release.
+///
+/// Decided again under the order lock, on the row as it is now: the caller
+/// judged `wire_status_applies` on a read taken without it, and an admin
+/// verdict the daemon-message path committed since must neither be
+/// overwritten by the book's plain `canceled` nor dated as a cancel of the
+/// parties'. Callers hold no order lock (the d-tag task holds the revision
+/// lock, taken before this one everywhere).
+async fn write_public_status(
+    db: &impl Storage,
+    order_id: &str,
+    status: &OrderStatus,
+    amount_sats: Option<u64>,
+    revision_at: Option<i64>,
+) -> bool {
+    let _order = lock_order(order_id).await;
+    let row = db.get_trade_by_order_id(order_id).await.ok().flatten();
+    let local = row.as_ref().map(|t| t.order.status.clone());
+    if !wire_status_applies(local.as_ref(), status) {
+        return false;
+    }
+    let completes = opens_chat_grace(local.as_ref(), status);
+    if let (true, Some(at)) = (completes, revision_at) {
+        record_completion(db, order_id, at).await;
+    }
+    // `completed_at` is no field the change check compares.
+    sync_trade_fields_if_changed(
+        db,
+        order_id,
+        row.as_ref(),
+        Some(status.clone()),
+        None,
+        amount_sats,
+    )
+    .await;
+    completes
 }
 
 /// What the single-order task made of one notification.
@@ -10777,18 +10814,12 @@ async fn classify_ingested_order(
             // carrying what the row already holds writes nothing.
             if applies {
                 if let Some(db) = crate::db::app_db::db() {
-                    let completes = opens_chat_grace(local.as_ref(), &info.status);
-                    if let (true, Some(at)) = (completes, revision_at) {
-                        record_completion(db, &info.id, at).await;
-                    }
-                    let row = db.get_trade_by_order_id(&info.id).await.ok().flatten();
-                    sync_trade_fields_if_changed(
+                    let completes = write_public_status(
                         db,
                         &info.id,
-                        row.as_ref(),
-                        Some(info.status.clone()),
-                        None,
+                        &info.status,
                         info.amount_sats,
+                        revision_at,
                     )
                     .await;
                     if completes {
@@ -15786,9 +15817,18 @@ mod tests {
         assert!(!opens_chat_grace(None, &Success));
         for cancel in [Canceled, CooperativelyCanceled] {
             for live in [Active, FiatSent, Dispute, InProgress] {
-                assert!(opens_chat_grace(Some(&live), &cancel), "{live:?} → {cancel:?}");
+                assert!(
+                    opens_chat_grace(Some(&live), &cancel),
+                    "{live:?} → {cancel:?}"
+                );
             }
-            for not_live in [Pending, WaitingBuyerInvoice, WaitingPayment, Canceled, Success] {
+            for not_live in [
+                Pending,
+                WaitingBuyerInvoice,
+                WaitingPayment,
+                Canceled,
+                Success,
+            ] {
                 assert!(
                     !opens_chat_grace(Some(&not_live), &cancel),
                     "{not_live:?} → {cancel:?}"
@@ -23130,6 +23170,75 @@ mod tests {
             drain_updates(&mut rx, &order_id).is_empty(),
             "a replay over a wiped trade must not emit",
         );
+    }
+
+    /// #933 review: the book's status is decided again under the order lock,
+    /// on the row as it is then. A verdict committed after the caller's
+    /// unlocked read keeps its status and gets no date; a dispute the
+    /// parties cancelled between themselves is dated.
+    #[tokio::test]
+    async fn a_public_cancel_never_overwrites_a_verdict_committed_meanwhile() {
+        use crate::api::types::OrderStatus;
+        let db = bond_test_db().await;
+
+        let verdict = uuid::Uuid::new_v4().to_string();
+        db.save_trade(&seam_trade_row(&verdict, OrderStatus::CanceledByAdmin))
+            .await
+            .expect("save the trade row");
+        assert!(
+            !write_public_status(db, &verdict, &OrderStatus::Canceled, None, Some(1_000)).await
+        );
+        let row = db.get_trade_by_order_id(&verdict).await.unwrap().unwrap();
+        assert_eq!(row.order.status, OrderStatus::CanceledByAdmin);
+        assert_eq!(row.completed_at, None);
+
+        let settled = uuid::Uuid::new_v4().to_string();
+        db.save_trade(&seam_trade_row(&settled, OrderStatus::Dispute))
+            .await
+            .expect("save the trade row");
+        assert!(write_public_status(db, &settled, &OrderStatus::Canceled, None, Some(1_000)).await);
+        let row = db.get_trade_by_order_id(&settled).await.unwrap().unwrap();
+        assert_eq!(row.order.status, OrderStatus::Canceled);
+        assert_eq!(row.completed_at, Some(1_000));
+    }
+
+    /// #933: the node's own `canceled` over a live trade (its escrow given
+    /// back, say) dates the chat's grace window, as the book's `canceled`
+    /// does when it lands first: the row keeps its history and records when
+    /// it ended.
+    #[tokio::test]
+    async fn a_cancel_over_a_live_trade_dates_the_chat_grace() {
+        use mostro_core::message::Action;
+
+        let path = std::env::temp_dir().join(format!("mostro_wiped_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        order_book().upsert_order(dummy_order_info(&order_id)).await;
+        db.save_trade(&seam_trade_row(
+            &order_id,
+            crate::api::types::OrderStatus::Active,
+        ))
+        .await
+        .expect("save the trade row");
+
+        dispatch_mostro_message(
+            daemon_message(order_uuid, Action::Canceled, None, 1_000),
+            "test-live-cancel",
+            "ff00ff21",
+            1,
+        )
+        .await;
+
+        let row = db
+            .get_trade_by_order_id(&order_id)
+            .await
+            .expect("lookup")
+            .expect("a live trade keeps its row");
+        assert_eq!(row.order.status, crate::api::types::OrderStatus::Canceled);
+        assert_eq!(row.completed_at, Some(1_000), "dated by the cancel");
     }
 
     /// #394: the tombstone must not outlive a legitimate re-take. Re-creating
