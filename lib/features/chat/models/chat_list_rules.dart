@@ -54,7 +54,8 @@ class ChatRowState {
   ///
   /// Closure comes from the protocol status, not from the trades list's
   /// group: a successful trade not rated yet sits in `Requieren tu acción`
-  /// there, but its conversation is over once its grace window ends
+  /// there, but its conversation — like a cancelled one's — is over once its
+  /// grace window ends
   /// ([chatGraceEndsAt], `now` in Unix seconds) — Rust gives the chat back
   /// then, so a live composer would mislead the sender.
   factory ChatRowState.of({
@@ -84,20 +85,28 @@ class ChatRowState {
   }
 }
 
-/// How long the conversation of a successfully completed trade stays open,
-/// in seconds (#642): the parties tend to thank each other and announce
-/// their ratings. Mirrors Rust's `PEER_CHAT_GRACE_SECS`, which keeps the
-/// chat subscribed for as long.
+/// How long the conversation of a trade that ended between its parties
+/// stays open, in seconds (#642): after a success they thank each other and
+/// announce their ratings, after a cooperative cancel they still have things
+/// to settle. Mirrors Rust's `PEER_CHAT_GRACE_SECS`, which keeps the chat
+/// subscribed for as long.
 const kPeerChatGraceSeconds = 3600;
 
-/// When a completed trade's conversation closes (Unix seconds): the
-/// completion time Rust recorded plus [kPeerChatGraceSeconds]. Null for any
-/// status but `success`, and for a trade completed before the time was
-/// recorded — its conversation is closed.
+/// When an ended trade's conversation closes (Unix seconds): the end time
+/// Rust recorded plus [kPeerChatGraceSeconds]. Rust records one only for a
+/// `success` and for the cancel of a trade that was live. Null for any other
+/// status, and for a trade that ended before the time was recorded — its
+/// conversation is closed.
 int? chatGraceEndsAt({required OrderStatus status, int? completedAt}) =>
-    status == OrderStatus.success && completedAt != null
+    _endingsWithGrace.contains(status) && completedAt != null
         ? completedAt + kPeerChatGraceSeconds
         : null;
+
+const _endingsWithGrace = {
+  OrderStatus.success,
+  OrderStatus.canceled,
+  OrderStatus.cooperativelyCanceled,
+};
 
 /// Whether the trade has ended — completed (rated or not), settled by an
 /// admin, cancelled or expired. A dispute is not an end.
