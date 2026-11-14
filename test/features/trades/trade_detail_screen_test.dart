@@ -3357,6 +3357,10 @@ void main() {
         find.text(_en.tradeInstructionWaitingBond, findRichText: true),
         findsNothing,
       );
+      expect(
+        find.text(_en.tradeInstructionWaitingMakerBond, findRichText: true),
+        findsOneWidget,
+      );
     });
   });
 }

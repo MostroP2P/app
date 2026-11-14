@@ -3033,7 +3033,11 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get tradeInstructionWaitingBond =>
-      'The node holds this take until the refundable deposit is paid. The order stays open to others meanwhile.';
+      'Pay the deposit to secure this order. Until then it stays open, and whoever pays their deposit first gets it. The deposit is locked, not spent: it is released when the trade ends or is canceled, and you can only lose it if you miss a step\'s deadline or lose a dispute.';
+
+  @override
+  String get tradeInstructionWaitingMakerBond =>
+      'Pay the deposit to publish your order. Until then nobody can see it. The deposit is locked, not spent: it is released when the order ends or is canceled, and you can only lose it if you miss a step\'s deadline or lose a dispute.';
 
   @override
   String get takeOrderBondNotice =>

@@ -203,9 +203,9 @@ class TradeView {
         );
       case TradeStatus.waitingBond:
         // The bond window precedes the trade flow: the user owes the deposit
-        // (docs/ANTI_ABUSE_BOND.md §6.1). Phase 1 only ever parks a taker's
-        // row here, and the daemon accepts a taker's cancel during the
-        // window; the maker variant (no cancel, local abandon) is Phase 2.
+        // (docs/ANTI_ABUSE_BOND.md §6.1, §6.2). A taker's row or a maker's:
+        // both may back out, a maker through the pay-bond screen, which the
+        // trade screen's Cancel opens for them.
         return const TradeView(
           step: 1,
           chip: TradeChip.yourTurn,

@@ -3072,7 +3072,11 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get tradeInstructionWaitingBond =>
-      'O nó mantém sua aceitação pendente até o depósito reembolsável ser pago. Enquanto isso, a ordem continua aberta para outros.';
+      'Pague o depósito para garantir esta ordem. Até lá ela continua aberta, e fica com ela quem pagar o depósito primeiro. O depósito fica bloqueado, não é gasto: ele é liberado quando a operação termina ou é cancelada, e você só pode perdê-lo se não cumprir o prazo de uma etapa ou perder uma disputa.';
+
+  @override
+  String get tradeInstructionWaitingMakerBond =>
+      'Pague o depósito para publicar sua ordem. Até lá ninguém a vê. O depósito fica bloqueado, não é gasto: ele é liberado quando a ordem termina ou é cancelada, e você só pode perdê-lo se não cumprir o prazo de uma etapa ou perder uma disputa.';
 
   @override
   String get takeOrderBondNotice =>

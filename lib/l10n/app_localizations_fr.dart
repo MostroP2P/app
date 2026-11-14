@@ -3063,7 +3063,11 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get tradeInstructionWaitingBond =>
-      'Le nœud retient cette prise jusqu\'au paiement du dépôt remboursable. L\'ordre reste ouvert aux autres entre-temps.';
+      'Payez le dépôt pour obtenir cet ordre. D\'ici là, il reste ouvert, et il revient à qui paie son dépôt en premier. Le dépôt est bloqué, pas dépensé : il est libéré quand la transaction se termine ou est annulée, et vous ne pouvez le perdre que si vous manquez le délai d\'une étape ou perdez un litige.';
+
+  @override
+  String get tradeInstructionWaitingMakerBond =>
+      'Payez le dépôt pour publier votre ordre. D\'ici là, personne ne le voit. Le dépôt est bloqué, pas dépensé : il est libéré quand l\'ordre se termine ou est annulé, et vous ne pouvez le perdre que si vous manquez le délai d\'une étape ou perdez un litige.';
 
   @override
   String get takeOrderBondNotice =>
