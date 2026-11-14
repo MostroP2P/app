@@ -31,8 +31,9 @@ the active node), and the kind-14 filter's `authors` include the issuing node
 of every live trade row, so a registered key is always one the filter hears.
 
 A key that leaves the set starts a 24 h grace (`unwanted_since` on the
-registration: `TradeInfo.completed_at` is recorded for a `success` alone,
-#642, so it cannot date a canceled, expired or admin-resolved key), then is
+registration: `TradeInfo.completed_at` is recorded only for a `success` or
+the cancel of a live trade, #642/#933, so it cannot date an expired or
+admin-resolved key), then is
 unregistered. A registration older than 12 h, filed with another token or
 under another node, or dated in the future (a clock rollback) is re-sent. A
 failed request backs off (1 min → 5 → 30 → 2 h; `429` honours `Retry-After`).

@@ -4939,7 +4939,7 @@ async fn dispatch_mostro_message(
                 }
                 // Dated by this message, before the `success` shows anywhere
                 // (#642): the chat's grace window runs from it.
-                if completes_trade(row_state.trade().map(|t| &t.order.status), &status) {
+                if opens_chat_grace(row_state.trade().map(|t| &t.order.status), &status) {
                     if let Some(db) = crate::db::app_db::db() {
                         record_completion(db, &order_id, event_ts).await;
                     }
@@ -8382,7 +8382,7 @@ async fn apply_single_order_update(mut order: OrderInfo, revision_at: Option<i64
         applies,
         "38383/d-tag",
     );
-    let completes = applies && completes_trade(local.as_ref(), &order.status);
+    let completes = applies && opens_chat_grace(local.as_ref(), &order.status);
     // The node paid the buyer even if its `purchase-completed` never reaches
     // this device, and whether or not the row already reads `Success` (PR
     // #824 review).
@@ -10777,7 +10777,7 @@ async fn classify_ingested_order(
             // carrying what the row already holds writes nothing.
             if applies {
                 if let Some(db) = crate::db::app_db::db() {
-                    let completes = completes_trade(local.as_ref(), &info.status);
+                    let completes = opens_chat_grace(local.as_ref(), &info.status);
                     if let (true, Some(at)) = (completes, revision_at) {
                         record_completion(db, &info.id, at).await;
                     }
@@ -11429,14 +11429,31 @@ where
     }
 }
 
-/// Whether `new` completes a trade that stood at `local` (#642): a `success`
-/// reached through the trade's own flow. Not over a dispute — its end is the
-/// solver's, even when the book reads `success` — nor over a row that is
-/// already finished, so a replayed `success` never dates a row completed
-/// before completion times were recorded.
-fn completes_trade(local: Option<&OrderStatus>, new: &OrderStatus) -> bool {
-    *new == OrderStatus::Success
-        && local.is_some_and(|l| *l != OrderStatus::Dispute && !is_hard_terminal(l))
+/// Whether `new` ends a trade that stood at `local` in a way that keeps its
+/// peer chat open for a grace window (#642):
+///
+/// - a `success` reached through the trade's own flow. Not over a dispute —
+///   its end is the solver's, even when the book reads `success`;
+/// - a cancellation of a trade that was live, with a peer to talk to: the
+///   cooperative cancel, the only one the node accepts once a trade is
+///   active — also over a dispute, which the parties may still settle
+///   between themselves. The book shows it as `canceled`, the node's DM as
+///   `cooperatively-canceled`; whichever lands first opens the window.
+///
+/// Never over a row that is already finished, so a replayed ending never
+/// dates a row that ended before these times were recorded.
+fn opens_chat_grace(local: Option<&OrderStatus>, new: &OrderStatus) -> bool {
+    use OrderStatus::*;
+    let Some(local) = local.filter(|l| !is_hard_terminal(l)) else {
+        return false;
+    };
+    match new {
+        Success => *local != Dispute,
+        Canceled | CooperativelyCanceled => {
+            matches!(local, Active | FiatSent | Dispute | InProgress)
+        }
+        _ => false,
+    }
 }
 
 /// Record that the trade on `order_id` completed at `at` (#642), from the
@@ -15672,9 +15689,19 @@ mod tests {
 
         let canceled = format!("grace-canceled-{}", uuid::Uuid::new_v4());
         let mut row = saved_completed_row(db, &canceled, Some(now - 60)).await;
-        row.order.status = OrderStatus::Canceled;
+        row.order.status = OrderStatus::CooperativelyCanceled;
         db.save_trade(&row).await.unwrap();
-        assert_eq!(grace_of(canceled).await, None, "no window for a cancel");
+        assert_eq!(
+            grace_of(canceled).await,
+            Some(now - 60 + GRACE),
+            "a cooperative cancel keeps its window"
+        );
+
+        let expired = format!("grace-expired-{}", uuid::Uuid::new_v4());
+        let mut row = saved_completed_row(db, &expired, Some(now - 60)).await;
+        row.order.status = OrderStatus::Expired;
+        db.save_trade(&row).await.unwrap();
+        assert_eq!(grace_of(expired).await, None, "no window for an expiry");
     }
 
     /// #642: inside the window the release keeps the peer chat and stops the
@@ -15743,6 +15770,35 @@ mod tests {
         crate::api::messages::resubscribe_active_chats().await;
 
         assert!(!chat_running(ChatChannel::Peer, &away).await);
+    }
+
+    /// #642: a `success` reached through the trade's own flow opens the
+    /// chat's grace window, and so does a cancellation of a trade that was
+    /// live — the cooperative cancel, also after a dispute, whether the row
+    /// hears it from the node (`cooperatively-canceled`) or from the book
+    /// (`canceled`). Nothing else does.
+    #[test]
+    fn a_success_or_a_cancel_of_a_live_trade_opens_the_chat_grace() {
+        use OrderStatus::*;
+        assert!(opens_chat_grace(Some(&Active), &Success));
+        assert!(opens_chat_grace(Some(&SettledHoldInvoice), &Success));
+        assert!(!opens_chat_grace(Some(&Dispute), &Success));
+        assert!(!opens_chat_grace(None, &Success));
+        for cancel in [Canceled, CooperativelyCanceled] {
+            for live in [Active, FiatSent, Dispute, InProgress] {
+                assert!(opens_chat_grace(Some(&live), &cancel), "{live:?} → {cancel:?}");
+            }
+            for not_live in [Pending, WaitingBuyerInvoice, WaitingPayment, Canceled, Success] {
+                assert!(
+                    !opens_chat_grace(Some(&not_live), &cancel),
+                    "{not_live:?} → {cancel:?}"
+                );
+            }
+            assert!(!opens_chat_grace(None, &cancel));
+        }
+        for other in [Expired, CanceledByAdmin, SettledByAdmin, CompletedByAdmin] {
+            assert!(!opens_chat_grace(Some(&Active), &other), "{other:?}");
+        }
     }
 
     /// #642: the end of the window gives the peer chat back; a window that
