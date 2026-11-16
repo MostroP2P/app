@@ -1253,6 +1253,7 @@
   "chatKeySharedIndicator": "Chiave della chat condivisa con il mediatore",
   "shareChatKeyUnavailable": "La chiave della chat di questa operazione non è disponibile su questo dispositivo.",
   "moreReactions": "Altre reazioni",
+  "insertEmoji": "Inserisci emoji",
   "messageReactionLabel": "Reazione: {emoji}",
   "reactionSendFailed": "Impossibile inviare la reazione. Riprova.",
   "messageMenuHint": "Apri il menu del messaggio",

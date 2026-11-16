@@ -265,6 +265,7 @@ class _PaymentMethodPickerScreenState
                       foregroundColor: palette.onLime,
                       disabledBackgroundColor: create.ctaDisabledBg,
                       disabledForegroundColor: create.ctaDisabledInk,
+                      // design-check: ignore DS-SPC-2 — the 18a picker as handed off (§14 debt), unchanged by #938
                       padding: const EdgeInsets.symmetric(vertical: 15),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(16),
@@ -307,6 +308,7 @@ class _SearchField extends StatelessWidget {
     return Material(
       color: palette.surface,
       borderRadius: BorderRadius.circular(14),
+      // design-check: ignore DS-CMP-19 — the 18a picker as handed off (§14 debt), unchanged by #938
       child: TextField(
         autocorrect: false,
         enableSuggestions: false,
@@ -317,10 +319,13 @@ class _SearchField extends StatelessWidget {
           enabledBorder: border,
           focusedBorder: border,
           contentPadding: const EdgeInsets.symmetric(
+            // design-check: ignore DS-SPC-2 — the 18a picker as handed off (§14 debt), unchanged by #938
             horizontal: 13,
+            // design-check: ignore DS-SPC-2 — the 18a picker as handed off (§14 debt), unchanged by #938
             vertical: 11,
           ),
           hintText: l10n.paymentMethodSearchHint,
+          // design-check: ignore DS-TYP-4 — the 18a picker as handed off (§14 debt), unchanged by #938
           hintStyle: TextStyle(fontSize: 13.5, color: palette.textFaint),
           prefixIcon: Icon(Icons.search, size: 16, color: palette.textTertiary),
         ),
@@ -354,6 +359,7 @@ class _ChosenSummary extends StatelessWidget {
         ),
         for (final method in methods)
           Container(
+            // design-check: ignore DS-SPC-2 — the 18a picker as handed off (§14 debt), unchanged by #938
             padding: const EdgeInsets.fromLTRB(9, 5, 4, 5),
             decoration: BoxDecoration(
               color: palette.bestChipFill,
@@ -385,6 +391,7 @@ class _ChosenSummary extends StatelessWidget {
                       height: 22,
                       child: Icon(
                         Icons.close,
+                        // design-check: ignore DS-ICO-3 — the 18a picker as handed off (§14 debt), unchanged by #938
                         size: 11,
                         color: palette.limeText,
                       ),
@@ -426,6 +433,7 @@ class _MethodRow extends StatelessWidget {
         child: AnimatedContainer(
           duration: _transition,
           constraints: const BoxConstraints(minHeight: 44),
+          // design-check: ignore DS-SPC-2 — the 18a picker as handed off (§14 debt), unchanged by #938
           padding: const EdgeInsets.all(13),
           decoration: BoxDecoration(
             color: isSelected ? create.pickerRowSelectedBg : Colors.transparent,
@@ -445,6 +453,7 @@ class _MethodRow extends StatelessWidget {
                 height: 20,
                 decoration: BoxDecoration(
                   color: isSelected ? palette.lime : Colors.transparent,
+                  // design-check: ignore DS-SHP-1 — the 18a picker as handed off (§14 debt), unchanged by #938
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(
                     color:
@@ -454,6 +463,7 @@ class _MethodRow extends StatelessWidget {
                 ),
                 child:
                     isSelected
+                        // design-check: ignore DS-ICO-3 — the 18a picker as handed off (§14 debt), unchanged by #938
                         ? Icon(Icons.check, size: 13, color: palette.onLime)
                         : null,
               ),
@@ -462,6 +472,7 @@ class _MethodRow extends StatelessWidget {
                 child: Text(
                   label,
                   style: TextStyle(
+                    // design-check: ignore DS-TYP-4 — the 18a picker as handed off (§14 debt), unchanged by #938
                     fontSize: 14.5,
                     fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
                     color: isSelected ? palette.textPrimary : palette.textBody,
@@ -501,15 +512,18 @@ class _AddCustomRow extends StatelessWidget {
           borderRadius: BorderRadius.circular(14),
           child: Container(
             constraints: const BoxConstraints(minHeight: 44),
+            // design-check: ignore DS-SPC-2 — the 18a picker as handed off (§14 debt), unchanged by #938
             padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 12),
             child: Row(
               children: [
+                // design-check: ignore DS-ICO-3 — the 18a picker as handed off (§14 debt), unchanged by #938
                 Icon(Icons.add, size: 15, color: palette.textSecondary),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     l10n.paymentMethodAddCustom,
                     style: TextStyle(
+                      // design-check: ignore DS-TYP-4 — the 18a picker as handed off (§14 debt), unchanged by #938
                       fontSize: 13.5,
                       color: palette.textSecondary,
                     ),
@@ -565,8 +579,10 @@ class _CustomMethodSheetState extends State<_CustomMethodSheet> {
       content: TextField(
         controller: _controller,
         autofocus: true,
+        // Suggestions stay on: without them Android asks for a
+        // visible-password field, and Gboard drops its emoji key for one
+        // (#938). Autocorrect stays off so a name like "MODO" is kept.
         autocorrect: false,
-        enableSuggestions: false,
         textInputAction: TextInputAction.done,
         style: TextStyle(fontSize: 15, color: palette.textPrimary),
         decoration: InputDecoration(
@@ -580,7 +596,9 @@ class _CustomMethodSheetState extends State<_CustomMethodSheet> {
             borderSide: BorderSide(color: palette.lime),
           ),
           contentPadding: const EdgeInsets.symmetric(
+            // design-check: ignore DS-SPC-2 — the 18a picker as handed off (§14 debt), unchanged by #938
             horizontal: 13,
+            // design-check: ignore DS-SPC-2 — the 18a picker as handed off (§14 debt), unchanged by #938
             vertical: 13,
           ),
           hintText: l10n.customPaymentMethodHint,

@@ -4714,6 +4714,8 @@
   "@moreReactions": {
     "description": "«…» in a chat message's menu, and the title of the sheet with every emoji"
   },
+  "insertEmoji": "Insert emoji",
+  "@insertEmoji": {"description": "Chat composers: tooltip of the emoji button, and the title of the sheet with every emoji it opens"},
   "messageReactionLabel": "Reaction: {emoji}",
   "@messageReactionLabel": {
     "description": "Screen-reader label of the reaction shown under a chat message",
