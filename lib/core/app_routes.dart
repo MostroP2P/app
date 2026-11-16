@@ -90,7 +90,11 @@ abstract final class AppRoute {
   static String takeSellPath(String orderId) => '/take_sell/$orderId';
   static String takeBuyPath(String orderId) => '/take_buy/$orderId';
   static String payInvoicePath(String orderId) => '/pay_invoice/$orderId';
-  static String payBondPath(String orderId) => '/pay_bond/$orderId';
+
+  /// [leave] opens the screen's leave prompt on arrival: the trade screen's
+  /// Cancel for a maker waiting on their own deposit (#943).
+  static String payBondPath(String orderId, {bool leave = false}) =>
+      leave ? '/pay_bond/$orderId?leave=1' : '/pay_bond/$orderId';
   static String bondPayoutPath(String orderId) => '/bond_payout/$orderId';
   static String addInvoicePath(String orderId) => '/add_invoice/$orderId';
   static String chatRoomPath(String orderId) => '/chat_room/$orderId';
@@ -211,6 +215,7 @@ final GoRouter appRouter = GoRouter(
           builder:
               (context, state) => PayBondInvoiceScreen(
                 orderId: state.pathParameters['orderId']!,
+                confirmLeave: state.uri.queryParameters['leave'] == '1',
               ),
         ),
         _onHome(

@@ -310,13 +310,16 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
     // A maker parked on their own deposit cancels from the pay-bond screen,
     // which handles what a take's cancel does not: a node older than
     // mostro#996 refuses it, and only a local abandon is left
-    // (docs/ANTI_ABUSE_BOND.md §2.8, §6.2). Send them there.
+    // (docs/ANTI_ABUSE_BOND.md §2.8, §6.2). Send them there with its leave
+    // prompt open: landing on the payment alone read as "Cancel took me to
+    // pay" (#943). Whatever they answer there, nothing was done here, so the
+    // button ends as a dismissed dialog does, with no success check.
     if (status == TradeStatus.waitingBond) {
       final trade = ref.read(tradeInfoProvider(widget.orderId)).valueOrNull;
       if (trade != null &&
           bondIsMakers(trade.bond, isMine: trade.order.isMine)) {
-        await context.push(AppRoute.payBondPath(widget.orderId));
-        return;
+        await context.push(AppRoute.payBondPath(widget.orderId, leave: true));
+        throw const MostroActionAborted();
       }
     }
     final confirmed = await showMostroDialog<bool>(

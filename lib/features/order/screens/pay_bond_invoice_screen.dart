@@ -50,9 +50,19 @@ const _docsUrl = 'https://mostro.network/docs-english/';
 /// long explanation open, the QR still under the amount. Mostro detects the
 /// payment and the trade moves on: the screen leaves on its own.
 class PayBondInvoiceScreen extends ConsumerStatefulWidget {
-  const PayBondInvoiceScreen({super.key, required this.orderId});
+  const PayBondInvoiceScreen({
+    super.key,
+    required this.orderId,
+    this.confirmLeave = false,
+  });
 
   final String orderId;
+
+  /// Opened by the trade screen's Cancel for a maker waiting on their own
+  /// deposit: ask at once whether to drop the order, and go back on No
+  /// (#943). The cancel itself stays this screen's (docs/ANTI_ABUSE_BOND.md
+  /// §6.2). A taker's Cancel never comes here, so it is ignored for one.
+  final bool confirmLeave;
 
   @override
   ConsumerState<PayBondInvoiceScreen> createState() =>
@@ -70,6 +80,7 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
   bool _navigated = false;
   bool _sweptExpired = false;
   bool _noWalletApp = false;
+  bool _leavePrompted = false;
   Timer? _copiedTimer;
 
   @override
@@ -85,7 +96,13 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
 
   /// Leaving cancels something that exists, the take or the unpublished
   /// order, so it asks first (DS-CMP-20).
-  Future<void> _confirmLeave({required bool maker}) async {
+  ///
+  /// [backOnNo]: opened to leave ([PayBondInvoiceScreen.confirmLeave]), a No
+  /// returns to the screen the user came from instead of the payment.
+  Future<void> _confirmLeave({
+    required bool maker,
+    bool backOnNo = false,
+  }) async {
     if (_canceling) return;
     final l10n = AppLocalizations.of(context);
     final confirmed = await showMostroDialog<bool>(
@@ -106,7 +123,11 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
             ),
           ),
     );
-    if (!mounted || _navigated || confirmed != true) return;
+    if (!mounted || _navigated) return;
+    if (confirmed != true) {
+      if (backOnNo) await Navigator.of(context).maybePop();
+      return;
+    }
     await _cancel(maker: maker);
   }
 
@@ -374,6 +395,12 @@ class _PayBondInvoiceScreenState extends ConsumerState<PayBondInvoiceScreen>
     final maker = bondIsMakers(bond, isMine: trade?.order.isMine ?? false);
     trackInvoiceDeadline(_countdownEnd(trade, maker: maker));
     _listen(l10n, trade?.role, maker: maker);
+    if (widget.confirmLeave && maker && !_leavePrompted) {
+      _leavePrompted = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _confirmLeave(maker: true, backOnNo: true);
+      });
+    }
 
     final canPop = Navigator.of(context).canPop();
     final appBar = InvoiceAppBar(
