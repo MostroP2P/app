@@ -519,8 +519,14 @@ class _PriceSectionState extends ConsumerState<PriceSection> {
       key: const ValueKey('fixed-block'),
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // The card is titled "Price", but this field is the order's sats:
+        // the label names the side so it is not read as the currency amount,
+        // which a BTC-pegged code also types in sats (#935).
         UnderlineAmountField(
           controller: _satsController,
+          label: ref.watch(orderSideProvider) == OrderType.sell
+              ? l10n.fixedSatsLabelSell
+              : l10n.fixedSatsLabelBuy,
           hintText: '0',
           keyboardType: TextInputType.number,
           inputFormatters: [

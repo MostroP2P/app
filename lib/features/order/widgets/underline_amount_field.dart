@@ -213,7 +213,9 @@ class _UnderlineAmountFieldState extends State<UnderlineAmountField> {
                   ? palette.fieldLabelFocus
                   : palette.fieldLabel,
             ),
-            child: Text(label.toUpperCase()),
+            // Read on the field itself, below, so a screen reader names the
+            // input it lands on rather than a loose text before it.
+            child: ExcludeSemantics(child: Text(label.toUpperCase())),
           ),
           const SizedBox(height: 6),
         ],
@@ -233,45 +235,49 @@ class _UnderlineAmountFieldState extends State<UnderlineAmountField> {
               Expanded(
                 child: _named(
                   widget.automationId,
-                  TextField(
-                    controller: widget.controller,
-                    focusNode: _focusNode,
-                    autofocus: widget.autofocus,
-                    keyboardType: widget.keyboardType,
-                    inputFormatters: widget.inputFormatters,
-                    textInputAction: widget.textInputAction,
-                    cursorColor: palette.fieldUnderlineFocus,
-                    style: TextStyle(
-                      fontFamily: AppFonts.figures,
-                      fontSize: widget.valueFontSize,
-                      fontWeight: FontWeight.w600,
-                      color: book.textPrimary,
-                      height: 1.2,
-                    ),
-                    // The underline is the container's, drawn under the
-                    // value and [trailing] alike; the field paints neither a
-                    // fill nor a border, or the theme's v1 ones show
-                    // (DS-CMP-19).
-                    decoration: InputDecoration(
-                      isDense: true,
-                      isCollapsed: true,
-                      filled: false,
-                      border: InputBorder.none,
-                      enabledBorder: InputBorder.none,
-                      focusedBorder: InputBorder.none,
-                      errorBorder: InputBorder.none,
-                      focusedErrorBorder: InputBorder.none,
-                      disabledBorder: InputBorder.none,
-                      hintText: widget.hintText,
-                      hintStyle: TextStyle(
+                  Semantics(
+                    label: label,
+                    textField: true,
+                    child: TextField(
+                      controller: widget.controller,
+                      focusNode: _focusNode,
+                      autofocus: widget.autofocus,
+                      keyboardType: widget.keyboardType,
+                      inputFormatters: widget.inputFormatters,
+                      textInputAction: widget.textInputAction,
+                      cursorColor: palette.fieldUnderlineFocus,
+                      style: TextStyle(
                         fontFamily: AppFonts.figures,
                         fontSize: widget.valueFontSize,
                         fontWeight: FontWeight.w600,
-                        color: book.textFaint,
+                        color: book.textPrimary,
+                        height: 1.2,
                       ),
-                    ),
-                    onChanged: widget.onChanged,
-                    onSubmitted: widget.onSubmitted,
+                      // The underline is the container's, drawn under the
+                      // value and [trailing] alike; the field paints neither a
+                      // fill nor a border, or the theme's v1 ones show
+                      // (DS-CMP-19).
+                      decoration: InputDecoration(
+                        isDense: true,
+                        isCollapsed: true,
+                        filled: false,
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        errorBorder: InputBorder.none,
+                        focusedErrorBorder: InputBorder.none,
+                        disabledBorder: InputBorder.none,
+                        hintText: widget.hintText,
+                        hintStyle: TextStyle(
+                          fontFamily: AppFonts.figures,
+                          fontSize: widget.valueFontSize,
+                          fontWeight: FontWeight.w600,
+                          color: book.textFaint,
+                        ),
+                      ),
+                      onChanged: widget.onChanged,
+                      onSubmitted: widget.onSubmitted,
+                      ),
                   ),
                 ),
               ),

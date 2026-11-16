@@ -257,6 +257,28 @@ void main() {
       expect(find.text('5,000'), findsOneWidget);
     });
 
+    testWidgets('the fixed sats field names the side it sells (#935)', (
+      tester,
+    ) async {
+      await _pump(tester, premium: 0.0);
+      await tester.tap(find.text('Fixed'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('SATS YOU SELL'), findsOneWidget);
+      expect(find.text('SATS YOU BUY'), findsNothing);
+    });
+
+    testWidgets('the fixed sats field names the side it buys (#935)', (
+      tester,
+    ) async {
+      await _pump(tester, premium: 0.0, side: OrderType.buy);
+      await tester.tap(find.text('Fixed'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('SATS YOU BUY'), findsOneWidget);
+      expect(find.text('SATS YOU SELL'), findsNothing);
+    });
+
     testWidgets('Fixed is locked while a range order is being written',
         (tester) async {
       final container = await _pump(tester, premium: 0.0);

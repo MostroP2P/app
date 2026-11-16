@@ -2262,13 +2262,13 @@
   "@newOrderTitle": {
     "description": "Create-order screen title (sentence case, not caps)"
   },
-  "amountSectionSell": "How much you sell",
+  "amountSectionSell": "How much you receive",
   "@amountSectionSell": {
-    "description": "Amount card title when selling"
+    "description": "Amount card title when selling: its field is the currency amount the seller receives"
   },
-  "amountSectionBuy": "How much you buy",
+  "amountSectionBuy": "How much you pay",
   "@amountSectionBuy": {
-    "description": "Amount card title when buying"
+    "description": "Amount card title when buying: its field is the currency amount the buyer pays"
   },
   "amountModeSingle": "Single",
   "@amountModeSingle": {
@@ -2355,6 +2355,14 @@
   "fixedPriceNote": "At a fixed price the order does not follow the market: the sats amount stays exactly as you write it.",
   "@fixedPriceNote": {
     "description": "Note under the fixed sats field"
+  },
+  "fixedSatsLabelSell": "Sats you sell",
+  "@fixedSatsLabelSell": {
+    "description": "Label of the fixed sats field when selling: the sats the order sells"
+  },
+  "fixedSatsLabelBuy": "Sats you buy",
+  "@fixedSatsLabelBuy": {
+    "description": "Label of the fixed sats field when buying: the sats the order buys"
   },
   "previewHintNoAmount": "Write an amount and you'll see here how the order looks.",
   "@previewHintNoAmount": {

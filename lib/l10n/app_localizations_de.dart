@@ -1804,10 +1804,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get newOrderTitle => 'Neue Order';
 
   @override
-  String get amountSectionSell => 'Wie viel du verkaufst';
+  String get amountSectionSell => 'Wie viel du erhältst';
 
   @override
-  String get amountSectionBuy => 'Wie viel du kaufst';
+  String get amountSectionBuy => 'Wie viel du zahlst';
 
   @override
   String get amountModeSingle => 'Einzeln';
@@ -1875,6 +1875,12 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get fixedPriceNote =>
       'Bei Festpreis folgt die Order nicht dem Markt: der Sats-Betrag bleibt genau so, wie du ihn eingibst.';
+
+  @override
+  String get fixedSatsLabelSell => 'Sats, die du verkaufst';
+
+  @override
+  String get fixedSatsLabelBuy => 'Sats, die du kaufst';
 
   @override
   String get previewHintNoAmount =>

@@ -128,7 +128,7 @@ void main() {
       expect(find.text('New order'), findsOneWidget);
       expect(find.text('Conservative'), findsNothing);
       expect(find.text('Custom'), findsNothing);
-      expect(find.text('How much you sell'), findsOneWidget);
+      expect(find.text('How much you receive'), findsOneWidget);
       expect(find.text('Payment methods'), findsOneWidget);
       expect(find.text('Price'), findsOneWidget);
     });
@@ -137,13 +137,13 @@ void main() {
         (tester) async {
       final container = await _pump(tester, orderType: 'buy');
       expect(container.read(orderSideProvider), OrderType.buy);
-      expect(find.text('How much you buy'), findsOneWidget);
+      expect(find.text('How much you pay'), findsOneWidget);
 
       await tester.tap(find.text('Sell BTC'));
       await tester.pumpAndSettle();
 
       expect(container.read(orderSideProvider), OrderType.sell);
-      expect(find.text('How much you sell'), findsOneWidget);
+      expect(find.text('How much you receive'), findsOneWidget);
     });
 
     testWidgets('publish stays disabled until amount and a method exist',

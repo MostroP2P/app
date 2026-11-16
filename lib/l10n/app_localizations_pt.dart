@@ -1801,10 +1801,10 @@ class AppLocalizationsPt extends AppLocalizations {
   String get newOrderTitle => 'Nova ordem';
 
   @override
-  String get amountSectionSell => 'Quanto você vende';
+  String get amountSectionSell => 'Quanto você recebe';
 
   @override
-  String get amountSectionBuy => 'Quanto você compra';
+  String get amountSectionBuy => 'Quanto você paga';
 
   @override
   String get amountModeSingle => 'Único';
@@ -1872,6 +1872,12 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String get fixedPriceNote =>
       'Com preço fixo, a ordem não segue o mercado: o valor em sats fica exatamente como você escrever.';
+
+  @override
+  String get fixedSatsLabelSell => 'Sats que você vende';
+
+  @override
+  String get fixedSatsLabelBuy => 'Sats que você compra';
 
   @override
   String get previewHintNoAmount =>
