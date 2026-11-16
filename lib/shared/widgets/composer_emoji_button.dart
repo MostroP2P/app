@@ -25,7 +25,10 @@ class ComposerEmojiButton extends StatelessWidget {
       context,
       title: AppLocalizations.of(context).insertEmoji,
     );
-    if (emoji == null) return;
+    // The sheet is its own route: the composer can be gone by the time it
+    // closes (a dispute resolved, a chat turned read-only), and with it the
+    // controller and focus node it owned.
+    if (emoji == null || !context.mounted) return;
     controller.value = insertAtCursor(controller.value, emoji);
     focusNode.requestFocus();
   }
