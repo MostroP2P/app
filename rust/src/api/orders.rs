@@ -8444,8 +8444,22 @@ async fn write_public_status(
     revision_at: Option<i64>,
 ) -> bool {
     let _order = lock_order(order_id).await;
-    let Some(row) = db.get_trade_by_order_id(order_id).await.ok().flatten() else {
-        return false;
+    // A row that cannot be read is not a row that is not there: it may hold
+    // a verdict, and `wire_status_applies` lets anything over no row. The
+    // next revision of the event tries again (PR #934 review).
+    let row = match db.get_trade_by_order_id(order_id).await {
+        Ok(Some(row)) => row,
+        Ok(None) => return false,
+        Err(e) => {
+            crate::api::logging::blog_warn(
+                "orders",
+                format!(
+                    "public status not written for order={}: row unreadable: {e}",
+                    crate::api::logging::short_id(order_id),
+                ),
+            );
+            return false;
+        }
     };
     let local = Some(row.order.status.clone());
     // A row that already ended keeps its ending: the book shows a
@@ -17758,6 +17772,10 @@ mod tests {
             entered: Arc<tokio::sync::Notify>,
             release: Arc<tokio::sync::Notify>,
         },
+        /// Every trade-row read fails; a status write lands and is counted.
+        FailTradeRead {
+            status_writes: std::sync::atomic::AtomicUsize,
+        },
     }
 
     impl Storage for PersistProbe {
@@ -17779,7 +17797,7 @@ mod tests {
         async fn save_trade(&self, _trade: &crate::api::types::TradeInfo) -> Result<()> {
             match self {
                 Self::FailSave => anyhow::bail!("injected save failure"),
-                Self::FailDelete(_) => unimplemented!(),
+                Self::FailDelete(_) | Self::FailTradeRead { .. } => unimplemented!(),
                 Self::PauseSave { entered, release } => {
                     entered.notify_one();
                     release.notified().await;
@@ -17957,7 +17975,10 @@ mod tests {
             &self,
             _order_id: &str,
         ) -> Result<Option<crate::api::types::TradeInfo>> {
-            unimplemented!()
+            match self {
+                Self::FailTradeRead { .. } => anyhow::bail!("injected read failure"),
+                _ => unimplemented!(),
+            }
         }
         async fn delete_trade_by_order_id(&self, _order_id: &str) -> Result<()> {
             unimplemented!()
@@ -17979,11 +18000,19 @@ mod tests {
         async fn update_trade_fields(
             &self,
             _order_id: &str,
-            _status: Option<crate::api::types::OrderStatus>,
+            status: Option<crate::api::types::OrderStatus>,
             _hold_invoice: Option<String>,
             _amount_sats: Option<u64>,
         ) -> Result<()> {
-            unimplemented!()
+            match self {
+                Self::FailTradeRead { status_writes } => {
+                    if status.is_some() {
+                        status_writes.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    }
+                    Ok(())
+                }
+                _ => unimplemented!(),
+            }
         }
         async fn set_trade_range_slice(
             &self,
@@ -23350,6 +23379,33 @@ mod tests {
         let row = db.get_trade_by_order_id(&settled).await.unwrap().unwrap();
         assert_eq!(row.order.status, OrderStatus::Canceled);
         assert_eq!(row.completed_at, Some(1_000));
+    }
+
+    /// #934 review: a row that cannot be read is not a row that is not there.
+    /// The status write is skipped, or the book's plain `canceled` could land
+    /// over an admin verdict the failed read would have shown.
+    #[tokio::test]
+    async fn a_public_status_is_not_written_when_the_row_cannot_be_read() {
+        use crate::api::types::OrderStatus;
+        let probe = PersistProbe::FailTradeRead {
+            status_writes: std::sync::atomic::AtomicUsize::new(0),
+        };
+        let order_id = uuid::Uuid::new_v4().to_string();
+
+        let wrote = write_public_status(
+            &probe,
+            &order_id,
+            &OrderStatus::Canceled,
+            None,
+            Some(1_000),
+        )
+        .await;
+
+        assert!(!wrote);
+        let PersistProbe::FailTradeRead { status_writes } = &probe else {
+            unreachable!()
+        };
+        assert_eq!(status_writes.load(std::sync::atomic::Ordering::SeqCst), 0);
     }
 
     /// #933: the node's own `canceled` over a live trade (its escrow given
