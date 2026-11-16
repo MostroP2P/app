@@ -8431,7 +8431,8 @@ async fn apply_single_order_update(mut order: OrderInfo, revision_at: Option<i64
 /// judged `wire_status_applies` on a read taken without it, and an admin
 /// verdict the daemon-message path committed since must neither be
 /// overwritten by the book's plain `canceled` nor dated as a cancel of the
-/// parties'. Callers hold no order lock (the d-tag task holds the revision
+/// parties'. No row, or one that already ended, takes no public status
+/// (#937). Callers hold no order lock (the d-tag task holds the revision
 /// lock, taken before this one everywhere).
 async fn write_public_status(
     db: &impl Storage,
@@ -8441,9 +8442,14 @@ async fn write_public_status(
     revision_at: Option<i64>,
 ) -> bool {
     let _order = lock_order(order_id).await;
-    let row = db.get_trade_by_order_id(order_id).await.ok().flatten();
-    let local = row.as_ref().map(|t| t.order.status.clone());
-    if !wire_status_applies(local.as_ref(), status) {
+    let Some(row) = db.get_trade_by_order_id(order_id).await.ok().flatten() else {
+        return false;
+    };
+    let local = Some(row.order.status.clone());
+    // A row that already ended keeps its ending: the book shows a
+    // cooperative cancel as plain `canceled`, and that must not erase the
+    // `cooperatively-canceled` the DM brought (#937).
+    if is_hard_terminal(&row.order.status) || !wire_status_applies(local.as_ref(), status) {
         return false;
     }
     let completes = opens_chat_grace(local.as_ref(), status);
@@ -8454,7 +8460,7 @@ async fn write_public_status(
     sync_trade_fields_if_changed(
         db,
         order_id,
-        row.as_ref(),
+        Some(&row),
         Some(status.clone()),
         None,
         amount_sats,
@@ -10698,6 +10704,11 @@ async fn ingest_order_event_by(
             let public_success = (ingested.ours
                 && ingested.wire.status == OrderStatus::Success)
                 .then(|| ingested.wire.id.clone());
+            // A maker's row was synced in the classify; a taker's was not.
+            let takers_public_cancel = (ingested.ours
+                && !ingested.order.is_mine
+                && ingested.wire.status == OrderStatus::Canceled)
+                .then(|| ingested.wire.id.clone());
             let filed = match only_from {
                 Some(author) => {
                     book.apply_ingested_order_from_active(ingested, publish, author)
@@ -10713,6 +10724,9 @@ async fn ingest_order_event_by(
             }
             if let Some(order_id) = public_success {
                 note_public_success(&order_id, revision_at).await;
+            }
+            if let Some(order_id) = takers_public_cancel {
+                note_takers_public_cancel(&order_id, revision_at);
             }
             true
         }
@@ -11524,6 +11538,27 @@ async fn note_public_success(order_id: &str, revision_at: i64) {
             return;
         }
         apply_payout_completed(&order_id, Some(revision_at)).await;
+    });
+}
+
+/// A public `canceled` for a *taker's* trade (#937): this feed does not sync
+/// a taker's row, so once the d-tag task has idled out a cancel whose DM
+/// went missing or is late left the trade active, with no chat grace and its
+/// subscriptions held. Written as the d-tag task would write it, dated by the
+/// event; `write_public_status` leaves an ending the row already holds, an
+/// admin verdict among them, and a row a never-active take's wipe removed.
+/// Spawned: it takes the order lock, which the book loop must not wait on.
+fn note_takers_public_cancel(order_id: &str, revision_at: i64) {
+    let order_id = order_id.to_string();
+    crate::rt::spawn(async move {
+        let Some(db) = crate::db::app_db::db() else {
+            return;
+        };
+        // No amount: a public bucket must not rewrite what the take fixed.
+        if write_public_status(db, &order_id, &OrderStatus::Canceled, None, Some(revision_at)).await
+        {
+            release_finished_trade_subscriptions(&order_id, None);
+        }
     });
 }
 
@@ -16003,6 +16038,89 @@ mod tests {
         let row = row_eventually(db, &taker, |t| t.order.status == OrderStatus::Success).await;
         assert_eq!(row.order.status, OrderStatus::Success);
         assert_eq!(row.completed_at, Some(published));
+    }
+
+    /// A taker's row at `status`, its trade key bound and no d-tag task.
+    async fn saved_taker_row(
+        db: &impl crate::db::Storage,
+        order_id: &str,
+        status: OrderStatus,
+        completed_at: Option<i64>,
+    ) {
+        let mut row = seam_trade_row(order_id, status);
+        row.counterparty_pubkey = "peer-trade-pubkey".into();
+        row.order.is_mine = false;
+        row.role = TradeRole::Buyer;
+        row.completed_at = completed_at;
+        db.save_trade(&row).await.unwrap();
+        store_trade_key_index(order_id, row.trade_key_index).await;
+    }
+
+    /// #937: the book feed writes no status onto a taker's row, so once the
+    /// d-tag task idled out a public `canceled` whose DM went missing left
+    /// a finished trade active, with no chat grace. It now ends the row,
+    /// dated by the event, whether it was live or in dispute.
+    #[tokio::test]
+    async fn the_book_feed_ends_a_takers_live_trade_on_a_public_cancel() {
+        let db = bond_test_db().await;
+        let node = nostr_sdk::prelude::Keys::generate();
+        let published = crate::rt::unix_now() - 600;
+
+        for status in [OrderStatus::Active, OrderStatus::Dispute] {
+            let taker = uuid::Uuid::new_v4().to_string();
+            saved_taker_row(db, &taker, status.clone(), None).await;
+
+            let canceled = book_event_at(&taker, "canceled", &node, published as u64);
+            ingest_order_event_with(&canceled, Publish::WhenBatchEnds).await;
+
+            let row = row_eventually(db, &taker, |t| t.order.status == OrderStatus::Canceled).await;
+            assert_eq!(row.order.status, OrderStatus::Canceled, "from {status:?}");
+            assert_eq!(row.completed_at, Some(published), "from {status:?}");
+        }
+    }
+
+    /// #937: the public `canceled` never rewrites a taker's row that already
+    /// ended: not an admin verdict, and not the `cooperatively-canceled` its
+    /// DM brought, whose date it keeps. Nor does it touch a stranger's order,
+    /// and a maker's row keeps its ending the same way.
+    #[tokio::test]
+    async fn a_public_cancel_leaves_a_takers_finished_trade_as_it_was() {
+        let db = bond_test_db().await;
+        let node = nostr_sdk::prelude::Keys::generate();
+        let published = crate::rt::unix_now() - 600;
+
+        let verdict = uuid::Uuid::new_v4().to_string();
+        saved_taker_row(db, &verdict, OrderStatus::CanceledByAdmin, None).await;
+        let agreed = uuid::Uuid::new_v4().to_string();
+        saved_taker_row(db, &agreed, OrderStatus::CooperativelyCanceled, Some(1_000)).await;
+        // The maker's row is synced inline, and was rewritten to `canceled`.
+        let maker = uuid::Uuid::new_v4().to_string();
+        let mut row = seam_trade_row(&maker, OrderStatus::CooperativelyCanceled);
+        row.completed_at = Some(1_000);
+        db.save_trade(&row).await.unwrap();
+        store_trade_key_index(&maker, row.trade_key_index).await;
+        let stranger = uuid::Uuid::new_v4().to_string();
+        // Settles last: its write marks that the ones spawned before it ran.
+        let witness = uuid::Uuid::new_v4().to_string();
+        saved_taker_row(db, &witness, OrderStatus::Active, None).await;
+
+        for order_id in [&verdict, &agreed, &maker, &stranger, &witness] {
+            let canceled = book_event_at(order_id, "canceled", &node, published as u64);
+            ingest_order_event_with(&canceled, Publish::WhenBatchEnds).await;
+        }
+        row_eventually(db, &witness, |t| t.order.status == OrderStatus::Canceled).await;
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        let row = db.get_trade_by_order_id(&verdict).await.unwrap().unwrap();
+        assert_eq!(row.order.status, OrderStatus::CanceledByAdmin);
+        assert_eq!(row.completed_at, None);
+        let row = db.get_trade_by_order_id(&agreed).await.unwrap().unwrap();
+        assert_eq!(row.order.status, OrderStatus::CooperativelyCanceled);
+        assert_eq!(row.completed_at, Some(1_000));
+        let row = db.get_trade_by_order_id(&maker).await.unwrap().unwrap();
+        assert_eq!(row.order.status, OrderStatus::CooperativelyCanceled, "maker");
+        assert_eq!(row.completed_at, Some(1_000), "maker");
+        assert!(db.get_trade_by_order_id(&stranger).await.unwrap().is_none());
     }
 
     /// #716: a relay that lags serves an older revision of the same order
