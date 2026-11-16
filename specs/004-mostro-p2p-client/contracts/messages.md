@@ -64,7 +64,10 @@ normative list):
   comes online.
 - Grace window after completion (#642): a trade that completes with
   `success` keeps its **peer** chat open for `PEER_CHAT_GRACE_SECS` (one
-  hour) — the parties thank each other and announce their ratings.
+  hour) — the parties thank each other and announce their ratings. So does
+  a trade cancelled once it was live (#933): the cooperative cancel, the
+  only one the node accepts after `active`, also over a dispute; the
+  parties still have things to settle.
   - *Dated by the completion itself.* The window runs from the row's
     `completed_at` (`Storage::mark_trade_completed`: first write wins,
     never later than now), recorded where the trade moves to `success` and
@@ -75,13 +78,16 @@ normative list):
     only from the public book — the Kind 38383 `success` revision (d-tag
     task, book feed, payout check, sweep; a taker's `settled-hold-invoice`
     row seen `success` on the book feed goes through the payout path). Only
-    a `success` over a live, undisputed row counts (`completes_trade`); a
+    a `success` over a live, undisputed row counts, or a cancel over a row
+    at `active`, `fiat-sent`, `dispute` or `in-progress` — the node's
+    `cooperative-cancel-accepted` or the book's `canceled`, whichever lands
+    first (`opens_chat_grace`); a
     time that could not be fetched is never made up. So a replayed or
     restored history never reopens an old trade's chat, and a `success` row
     without `completed_at` (completed before #642, or at an unknown time)
     is closed.
-  - *No window* for canceled, expired or admin-resolved trades, nor for a
-    dispute the book shows as `success`. The book's plain terminal never
+  - *No window* for a cancel before the trade went live, for expired or
+    admin-resolved trades, nor for a dispute the book shows as `success`. The book's plain terminal never
     replaces an admin verdict (`wire_status_applies`), and an admin verdict
     refines a plain terminal whatever order a replay brings them in
     (`status_write_blocked`): mostrod's `purchase-completed` follows its
@@ -139,8 +145,8 @@ poisoned row) does
 the message degrade to local-only storage with a warning; a relay-pool
 failure also degrades to local-only. A **cached** session is checked
 against the row too (#642): once the row says the chat is over — the
-trade ended, and not with a `success` still inside its grace window
-(`chat_closed_at`) — the send gets no session, cached or not, whatever a
+trade ended, and not with a `success` or a cancel still inside its grace
+window (`chat_closed_at`) — the send gets no session, cached or not, whatever a
 late UI timer still shows. No row yet, or a read error, keeps the cached
 session.
 

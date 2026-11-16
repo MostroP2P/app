@@ -1808,10 +1808,10 @@ class AppLocalizationsDe extends AppLocalizations {
   String get newOrderTitle => 'Neue Order';
 
   @override
-  String get amountSectionSell => 'Wie viel du verkaufst';
+  String get amountSectionSell => 'Wie viel du erhältst';
 
   @override
-  String get amountSectionBuy => 'Wie viel du kaufst';
+  String get amountSectionBuy => 'Wie viel du zahlst';
 
   @override
   String get amountModeSingle => 'Einzeln';
@@ -1879,6 +1879,12 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get fixedPriceNote =>
       'Bei Festpreis folgt die Order nicht dem Markt: der Sats-Betrag bleibt genau so, wie du ihn eingibst.';
+
+  @override
+  String get fixedSatsLabelSell => 'Sats, die du verkaufst';
+
+  @override
+  String get fixedSatsLabelBuy => 'Sats, die du kaufst';
 
   @override
   String get previewHintNoAmount =>
@@ -3071,7 +3077,11 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get tradeInstructionWaitingBond =>
-      'Der Node hält diese Annahme zurück, bis die rückzahlbare Einlage bezahlt ist. Die Order bleibt derweil für andere offen.';
+      'Bezahle die Einlage, um dir diese Order zu sichern. Bis dahin bleibt sie offen, und wer zuerst seine Einlage bezahlt, bekommt sie. Die Einlage wird gesperrt, nicht ausgegeben: Sie wird freigegeben, wenn der Trade endet oder storniert wird, und du kannst sie nur verlieren, wenn du eine Frist verpasst oder einen Streitfall verlierst.';
+
+  @override
+  String get tradeInstructionWaitingMakerBond =>
+      'Bezahle die Einlage, um deine Order zu veröffentlichen. Bis dahin sieht sie niemand. Die Einlage wird gesperrt, nicht ausgegeben: Sie wird freigegeben, wenn die Order endet oder storniert wird, und du kannst sie nur verlieren, wenn du eine Frist verpasst oder einen Streitfall verlierst.';
 
   @override
   String get takeOrderBondNotice =>
@@ -4665,6 +4675,9 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get moreReactions => 'Weitere Reaktionen';
+
+  @override
+  String get insertEmoji => 'Emoji einfügen';
 
   @override
   String messageReactionLabel(String emoji) {

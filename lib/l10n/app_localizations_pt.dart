@@ -1805,10 +1805,10 @@ class AppLocalizationsPt extends AppLocalizations {
   String get newOrderTitle => 'Nova ordem';
 
   @override
-  String get amountSectionSell => 'Quanto você vende';
+  String get amountSectionSell => 'Quanto você recebe';
 
   @override
-  String get amountSectionBuy => 'Quanto você compra';
+  String get amountSectionBuy => 'Quanto você paga';
 
   @override
   String get amountModeSingle => 'Único';
@@ -1876,6 +1876,12 @@ class AppLocalizationsPt extends AppLocalizations {
   @override
   String get fixedPriceNote =>
       'Com preço fixo, a ordem não segue o mercado: o valor em sats fica exatamente como você escrever.';
+
+  @override
+  String get fixedSatsLabelSell => 'Sats que você vende';
+
+  @override
+  String get fixedSatsLabelBuy => 'Sats que você compra';
 
   @override
   String get previewHintNoAmount =>
@@ -3076,7 +3082,11 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get tradeInstructionWaitingBond =>
-      'O nó mantém sua aceitação pendente até o depósito reembolsável ser pago. Enquanto isso, a ordem continua aberta para outros.';
+      'Pague o depósito para garantir esta ordem. Até lá ela continua aberta, e fica com ela quem pagar o depósito primeiro. O depósito fica bloqueado, não é gasto: ele é liberado quando a operação termina ou é cancelada, e você só pode perdê-lo se não cumprir o prazo de uma etapa ou perder uma disputa.';
+
+  @override
+  String get tradeInstructionWaitingMakerBond =>
+      'Pague o depósito para publicar sua ordem. Até lá ninguém a vê. O depósito fica bloqueado, não é gasto: ele é liberado quando a ordem termina ou é cancelada, e você só pode perdê-lo se não cumprir o prazo de uma etapa ou perder uma disputa.';
 
   @override
   String get takeOrderBondNotice =>
@@ -4664,6 +4674,9 @@ class AppLocalizationsPt extends AppLocalizations {
 
   @override
   String get moreReactions => 'Mais reações';
+
+  @override
+  String get insertEmoji => 'Inserir emoji';
 
   @override
   String messageReactionLabel(String emoji) {

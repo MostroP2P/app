@@ -2266,13 +2266,13 @@
   "@newOrderTitle": {
     "description": "Create-order screen title (sentence case, not caps)"
   },
-  "amountSectionSell": "How much you sell",
+  "amountSectionSell": "How much you receive",
   "@amountSectionSell": {
-    "description": "Amount card title when selling"
+    "description": "Amount card title when selling: its field is the currency amount the seller receives"
   },
-  "amountSectionBuy": "How much you buy",
+  "amountSectionBuy": "How much you pay",
   "@amountSectionBuy": {
-    "description": "Amount card title when buying"
+    "description": "Amount card title when buying: its field is the currency amount the buyer pays"
   },
   "amountModeSingle": "Single",
   "@amountModeSingle": {
@@ -2359,6 +2359,14 @@
   "fixedPriceNote": "At a fixed price the order does not follow the market: the sats amount stays exactly as you write it.",
   "@fixedPriceNote": {
     "description": "Note under the fixed sats field"
+  },
+  "fixedSatsLabelSell": "Sats you sell",
+  "@fixedSatsLabelSell": {
+    "description": "Label of the fixed sats field when selling: the sats the order sells"
+  },
+  "fixedSatsLabelBuy": "Sats you buy",
+  "@fixedSatsLabelBuy": {
+    "description": "Label of the fixed sats field when buying: the sats the order buys"
   },
   "previewHintNoAmount": "Write an amount and you'll see here how the order looks.",
   "@previewHintNoAmount": {
@@ -3872,9 +3880,11 @@
   "tradeVerbPayBond": "Pay deposit",
   "@tradeVerbPayBond": {"description": "Trade list verb / trade detail primary action: pay the anti-abuse deposit that parks the take"},
   "tradeHeadlineWaitingBond": "Lock your deposit to continue",
-  "@tradeHeadlineWaitingBond": {"description": "Trade detail headline while the taker's anti-abuse deposit is unpaid"},
-  "tradeInstructionWaitingBond": "The node holds this take until the refundable deposit is paid. The order stays open to others meanwhile.",
-  "@tradeInstructionWaitingBond": {"description": "Trade detail body while the taker's anti-abuse deposit is unpaid"},
+  "@tradeHeadlineWaitingBond": {"description": "Trade detail headline while the user's anti-abuse deposit is unpaid, taker's or maker's"},
+  "tradeInstructionWaitingBond": "Pay the deposit to secure this order. Until then it stays open, and whoever pays their deposit first gets it. The deposit is locked, not spent: it is released when the trade ends or is canceled, and you can only lose it if you miss a step's deadline or lose a dispute.",
+  "@tradeInstructionWaitingBond": {"description": "Trade detail body while the taker's anti-abuse deposit is unpaid: the order stays takeable and the first deposit to lock wins; what locks and releases the deposit"},
+  "tradeInstructionWaitingMakerBond": "Pay the deposit to publish your order. Until then nobody can see it. The deposit is locked, not spent: it is released when the order ends or is canceled, and you can only lose it if you miss a step's deadline or lose a dispute.",
+  "@tradeInstructionWaitingMakerBond": {"description": "Trade detail body while the maker's anti-abuse deposit is unpaid: the order is not published until it locks; what locks and releases the deposit"},
   "takeOrderBondNotice": "This node asks takers to lock a refundable deposit first; it comes back when the trade ends honestly.",
   "@takeOrderBondNotice": {"description": "Take screen note on a bond-enabled node when no estimate is available"},
   "takeOrderBondNoticeEstimate": "This node asks takers to lock a refundable deposit of ≈ {sats} sats first; it comes back when the trade ends honestly.",
@@ -4708,6 +4718,8 @@
   "@moreReactions": {
     "description": "«…» in a chat message's menu, and the title of the sheet with every emoji"
   },
+  "insertEmoji": "Insert emoji",
+  "@insertEmoji": {"description": "Chat composers: tooltip of the emoji button, and the title of the sheet with every emoji it opens"},
   "messageReactionLabel": "Reaction: {emoji}",
   "@messageReactionLabel": {
     "description": "Screen-reader label of the reaction shown under a chat message",

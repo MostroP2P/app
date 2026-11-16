@@ -3198,16 +3198,16 @@ abstract class AppLocalizations {
   /// **'New order'**
   String get newOrderTitle;
 
-  /// Amount card title when selling
+  /// Amount card title when selling: its field is the currency amount the seller receives
   ///
   /// In en, this message translates to:
-  /// **'How much you sell'**
+  /// **'How much you receive'**
   String get amountSectionSell;
 
-  /// Amount card title when buying
+  /// Amount card title when buying: its field is the currency amount the buyer pays
   ///
   /// In en, this message translates to:
-  /// **'How much you buy'**
+  /// **'How much you pay'**
   String get amountSectionBuy;
 
   /// Segment: one fiat amount
@@ -3299,6 +3299,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'At a fixed price the order does not follow the market: the sats amount stays exactly as you write it.'**
   String get fixedPriceNote;
+
+  /// Label of the fixed sats field when selling: the sats the order sells
+  ///
+  /// In en, this message translates to:
+  /// **'Sats you sell'**
+  String get fixedSatsLabelSell;
+
+  /// Label of the fixed sats field when buying: the sats the order buys
+  ///
+  /// In en, this message translates to:
+  /// **'Sats you buy'**
+  String get fixedSatsLabelBuy;
 
   /// Preview line while no amount has been entered
   ///
@@ -5106,17 +5118,23 @@ abstract class AppLocalizations {
   /// **'Pay deposit'**
   String get tradeVerbPayBond;
 
-  /// Trade detail headline while the taker's anti-abuse deposit is unpaid
+  /// Trade detail headline while the user's anti-abuse deposit is unpaid, taker's or maker's
   ///
   /// In en, this message translates to:
   /// **'Lock your deposit to continue'**
   String get tradeHeadlineWaitingBond;
 
-  /// Trade detail body while the taker's anti-abuse deposit is unpaid
+  /// Trade detail body while the taker's anti-abuse deposit is unpaid: the order stays takeable and the first deposit to lock wins; what locks and releases the deposit
   ///
   /// In en, this message translates to:
-  /// **'The node holds this take until the refundable deposit is paid. The order stays open to others meanwhile.'**
+  /// **'Pay the deposit to secure this order. Until then it stays open, and whoever pays their deposit first gets it. The deposit is locked, not spent: it is released when the trade ends or is canceled, and you can only lose it if you miss a step\'s deadline or lose a dispute.'**
   String get tradeInstructionWaitingBond;
+
+  /// Trade detail body while the maker's anti-abuse deposit is unpaid: the order is not published until it locks; what locks and releases the deposit
+  ///
+  /// In en, this message translates to:
+  /// **'Pay the deposit to publish your order. Until then nobody can see it. The deposit is locked, not spent: it is released when the order ends or is canceled, and you can only lose it if you miss a step\'s deadline or lose a dispute.'**
+  String get tradeInstructionWaitingMakerBond;
 
   /// Take screen note on a bond-enabled node when no estimate is available
   ///
@@ -7607,6 +7625,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'More reactions'**
   String get moreReactions;
+
+  /// Chat composers: tooltip of the emoji button, and the title of the sheet with every emoji it opens
+  ///
+  /// In en, this message translates to:
+  /// **'Insert emoji'**
+  String get insertEmoji;
 
   /// Screen-reader label of the reaction shown under a chat message
   ///

@@ -307,9 +307,10 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
 
   Future<void> _cancelOrder(TradeStatus status) async {
     final l10n = AppLocalizations.of(context);
-    // A maker parked on their own deposit cannot cancel (the daemon refuses
-    // it, docs/ANTI_ABUSE_BOND.md §2.8): the way out is the local abandon
-    // the pay-bond screen offers, so send them there.
+    // A maker parked on their own deposit cancels from the pay-bond screen,
+    // which handles what a take's cancel does not: a node older than
+    // mostro#996 refuses it, and only a local abandon is left
+    // (docs/ANTI_ABUSE_BOND.md §2.8, §6.2). Send them there.
     if (status == TradeStatus.waitingBond) {
       final trade = ref.read(tradeInfoProvider(widget.orderId)).valueOrNull;
       if (trade != null &&
@@ -883,6 +884,12 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
                                 summary: summary,
                                 loadFailed: loadFailed,
                                 coinCopy: coinCopy,
+                                makerBond:
+                                    trade != null &&
+                                    bondIsMakers(
+                                      trade.bond,
+                                      isMine: trade.order.isMine,
+                                    ),
                               ),
                     ),
                   ),
@@ -1077,6 +1084,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
     required String? summary,
     required bool loadFailed,
     required _CoinCopy coinCopy,
+    required bool makerBond,
   }) {
     return TradeStepBlock(
       summary: summary,
@@ -1093,7 +1101,14 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
       body:
           loadFailed
               ? TextSpan(text: l10n.tradeLoadError)
-              : _body(l10n, status, isBuyer, paymentMethod, coinCopy: coinCopy),
+              : _body(
+                l10n,
+                status,
+                isBuyer,
+                paymentMethod,
+                coinCopy: coinCopy,
+                makerBond: makerBond,
+              ),
       warning: view.showsReleaseWarning ? l10n.tradeReleaseIrreversible : null,
       countdown:
           view.showsTimer
@@ -1169,6 +1184,7 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
     bool isBuyer,
     String? method, {
     required _CoinCopy coinCopy,
+    required bool makerBond,
   }) {
     final book = OrderBookPalette.of(context);
     final keyData = TextStyle(
@@ -1192,7 +1208,12 @@ class _TradeDetailScreenState extends ConsumerState<TradeDetailScreen>
             ? l10n.tradeBodyWaitingPaymentBuyer
             : l10n.tradeWaitingPaymentSellerInstruction,
       TradeStatus.inProgress => l10n.tradeInstructionInProgress,
-      TradeStatus.waitingBond => l10n.tradeInstructionWaitingBond,
+      // A taker's order stays in the book; a maker's is not published until
+      // the deposit locks (docs/ANTI_ABUSE_BOND.md §2.7, §2.8).
+      TradeStatus.waitingBond =>
+        makerBond
+            ? l10n.tradeInstructionWaitingMakerBond
+            : l10n.tradeInstructionWaitingBond,
       TradeStatus.active
           when isBuyer && method != null && coinCopy == _CoinCopy.liquid =>
         l10n.tradeBodyActiveBuyerLiquid(method),

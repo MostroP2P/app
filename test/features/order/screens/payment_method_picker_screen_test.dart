@@ -185,6 +185,29 @@ void main() {
       expect(container.read(customPaymentMethodsProvider), ['My bank x']);
     });
 
+    testWidgets('the custom method field lets the keyboard offer emojis (#938)', (
+      tester,
+    ) async {
+      await _pump(tester);
+      await tester.tap(find.text('Add custom payment method'));
+      await tester.pumpAndSettle();
+
+      // Without suggestions Android asks for a visible-password field, and
+      // Gboard drops its emoji key and suggestion strip for one.
+      final field = tester.widget<TextField>(find.byType(TextField).last);
+      expect(field.enableSuggestions, isTrue);
+      expect(field.autocorrect, isFalse);
+    });
+
+    testWidgets('a custom method keeps its emojis (#938)', (tester) async {
+      final container = await _pump(tester);
+      await _addCustom(tester, 'Efectivo 💵');
+
+      await tester.tap(_confirm);
+      await tester.pumpAndSettle();
+      expect(container.read(customPaymentMethodsProvider), ['Efectivo 💵']);
+    });
+
     testWidgets('a custom name the catalogue has selects that entry instead', (
       tester,
     ) async {

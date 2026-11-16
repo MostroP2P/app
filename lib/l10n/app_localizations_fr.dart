@@ -1806,10 +1806,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get newOrderTitle => 'Nouvel ordre';
 
   @override
-  String get amountSectionSell => 'Combien vous vendez';
+  String get amountSectionSell => 'Combien vous recevez';
 
   @override
-  String get amountSectionBuy => 'Combien vous achetez';
+  String get amountSectionBuy => 'Combien vous payez';
 
   @override
   String get amountModeSingle => 'Unique';
@@ -1877,6 +1877,12 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get fixedPriceNote =>
       'À prix fixe, l\'ordre ne suit pas le marché : le montant en sats reste tel que vous l\'écrivez.';
+
+  @override
+  String get fixedSatsLabelSell => 'Sats que vous vendez';
+
+  @override
+  String get fixedSatsLabelBuy => 'Sats que vous achetez';
 
   @override
   String get previewHintNoAmount =>
@@ -3067,7 +3073,11 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get tradeInstructionWaitingBond =>
-      'Le nœud retient cette prise jusqu\'au paiement du dépôt remboursable. L\'ordre reste ouvert aux autres entre-temps.';
+      'Payez le dépôt pour obtenir cet ordre. D\'ici là, il reste ouvert, et il revient à qui paie son dépôt en premier. Le dépôt est bloqué, pas dépensé : il est libéré quand la transaction se termine ou est annulée, et vous ne pouvez le perdre que si vous manquez le délai d\'une étape ou perdez un litige.';
+
+  @override
+  String get tradeInstructionWaitingMakerBond =>
+      'Payez le dépôt pour publier votre ordre. D\'ici là, personne ne le voit. Le dépôt est bloqué, pas dépensé : il est libéré quand l\'ordre se termine ou est annulé, et vous ne pouvez le perdre que si vous manquez le délai d\'une étape ou perdez un litige.';
 
   @override
   String get takeOrderBondNotice =>
@@ -4671,6 +4681,9 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get moreReactions => 'Plus de réactions';
+
+  @override
+  String get insertEmoji => 'Insérer un emoji';
 
   @override
   String messageReactionLabel(String emoji) {

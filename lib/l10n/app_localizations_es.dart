@@ -1802,10 +1802,10 @@ class AppLocalizationsEs extends AppLocalizations {
   String get newOrderTitle => 'Nueva orden';
 
   @override
-  String get amountSectionSell => 'Cuánto vendes';
+  String get amountSectionSell => 'Cuánto recibes';
 
   @override
-  String get amountSectionBuy => 'Cuánto compras';
+  String get amountSectionBuy => 'Cuánto pagas';
 
   @override
   String get amountModeSingle => 'Único';
@@ -1873,6 +1873,12 @@ class AppLocalizationsEs extends AppLocalizations {
   @override
   String get fixedPriceNote =>
       'A precio fijo la orden no sigue al mercado: el monto en sats queda tal cual lo escribes.';
+
+  @override
+  String get fixedSatsLabelSell => 'Sats que vendes';
+
+  @override
+  String get fixedSatsLabelBuy => 'Sats que compras';
 
   @override
   String get previewHintNoAmount =>
@@ -3059,7 +3065,11 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get tradeInstructionWaitingBond =>
-      'El nodo retiene esta toma hasta que pagues el depósito reembolsable. Mientras tanto la orden sigue abierta a otros.';
+      'Paga el depósito para quedarte con esta orden. Hasta entonces sigue disponible, y se la queda quien pague primero su depósito. El depósito queda bloqueado, no se cobra: se libera al terminar o cancelar la operación, y solo puedes perderlo si no cumples un paso a tiempo o pierdes una disputa.';
+
+  @override
+  String get tradeInstructionWaitingMakerBond =>
+      'Paga el depósito para publicar tu orden. Hasta entonces nadie la ve. El depósito queda bloqueado, no se cobra: se libera al terminar o cancelar la orden, y solo puedes perderlo si no cumples un paso a tiempo o pierdes una disputa.';
 
   @override
   String get takeOrderBondNotice =>
@@ -4640,6 +4650,9 @@ class AppLocalizationsEs extends AppLocalizations {
 
   @override
   String get moreReactions => 'Más reacciones';
+
+  @override
+  String get insertEmoji => 'Insertar emoji';
 
   @override
   String messageReactionLabel(String emoji) {

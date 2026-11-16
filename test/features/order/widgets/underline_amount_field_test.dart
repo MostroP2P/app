@@ -78,4 +78,29 @@ void main() {
       });
     });
   }
+
+  // The label is a separate Text above the field: a screen reader landing
+  // on the field must still hear what it is for (#936 review).
+  testWidgets('a labelled field is announced by its label', (tester) async {
+    final semantics = tester.ensureSemantics();
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildDarkTheme(),
+        home: Scaffold(
+          body: UnderlineAmountField(
+            controller: TextEditingController(),
+            label: 'Sats you sell',
+          ),
+        ),
+      ),
+    );
+
+    expect(
+      tester.getSemantics(find.byType(TextField)),
+      isSemantics(label: 'Sats you sell', isTextField: true),
+    );
+    // Once on the field, not again as a loose text before it.
+    expect(find.bySemanticsLabel('SATS YOU SELL'), findsNothing);
+    semantics.dispose();
+  });
 }

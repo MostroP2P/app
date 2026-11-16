@@ -17,8 +17,13 @@ import 'package:mostro/shared/widgets/pill_segmented.dart';
 /// The locale's thousands and decimal separators.
 typedef AmountSymbols = ({String group, String decimal});
 
-/// "How much you sell / buy" card: `Single | Range` control, the amount
+/// "How much you receive / pay" card: `Single | Range` control, the amount
 /// field(s) with the currency selector, and the quick-amount chips (5b).
+///
+/// The field is the currency side of the trade, what a seller receives or a
+/// buyer pays; the sats are in [PriceSection]. The title says so because a
+/// BTC-pegged code is typed in sats too, and "sell" named the wrong side
+/// (#935).
 ///
 /// The text controllers belong to the screen, which also owns validation and
 /// the preview; this widget only lays them out.
