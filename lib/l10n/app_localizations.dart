@@ -5100,17 +5100,23 @@ abstract class AppLocalizations {
   /// **'Pay deposit'**
   String get tradeVerbPayBond;
 
-  /// Trade detail headline while the taker's anti-abuse deposit is unpaid
+  /// Trade detail headline while the user's anti-abuse deposit is unpaid, taker's or maker's
   ///
   /// In en, this message translates to:
   /// **'Lock your deposit to continue'**
   String get tradeHeadlineWaitingBond;
 
-  /// Trade detail body while the taker's anti-abuse deposit is unpaid
+  /// Trade detail body while the taker's anti-abuse deposit is unpaid: the order stays takeable and the first deposit to lock wins; what locks and releases the deposit
   ///
   /// In en, this message translates to:
-  /// **'The node holds this take until the refundable deposit is paid. The order stays open to others meanwhile.'**
+  /// **'Pay the deposit to secure this order. Until then it stays open, and whoever pays their deposit first gets it. The deposit is locked, not spent: it is released when the trade ends or is canceled, and you can only lose it if you miss a step\'s deadline or lose a dispute.'**
   String get tradeInstructionWaitingBond;
+
+  /// Trade detail body while the maker's anti-abuse deposit is unpaid: the order is not published until it locks; what locks and releases the deposit
+  ///
+  /// In en, this message translates to:
+  /// **'Pay the deposit to publish your order. Until then nobody can see it. The deposit is locked, not spent: it is released when the order ends or is canceled, and you can only lose it if you miss a step\'s deadline or lose a dispute.'**
+  String get tradeInstructionWaitingMakerBond;
 
   /// Take screen note on a bond-enabled node when no estimate is available
   ///

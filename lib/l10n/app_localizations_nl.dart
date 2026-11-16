@@ -3060,7 +3060,11 @@ class AppLocalizationsNl extends AppLocalizations {
 
   @override
   String get tradeInstructionWaitingBond =>
-      'De node houdt je acceptatie vast tot de terugbetaalbare borg betaald is. De order blijft ondertussen open voor anderen.';
+      'Betaal de borg om deze order te krijgen. Tot dan blijft hij open, en wie als eerste zijn borg betaalt, krijgt hem. De borg wordt vastgezet, niet uitgegeven: hij komt vrij als de trade eindigt of wordt geannuleerd, en je kunt hem alleen verliezen als je een stap niet op tijd afrondt of een dispuut verliest.';
+
+  @override
+  String get tradeInstructionWaitingMakerBond =>
+      'Betaal de borg om je order te publiceren. Tot dan ziet niemand hem. De borg wordt vastgezet, niet uitgegeven: hij komt vrij als de order eindigt of wordt geannuleerd, en je kunt hem alleen verliezen als je een stap niet op tijd afrondt of een dispuut verliest.';
 
   @override
   String get takeOrderBondNotice =>
