@@ -19654,6 +19654,77 @@ mod tests {
         assert_eq!(outcomes, [PayoutOutcome::Replaced, PayoutOutcome::Submitted]);
     }
 
+    /// #941: the node's refusal of an invoice, arriving after its caller
+    /// stopped waiting, is recorded on the destination it refused, as a late
+    /// acknowledgement is. The add-invoice screen follows that record: a
+    /// refusal that only reached the log left it saying the node had not
+    /// answered, for good — a refusal changes no status.
+    #[tokio::test]
+    async fn a_late_refusal_marks_the_destination_it_refused() {
+        use crate::api::types::{PayoutOutcome, PayoutSource};
+        use crate::mostro::payout_route;
+        use mostro_core::error::CantDoReason;
+        use mostro_core::message::{Message, Payload};
+
+        let path = std::env::temp_dir().join(format!(
+            "mostro_payout_route_late_refusal_{}.db",
+            std::process::id()
+        ));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        // A replacement payout: the first one failed and is still in flight.
+        db.save_trade(&cancel_test_row(wire_order(
+            &order_id,
+            OrderStatus::SettledHoldInvoice,
+        )))
+        .await
+        .expect("save the trade row");
+        let invoice = crate::api::invoice::test_vectors::COFFEE;
+        let since = payout_route::clear_epoch(&order_id);
+        let sent = payout_route::destination(invoice, PayoutSource::Entered, None, 2_000, None);
+        let sent_key = SentPayout {
+            order_id: order_id.clone(),
+            destination: sent.destination.clone(),
+            submitted_at: sent.submitted_at,
+        };
+        payout_route::record_destination_since(&order_id, 1, sent, since).await;
+        // Its caller timed out: the record stays, without a waiter.
+        let trade_key = "ff00ff79";
+        let nonce = 7_802;
+        register_add_invoice_request(trade_key, nonce, 1, sent_key).expect("registers");
+        detach_request_waiter(trade_key, nonce);
+
+        let sender = nostr_sdk::prelude::PublicKey::from_hex(&active_mostro_pubkey())
+            .expect("valid mostro pubkey");
+        dispatch_mostro_message(
+            mostro_core::transport::UnwrappedMessage {
+                message: Message::cant_do(
+                    Some(order_uuid),
+                    Some(nonce),
+                    Some(Payload::CantDo(Some(CantDoReason::NotAllowedByStatus))),
+                ),
+                signature: None,
+                sender,
+                identity: sender,
+                created_at: nostr_sdk::prelude::Timestamp::from(2_100),
+            },
+            &format!("test-late-refusal-{order_uuid}"),
+            trade_key,
+            1,
+        )
+        .await;
+
+        let route = payout_route::destinations(&order_id).await;
+        assert_eq!(route.len(), 1);
+        assert_eq!(route[0].outcome, PayoutOutcome::Rejected);
+        assert!(
+            !pending_requests().lock().unwrap().contains_key(trade_key),
+            "the refusal consumed the record"
+        );
+    }
+
     /// The public `success` can land before the buyer's `purchase-completed`
     /// (two relay streams): the row is already terminal and the status gate
     /// refuses the message, but the payout it reports is still recorded
