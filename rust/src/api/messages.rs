@@ -2819,21 +2819,28 @@ pub(crate) async fn chat_running(channel: ChatChannel, order_id: &str) -> bool {
         .contains_key(&channel.guard_key(order_id))
 }
 
-/// How long the peer chat of a successfully completed trade stays open
-/// (issue #642): the parties tend to thank each other and announce their
-/// ratings right after the trade ends. Canceled, expired and admin-resolved
-/// trades get no such window.
+/// How long the peer chat of a trade that ended between its parties stays
+/// open (issue #642): after a success they tend to thank each other and
+/// announce their ratings, and after a cooperative cancel they still have
+/// things to settle. Expired and admin-resolved trades get no such window.
 pub(crate) const PEER_CHAT_GRACE_SECS: i64 = 3600;
 
-/// When the peer chat of a completed trade closes: `completed_at` plus
-/// [`PEER_CHAT_GRACE_SECS`], for a `success` row that has a completion time.
-/// `None` for any other row — a row completed before the time was recorded
-/// included, so an old trade's chat never reopens.
+/// When the peer chat of an ended trade closes: `completed_at` plus
+/// [`PEER_CHAT_GRACE_SECS`], for a `success` row, or a cancelled one, that
+/// has an end time — only a live trade's cancel records one, see
+/// `orders::opens_chat_grace`. `None` for any other row — a row that ended
+/// before the time was recorded included, so an old trade's chat never
+/// reopens.
 pub(crate) fn chat_grace_ends_at(trade: &crate::api::types::TradeInfo) -> Option<i64> {
     use crate::api::types::{OrderStatus, TradeOutcome};
-    if trade.order.status != OrderStatus::Success
-        || !matches!(trade.outcome, None | Some(TradeOutcome::Success))
-    {
+    let windowed = match trade.order.status {
+        OrderStatus::Success => matches!(trade.outcome, None | Some(TradeOutcome::Success)),
+        OrderStatus::Canceled | OrderStatus::CooperativelyCanceled => {
+            matches!(trade.outcome, None | Some(TradeOutcome::Canceled))
+        }
+        _ => false,
+    };
+    if !windowed {
         return None;
     }
     trade
@@ -2887,8 +2894,8 @@ pub(crate) fn chat_still_relevant_at(trade: &crate::api::types::TradeInfo, now: 
     peer_known && (live || chat_grace_ends_at(trade).is_some_and(|end| now < end))
 }
 
-/// Whether `trade`'s peer chat is over at `now`: the trade ended, and not
-/// with a `success` whose grace window (#642) still runs — the line
+/// Whether `trade`'s peer chat is over at `now`: the trade ended, and its
+/// grace window (#642), if it has one, no longer runs — the line
 /// `ChatRowState` draws for the composer, on the same row. Positive evidence
 /// only: unlike [`chat_still_relevant_at`] it leaves the peer checks out, as
 /// it judges a cached session that already holds the peer, and the row's
@@ -3934,10 +3941,29 @@ mod tests {
         assert_eq!(chat_grace_ends_at(&legacy), None);
         assert!(!chat_still_relevant_at(&legacy, done_at));
 
+        // A trade cancelled once it was live gets the same window, whether
+        // the row learned it as `cooperatively-canceled` (the node's DM) or
+        // as the book's `canceled`.
+        for status in [OrderStatus::Canceled, OrderStatus::CooperativelyCanceled] {
+            let mut cancelled = done.clone();
+            cancelled.order.status = status.clone();
+            assert_eq!(
+                chat_grace_ends_at(&cancelled),
+                Some(done_at + PEER_CHAT_GRACE_SECS),
+                "{status:?}"
+            );
+            assert!(chat_still_relevant_at(&cancelled, done_at), "{status:?}");
+            assert!(
+                !chat_still_relevant_at(&cancelled, done_at + PEER_CHAT_GRACE_SECS),
+                "{status:?}"
+            );
+            assert!(!chat_closed_at(&cancelled, done_at), "{status:?}");
+            cancelled.completed_at = None;
+            assert!(!chat_still_relevant_at(&cancelled, done_at), "{status:?}");
+        }
+
         // No window for any other ending.
         for status in [
-            OrderStatus::Canceled,
-            OrderStatus::CooperativelyCanceled,
             OrderStatus::Expired,
             OrderStatus::CanceledByAdmin,
             OrderStatus::SettledByAdmin,
@@ -3970,9 +3996,21 @@ mod tests {
         unknown.completed_at = None;
         assert!(chat_closed_at(&unknown, done_at), "completed at an unknown time");
 
+        for status in [OrderStatus::Canceled, OrderStatus::CooperativelyCanceled] {
+            let mut cancelled = done.clone();
+            cancelled.order.status = status.clone();
+            assert!(!chat_closed_at(&cancelled, done_at), "{status:?}");
+            assert!(
+                chat_closed_at(&cancelled, done_at + PEER_CHAT_GRACE_SECS),
+                "{status:?}"
+            );
+            cancelled.completed_at = None;
+            assert!(
+                chat_closed_at(&cancelled, done_at),
+                "{status:?} at an unknown time"
+            );
+        }
         for status in [
-            OrderStatus::Canceled,
-            OrderStatus::CooperativelyCanceled,
             OrderStatus::Expired,
             OrderStatus::CanceledByAdmin,
             OrderStatus::SettledByAdmin,

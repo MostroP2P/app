@@ -113,10 +113,29 @@ void main() {
         expect(completed(OrderStatus.success).isReadOnly, isTrue);
       });
 
-      test('only a success opens a window', () {
+      test('a cancelled trade keeps its conversation open for an hour', () {
         for (final status in [
           OrderStatus.canceled,
           OrderStatus.cooperativelyCanceled,
+        ]) {
+          final open = completed(
+            status,
+            completedAt: doneAt,
+            now: doneAt + kPeerChatGraceSeconds - 1,
+          );
+          expect(open.canCompose, isTrue, reason: '$status');
+          final over = completed(
+            status,
+            completedAt: doneAt,
+            now: doneAt + kPeerChatGraceSeconds,
+          );
+          expect(over.isReadOnly, isTrue, reason: '$status');
+          expect(completed(status).isReadOnly, isTrue, reason: '$status');
+        }
+      });
+
+      test('no other ending opens a window', () {
+        for (final status in [
           OrderStatus.expired,
           OrderStatus.canceledByAdmin,
           OrderStatus.settledByAdmin,
@@ -138,6 +157,10 @@ void main() {
         expect(chatGraceEndsAt(status: OrderStatus.success), isNull);
         expect(
           chatGraceEndsAt(status: OrderStatus.canceled, completedAt: doneAt),
+          doneAt + kPeerChatGraceSeconds,
+        );
+        expect(
+          chatGraceEndsAt(status: OrderStatus.expired, completedAt: doneAt),
           isNull,
         );
       });

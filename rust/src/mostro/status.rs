@@ -113,6 +113,24 @@ pub(crate) fn admin_verdict_refines(
     )
 }
 
+/// Whether a daemon message may still refine the plain terminal the book
+/// wrote first: an admin verdict ([`admin_verdict_refines`]), or the
+/// parties' cooperative cancel, which the book also shows as `canceled`
+/// (#937 review). The row keeps the completion the book's event dated.
+pub(crate) fn daemon_message_refines(
+    local: &OrderStatus,
+    action: &mostro_core::message::Action,
+) -> bool {
+    admin_verdict_refines(local, action)
+        || matches!(
+            (local, action),
+            (
+                OrderStatus::Canceled,
+                mostro_core::message::Action::CooperativeCancelAccepted
+            )
+        )
+}
+
 /// Statuses no daemon message may leave: mostrod never reopens a canceled
 /// or completed trade. `SettledHoldInvoice` and `Dispute` are deliberately
 /// NOT here — they still progress (to `Success` / admin resolutions).
@@ -784,6 +802,29 @@ mod tests {
         assert!(!admin_verdict_refines(
             &S::Canceled,
             &Action::WaitingSellerToPay
+        ));
+    }
+
+    #[test]
+    fn a_cooperative_cancel_refines_the_books_plain_cancel() {
+        use crate::api::types::OrderStatus as S;
+        use mostro_core::message::Action;
+        assert!(daemon_message_refines(
+            &S::Canceled,
+            &Action::CooperativeCancelAccepted
+        ));
+        assert!(daemon_message_refines(&S::Canceled, &Action::AdminCanceled));
+        assert!(!daemon_message_refines(
+            &S::Success,
+            &Action::CooperativeCancelAccepted
+        ));
+        assert!(!daemon_message_refines(
+            &S::CanceledByAdmin,
+            &Action::CooperativeCancelAccepted
+        ));
+        assert!(!daemon_message_refines(
+            &S::CooperativelyCanceled,
+            &Action::CooperativeCancelAccepted
         ));
     }
 
