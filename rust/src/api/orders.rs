@@ -7336,7 +7336,7 @@ async fn status_sync_blocked_by_terminal(
     let Some(local) = current_local_status(order_id).await else {
         return false;
     };
-    if crate::mostro::status::admin_verdict_refines(&local, action) {
+    if crate::mostro::status::daemon_message_refines(&local, action) {
         return false;
     }
     if is_hard_terminal(&local) {
@@ -7461,7 +7461,9 @@ async fn record_status_event(order_id: &str, event_created_at: i64) {
 /// `admin-settled` before it pays out, and the `purchase-completed` it sends
 /// after the payout reaches a newest-first replay first. Refused as older, the
 /// verdict would leave an admin-settled trade reading as an ordinary
-/// completion — and keeping its peer chat open for an hour (#642).
+/// completion — and keeping its peer chat open for an hour (#642). So does a
+/// `cooperative-cancel-accepted` over the book's plain `canceled`, which
+/// can land first on a taker's row (#937): the DM names the ending.
 async fn status_write_blocked(
     order_id: &str,
     action: &mostro_core::message::Action,
@@ -7469,7 +7471,7 @@ async fn status_write_blocked(
 ) -> bool {
     if current_local_status(order_id)
         .await
-        .is_some_and(|local| crate::mostro::status::admin_verdict_refines(&local, action))
+        .is_some_and(|local| crate::mostro::status::daemon_message_refines(&local, action))
     {
         return false;
     }
@@ -16077,6 +16079,36 @@ mod tests {
             assert_eq!(row.order.status, OrderStatus::Canceled, "from {status:?}");
             assert_eq!(row.completed_at, Some(published), "from {status:?}");
         }
+    }
+
+    /// #937 review: the book's `canceled` can land before the taker's
+    /// `cooperative-cancel-accepted`. The DM still names how the trade ended,
+    /// and the window keeps the date of the event that first ended it.
+    #[tokio::test]
+    async fn a_late_cooperative_cancel_refines_the_books_cancel() {
+        use mostro_core::message::Action;
+        let db = bond_test_db().await;
+        let node = nostr_sdk::prelude::Keys::generate();
+        let published = crate::rt::unix_now() - 600;
+
+        let order_uuid = uuid::Uuid::new_v4();
+        let taker = order_uuid.to_string();
+        saved_taker_row(db, &taker, OrderStatus::Active, None).await;
+        let canceled = book_event_at(&taker, "canceled", &node, published as u64);
+        ingest_order_event_with(&canceled, Publish::WhenBatchEnds).await;
+        row_eventually(db, &taker, |t| t.order.status == OrderStatus::Canceled).await;
+
+        let message = daemon_message(
+            order_uuid,
+            Action::CooperativeCancelAccepted,
+            None,
+            published as u64 + 5,
+        );
+        dispatch_mostro_message(message, "test-late-coop", "ff00ff37", 1).await;
+
+        let row = db.get_trade_by_order_id(&taker).await.unwrap().unwrap();
+        assert_eq!(row.order.status, OrderStatus::CooperativelyCanceled);
+        assert_eq!(row.completed_at, Some(published));
     }
 
     /// #937: the public `canceled` never rewrites a taker's row that already
