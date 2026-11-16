@@ -8475,7 +8475,22 @@ async fn write_public_status(
     revision_at: Option<i64>,
 ) -> bool {
     let _order = lock_order(order_id).await;
-    let row = db.get_trade_by_order_id(order_id).await.ok().flatten();
+    // A row that cannot be read is not a row that is not there: it may hold
+    // a verdict, and `wire_status_applies` lets anything over no row. The
+    // next revision of the event tries again (PR #934 review).
+    let row = match db.get_trade_by_order_id(order_id).await {
+        Ok(row) => row,
+        Err(e) => {
+            crate::api::logging::blog_warn(
+                "orders",
+                format!(
+                    "public status not written for order={}: row unreadable: {e}",
+                    crate::api::logging::short_id(order_id),
+                ),
+            );
+            return false;
+        }
+    };
     let local = row.as_ref().map(|t| t.order.status.clone());
     if !wire_status_applies(local.as_ref(), status) {
         return false;
