@@ -2165,6 +2165,10 @@
   "@invoiceNoLongerExpected": {
     "description": "Add-invoice screen: the daemon answered NotAllowedByStatus — the order moved on (usually an earlier submission was accepted) and the app is re-reading its state"
   },
+  "invoicePayoutInFlight": "The node is still paying your previous invoice. If that payment fails, it will ask you for a new one.",
+  "@invoicePayoutInFlight": {
+    "description": "Add-invoice screen, on a replacement payout (order settled-hold-invoice): the node refused the new invoice because it is still paying the previous one (NotAllowedByStatus while a payout is in flight). Shown whether the refusal came within the wait or after it (#941)"
+  },
   "invoiceAwaitingNode": "Sent. The node hasn't answered yet — you'll be taken to the trade as soon as it does.",
   "@invoiceAwaitingNode": {
     "description": "Add-invoice screen: the invoice or lightning address was sent but the node has not answered within the wait (Rust marker InvoiceAwaitingDaemon). Not an error: a late answer still moves the trade on (#615)"

@@ -15,6 +15,7 @@ PayoutDestination fakePayoutDestination({
   String? paymentHash,
   PayoutOutcome outcome = PayoutOutcome.submitted,
   int? attempts,
+  String? rejection,
 }) => PayoutDestination(
   destination: destination,
   isLightningAddress: isLightningAddress ?? destination.contains('@'),
@@ -26,6 +27,7 @@ PayoutDestination fakePayoutDestination({
   outcome: outcome,
   outcomeAt: outcome == PayoutOutcome.submitted ? null : 2000,
   attempts: attempts,
+  rejection: rejection,
 );
 
 /// The staging trade behind #823: the default address failed three times,

@@ -24,7 +24,7 @@ import 'package:mostro/features/order/widgets/payout_failed_notice.dart';
 import 'package:mostro/features/settings/providers/nwc_provider.dart';
 import 'package:mostro/features/settings/providers/settings_provider.dart';
 import 'package:mostro/features/trades/models/payout_route_rules.dart'
-    show payoutSourceFor;
+    show payoutSourceFor, refusalOf;
 import 'package:mostro/features/trades/providers/trades_providers.dart'
     show refreshTrades, tradeInfoProvider;
 import 'package:mostro/l10n/app_localizations.dart';
@@ -38,7 +38,7 @@ import 'package:mostro/shared/widgets/redesign_app_bar.dart';
 import 'package:mostro/src/rust/api/nostr.dart' as nostr_api;
 import 'package:mostro/src/rust/api/orders.dart' as orders_api;
 import 'package:mostro/src/rust/api/types.dart'
-    show OrderStatus, TradeInfo, TradeUpdate;
+    show OrderStatus, PayoutDestination, TradeInfo, TradeUpdate;
 
 /// Whether a trade in [status] no longer wants the buyer's invoice because it
 /// moved on: the daemon took one, and the trade screen is where it continues.
@@ -139,14 +139,18 @@ class _AddLightningInvoiceScreenState
 
   /// The last submission reached the relays and the node has not answered
   /// yet (#615). Not an error: a late acceptance moves the order on and
-  /// [_listenForProgress] takes the screen to the trade.
+  /// [_listenForProgress] takes the screen to the trade, and a late refusal
+  /// reaches the trade's payout record, which [_onPayoutRecord] reads (#941).
   bool _awaitingNode = false;
 
-  /// [_awaitingNode] for over [_awaitingPatience]: a late rejection is only
-  /// logged, never shown, so past this the note invites sending again.
-  /// Safe either way: a late rejection consumed the pending record, and a
-  /// late acceptance makes the daemon refuse the resend with a status the
-  /// screen already recovers from.
+  /// What the submission [_awaitingNode] waits on sent, to find it in the
+  /// payout record.
+  String? _awaitingDestination;
+
+  /// [_awaitingNode] for over [_awaitingPatience]: an answer may never come
+  /// (the node missed the submission), so past this the note invites sending
+  /// again. Safe either way: a late acceptance makes the daemon refuse the
+  /// resend with a status the screen already recovers from.
   bool _awaitingLong = false;
   Timer? _awaitingTimer;
   static const _awaitingPatience = Duration(seconds: 60);
@@ -212,6 +216,10 @@ class _AddLightningInvoiceScreenState
       tradeStatusProvider(widget.orderId),
       (_, next) => _leaveIfEnded(next.valueOrNull),
       fireImmediately: true,
+    );
+    ref.listenManual<AsyncValue<List<PayoutDestination>>>(
+      payoutDestinationsProvider(widget.orderId),
+      (_, next) => _onPayoutRecord(next.valueOrNull),
     );
     _prefillDefaultLightningAddress();
   }
@@ -564,21 +572,14 @@ class _AddLightningInvoiceScreenState
       // costs it an LNURL round trip — and the late reply moves the screen
       // on. Say so, without an error or a snack bar blaming the connection.
       if (msg.contains('InvoiceAwaitingDaemon')) {
+        _awaitingDestination = input;
         setState(() => _awaitingNode = true);
         _awaitingTimer = Timer(_awaitingPatience, () {
           if (mounted && _awaitingNode) setState(() => _awaitingLong = true);
         });
         return true;
       }
-      final l10n = AppLocalizations.of(context);
-      final display =
-          statusRejection
-              ? l10n.invoiceNoLongerExpected
-              : localizedDaemonError(l10n, msg, fallback: msg);
-      setState(() => _lastError = display);
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text(display)));
+      _showRefusal(msg, fallback: msg);
       return true;
     } finally {
       if (mounted) setState(() => _submitting = false);
@@ -590,6 +591,44 @@ class _AddLightningInvoiceScreenState
     _awaitingTimer = null;
     _awaitingNode = false;
     _awaitingLong = false;
+    _awaitingDestination = null;
+  }
+
+  /// The node refused the submission still waited on, after the wait (#941):
+  /// its refusal changes no status, so the payout record is what says so.
+  void _onPayoutRecord(List<PayoutDestination>? route) {
+    final sent = _awaitingDestination;
+    if (route == null || sent == null || !_awaitingNode) return;
+    final refused = refusalOf(route, sent);
+    if (refused == null) return;
+    _stopAwaiting();
+    ref.read(mascotCueProvider.notifier).daemonRefused(refused.rejection ?? '');
+    final reason = refused.rejection ?? '';
+    if (isStatusRejection(reason)) unawaited(_recoverState());
+    _showRefusal(
+      reason,
+      fallback: AppLocalizations.of(context).payoutOutcomeRejected,
+    );
+  }
+
+  /// Show the node's refusal [reason] until the next submission. A status
+  /// refusal on a replacement payout is the node still paying the previous
+  /// destination, not an order that stopped wanting one (#941).
+  void _showRefusal(String reason, {required String fallback}) {
+    final l10n = AppLocalizations.of(context);
+    final replacingPayout =
+        ref.read(tradeStatusProvider(widget.orderId)).valueOrNull ==
+        OrderStatus.settledHoldInvoice;
+    final display =
+        !isStatusRejection(reason)
+            ? localizedDaemonError(l10n, reason, fallback: fallback)
+            : replacingPayout
+            ? l10n.invoicePayoutInFlight
+            : l10n.invoiceNoLongerExpected;
+    setState(() => _lastError = display);
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(display)));
   }
 
   Future<void> _recoverState() async {

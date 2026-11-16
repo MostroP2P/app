@@ -3084,6 +3084,12 @@ abstract class AppLocalizations {
   /// **'This order is no longer waiting for an invoice. Updating its status…'**
   String get invoiceNoLongerExpected;
 
+  /// Add-invoice screen, on a replacement payout (order settled-hold-invoice): the node refused the new invoice because it is still paying the previous one (NotAllowedByStatus while a payout is in flight). Shown whether the refusal came within the wait or after it (#941)
+  ///
+  /// In en, this message translates to:
+  /// **'The node is still paying your previous invoice. If that payment fails, it will ask you for a new one.'**
+  String get invoicePayoutInFlight;
+
   /// Add-invoice screen: the invoice or lightning address was sent but the node has not answered within the wait (Rust marker InvoiceAwaitingDaemon). Not an error: a late answer still moves the trade on (#615)
   ///
   /// In en, this message translates to:

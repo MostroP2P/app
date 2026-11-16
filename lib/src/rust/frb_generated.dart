@@ -10202,8 +10202,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   PayoutDestination dco_decode_payout_destination(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 10)
-      throw Exception('unexpected arr length: expect 10 but see ${arr.length}');
+    if (arr.length != 11)
+      throw Exception('unexpected arr length: expect 11 but see ${arr.length}');
     return PayoutDestination(
       destination: dco_decode_String(arr[0]),
       isLightningAddress: dco_decode_bool(arr[1]),
@@ -10215,6 +10215,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       outcome: dco_decode_payout_outcome(arr[7]),
       outcomeAt: dco_decode_opt_box_autoadd_i_64(arr[8]),
       attempts: dco_decode_opt_box_autoadd_u_32(arr[9]),
+      rejection: dco_decode_opt_String(arr[10]),
     );
   }
 
@@ -13594,6 +13595,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_outcome = sse_decode_payout_outcome(deserializer);
     var var_outcomeAt = sse_decode_opt_box_autoadd_i_64(deserializer);
     var var_attempts = sse_decode_opt_box_autoadd_u_32(deserializer);
+    var var_rejection = sse_decode_opt_String(deserializer);
     return PayoutDestination(
       destination: var_destination,
       isLightningAddress: var_isLightningAddress,
@@ -13605,6 +13607,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       outcome: var_outcome,
       outcomeAt: var_outcomeAt,
       attempts: var_attempts,
+      rejection: var_rejection,
     );
   }
 
@@ -16919,6 +16922,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_payout_outcome(self.outcome, serializer);
     sse_encode_opt_box_autoadd_i_64(self.outcomeAt, serializer);
     sse_encode_opt_box_autoadd_u_32(self.attempts, serializer);
+    sse_encode_opt_String(self.rejection, serializer);
   }
 
   @protected

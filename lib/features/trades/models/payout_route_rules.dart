@@ -74,6 +74,24 @@ PayoutSource payoutSourceFor({
   return PayoutSource.entered;
 }
 
+/// The node's refusal of [submitted], the destination the add-invoice screen
+/// sent and is still waiting on (#941): the newest destination in [route]
+/// that is the same text, when the node refused it. Null while it is not
+/// refused, or not recorded.
+///
+/// The newest, because the same invoice can be sent twice and only the last
+/// submission is the one waited on. Compared as the field holds it and case
+/// aside, like [payoutSourceFor]: an address may be stored lower-cased.
+PayoutDestination? refusalOf(List<PayoutDestination> route, String submitted) {
+  final sent = normalizeInvoiceInput(submitted).toLowerCase();
+  if (sent.isEmpty) return null;
+  for (final d in route.reversed) {
+    if (normalizeInvoiceInput(d.destination).toLowerCase() != sent) continue;
+    return d.outcome == PayoutOutcome.rejected ? d : null;
+  }
+  return null;
+}
+
 /// `lnbc16770n1p4…x55sqp378xg`: enough of an invoice to tell it from
 /// another, never the whole string.
 String shortInvoice(String invoice) =>

@@ -2264,22 +2264,9 @@ pub async fn send_invoice(
         detach_request_waiter(&trade_pk_hex, request_id);
     }
 
-    if matches!(
-        reply,
-        Ok(Ok(Wake {
-            reply: DaemonReply::Rejected { .. },
-            ..
-        }))
-    ) {
-        crate::mostro::payout_route::record_rejection(
-            &order_id,
-            trade_index,
-            &sent_key.destination,
-            sent_key.submitted_at,
-            crate::rt::unix_now(),
-        )
-        .await;
-    }
+    // A refusal is already on the payout record: the dispatcher marks it
+    // before waking this caller, and also when this caller stopped waiting
+    // (#941).
 
     match reply {
         Ok(Ok(Wake {
@@ -5170,6 +5157,21 @@ async fn dispatch_mostro_message(
             let matched = take_matching_restore(trade_pubkey_hex, event_ts)
                 .or_else(|| take_matching_request(trade_pubkey_hex, kind.request_id));
             if let Some(pending) = matched {
+                // A refused invoice is marked on the trade's payout record
+                // whether its caller still waits or not, as an acknowledged
+                // one is (#941): the add-invoice screen follows that record,
+                // and a refusal changes no status that could move it.
+                if let PendingRequestKind::AddInvoice { sent } = &pending.kind {
+                    crate::mostro::payout_route::record_rejection(
+                        &sent.order_id,
+                        pending.trade_index,
+                        &sent.destination,
+                        sent.submitted_at,
+                        crate::rt::unix_now(),
+                        &reason,
+                    )
+                    .await;
+                }
                 if let Some(tx) = pending.tx {
                     crate::api::logging::blog_warn("daemon-msg", format!(
                         "CantDo: reason={reason} — notifying waiting caller"
@@ -19719,6 +19721,7 @@ mod tests {
         let route = payout_route::destinations(&order_id).await;
         assert_eq!(route.len(), 1);
         assert_eq!(route[0].outcome, PayoutOutcome::Rejected);
+        assert_eq!(route[0].rejection.as_deref(), Some("NotAllowedByStatus"));
         assert!(
             !pending_requests().lock().unwrap().contains_key(trade_key),
             "the refusal consumed the record"
@@ -19853,7 +19856,7 @@ mod tests {
 
         // A refusal arriving after it (it cannot, but a stale one) changes
         // nothing: only a destination still sent is refused.
-        payout_route::record_rejection(&order_id, 1, &key.0, key.1, 6_000).await;
+        payout_route::record_rejection(&order_id, 1, &key.0, key.1, 6_000, "InvalidInvoice").await;
         assert_eq!(payout_route::destinations(&order_id).await, route);
     }
 

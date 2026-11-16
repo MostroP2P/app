@@ -254,6 +254,12 @@ The acknowledgement is recorded when the reply's nonce is matched, also
 after `send_invoice` stopped waiting, and it may be filed after the payment
 it came ahead of: the earlier `MaybePaid` ones then turn `Replaced` too, and
 the acknowledged one `Paid` once no other is in doubt.
+A refusal (`CantDo` matching the submission's nonce) turns that destination
+`Rejected` with the reason marker in `rejection` (`NotAllowedByStatus`,
+`InvalidInvoice`, …), whether `send_invoice` still waits or not (#941): a
+refusal changes no status, so the add-invoice screen learns of a late one
+here. On a replacement payout (`settled-hold-invoice`) `NotAllowedByStatus`
+means the node is still paying the previous destination.
 Otherwise only open destinations change, and each mark passes the status cursor
 first, so a replay moves nothing. An address shows the payout amount once
 the node has said it. Empty for a trade whose destinations were sent from another device.

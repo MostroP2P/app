@@ -497,6 +497,7 @@
   "viewOrderLink": "Ver ordem",
   "timeLeftLabel": "Restam {time}",
   "invoiceNoLongerExpected": "Esta ordem não está mais aguardando uma fatura. Atualizando o status…",
+  "invoicePayoutInFlight": "O nó ainda está pagando sua fatura anterior. Se esse pagamento falhar, ele pedirá uma nova.",
   "invoiceAwaitingNode": "Enviado. O nó ainda não respondeu — abriremos a operação assim que ele responder.",
   "invoiceAwaitingNodeLong": "Ainda sem resposta do nó. Se a operação não avançar, envie novamente.",
   "invoiceSubmitInFlight": "Uma fatura para esta ordem já está sendo enviada. Aguarde a resposta.",

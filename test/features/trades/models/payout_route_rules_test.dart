@@ -196,4 +196,65 @@ void main() {
       'maybe-paid',
     ]);
   });
+
+  group('refusalOf (#941)', () {
+    test('finds the refusal of the destination sent', () {
+      // Arrange
+      final route = [
+        fakePayoutDestination(outcome: PayoutOutcome.failed, attempts: 2),
+        fakePayoutDestination(
+          destination: fakePayoutInvoice,
+          source: PayoutSource.entered,
+          outcome: PayoutOutcome.rejected,
+          rejection: 'NotAllowedByStatus',
+        ),
+      ];
+
+      // Act
+      final refused = refusalOf(route, fakePayoutInvoice);
+
+      // Assert
+      expect(refused?.rejection, 'NotAllowedByStatus');
+    });
+
+    test('nothing while the destination sent is still waiting', () {
+      // Arrange: the same invoice was refused once, then sent again.
+      final route = [
+        fakePayoutDestination(
+          destination: fakePayoutInvoice,
+          outcome: PayoutOutcome.rejected,
+          rejection: 'NotAllowedByStatus',
+        ),
+        fakePayoutDestination(destination: fakePayoutInvoice),
+      ];
+
+      // Act / Assert: only the newest submission is the one waited on.
+      expect(refusalOf(route, fakePayoutInvoice), isNull);
+    });
+
+    test('nothing for a refusal of another destination', () {
+      final route = [
+        fakePayoutDestination(
+          outcome: PayoutOutcome.rejected,
+          rejection: 'InvalidInvoice',
+        ),
+      ];
+
+      expect(refusalOf(route, fakePayoutInvoice), isNull);
+      expect(refusalOf(const [], fakePayoutInvoice), isNull);
+      expect(refusalOf(route, ''), isNull);
+    });
+
+    test('an address matches as typed, case aside', () {
+      final route = [
+        fakePayoutDestination(
+          destination: 'alice@example.com',
+          outcome: PayoutOutcome.rejected,
+          rejection: 'InvalidInvoice',
+        ),
+      ];
+
+      expect(refusalOf(route, 'lightning:Alice@Example.com'), isNotNull);
+    });
+  });
 }

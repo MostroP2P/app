@@ -96,6 +96,7 @@ pub(crate) fn destination(
         outcome: PayoutOutcome::Submitted,
         outcome_at: None,
         attempts: None,
+        rejection: None,
     }
 }
 
@@ -254,14 +255,16 @@ fn with_payout_amount(
 }
 
 /// The record after the node refused the destination `destination`, sent
-/// at `submitted_at` on trade key `trade_index`, at `at`; `None` when that
-/// destination is not there or no longer just sent.
+/// at `submitted_at` on trade key `trade_index`, at `at`, for `reason` (the
+/// `CantDo` marker); `None` when that destination is not there or no longer
+/// just sent.
 pub(crate) fn with_rejection(
     stored: Option<PayoutRoute>,
     trade_index: u32,
     destination: &str,
     submitted_at: i64,
     at: i64,
+    reason: &str,
 ) -> Option<PayoutRoute> {
     let mut route = stored.filter(|r| r.trade_index == trade_index)?;
     let refused = route.destinations.iter_mut().rev().find(|d| {
@@ -271,6 +274,7 @@ pub(crate) fn with_rejection(
     })?;
     refused.outcome = PayoutOutcome::Rejected;
     refused.outcome_at = Some(at);
+    refused.rejection = Some(reason.to_string());
     Some(route)
 }
 
@@ -581,12 +585,13 @@ pub(crate) async fn record_rejection(
     destination: &str,
     submitted_at: i64,
     at: i64,
+    reason: &str,
 ) {
     let Some(db) = crate::db::app_db::db() else {
         return;
     };
     let changed = update(db, order_id, |stored| {
-        with_rejection(stored, trade_index, destination, submitted_at, at)
+        with_rejection(stored, trade_index, destination, submitted_at, at, reason)
     })
     .await;
     if changed {
@@ -852,17 +857,32 @@ mod tests {
         let invoice = sent(COFFEE, PayoutSource::Entered, 150);
         let route = with_destination(Some(take_route(7)), 7, invoice.clone()).unwrap();
 
-        let refused = with_rejection(Some(route.clone()), 7, COFFEE, 150, 151).unwrap();
+        const WHY: &str = "InvalidInvoice";
+        let refused = with_rejection(Some(route.clone()), 7, COFFEE, 150, 151, WHY).unwrap();
         assert_eq!(outcomes(&refused), [PayoutOutcome::Submitted, PayoutOutcome::Rejected]);
         assert_eq!(refused.destinations[1].outcome_at, Some(151));
+        assert_eq!(refused.destinations[1].rejection.as_deref(), Some(WHY));
+        assert_eq!(refused.destinations[0].rejection, None, "only the refused one says why");
 
         // Not another destination, not another key, not one already paid.
-        assert_eq!(with_rejection(Some(route.clone()), 7, COFFEE, 149, 151), None);
-        assert_eq!(with_rejection(Some(route.clone()), 8, COFFEE, 150, 151), None);
+        assert_eq!(with_rejection(Some(route.clone()), 7, COFFEE, 149, 151, WHY), None);
+        assert_eq!(with_rejection(Some(route.clone()), 8, COFFEE, 150, 151, WHY), None);
         let paid = with_news(Some(route), 7, PayoutNews::Paid { amount_sats: None }, 160).unwrap();
-        assert_eq!(with_rejection(Some(paid), 7, COFFEE, 150, 170), None);
+        assert_eq!(with_rejection(Some(paid), 7, COFFEE, 150, 170, WHY), None);
         // A cleared record is not brought back.
-        assert_eq!(with_rejection(None, 7, COFFEE, 150, 151), None);
+        assert_eq!(with_rejection(None, 7, COFFEE, 150, 151, WHY), None);
+    }
+
+    /// A record stored before #941 carries no refusal reason: it still reads,
+    /// as no reason.
+    #[test]
+    fn a_destination_stored_without_a_refusal_reason_still_reads() {
+        let mut stored = serde_json::to_value(sent(COFFEE, PayoutSource::Entered, 150)).unwrap();
+        stored.as_object_mut().unwrap().remove("rejection");
+
+        let read: PayoutDestination = serde_json::from_value(stored).unwrap();
+        assert_eq!(read, sent(COFFEE, PayoutSource::Entered, 150));
+        assert_eq!(read.rejection, None);
     }
 
     /// A submission timed out and the buyer sent another (PR #824 review).
