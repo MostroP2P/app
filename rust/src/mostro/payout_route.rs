@@ -256,8 +256,13 @@ fn with_payout_amount(
 
 /// The record after the node refused the destination `destination`, sent
 /// at `submitted_at` on trade key `trade_index`, at `at`, for `reason` (the
-/// `CantDo` marker); `None` when that destination is not there or no longer
-/// just sent.
+/// `CantDo` marker); `None` when that destination is not there or already
+/// settled.
+///
+/// A payment filed while several were open leaves them `MaybePaid` (PR #824
+/// review), and the refusal can be filed after it, from another task: the
+/// node took none of this one, so it leaves the doubt, and the one left in
+/// it alone is the one paid (PR #942 review).
 pub(crate) fn with_rejection(
     stored: Option<PayoutRoute>,
     trade_index: u32,
@@ -270,11 +275,21 @@ pub(crate) fn with_rejection(
     let refused = route.destinations.iter_mut().rev().find(|d| {
         d.destination == destination
             && d.submitted_at == submitted_at
-            && d.outcome == PayoutOutcome::Submitted
+            && (is_open(d) || d.outcome == PayoutOutcome::MaybePaid)
     })?;
+    let was_in_doubt = refused.outcome == PayoutOutcome::MaybePaid;
     refused.outcome = PayoutOutcome::Rejected;
     refused.outcome_at = Some(at);
     refused.rejection = Some(reason.to_string());
+    if was_in_doubt {
+        let mut in_doubt = route
+            .destinations
+            .iter_mut()
+            .filter(|d| d.outcome == PayoutOutcome::MaybePaid);
+        if let (Some(paid), None) = (in_doubt.next(), in_doubt.next()) {
+            paid.outcome = PayoutOutcome::Paid;
+        }
+    }
     Some(route)
 }
 
@@ -867,10 +882,33 @@ mod tests {
         // Not another destination, not another key, not one already paid.
         assert_eq!(with_rejection(Some(route.clone()), 7, COFFEE, 149, 151, WHY), None);
         assert_eq!(with_rejection(Some(route.clone()), 8, COFFEE, 150, 151, WHY), None);
-        let paid = with_news(Some(route), 7, PayoutNews::Paid { amount_sats: None }, 160).unwrap();
-        assert_eq!(with_rejection(Some(paid), 7, COFFEE, 150, 170, WHY), None);
+        let alone = with_destination(Some(take_route(9)), 9, invoice).unwrap();
+        let alone = with_rejection(Some(alone), 9, ADDRESS, 100, 120, WHY).unwrap();
+        let paid = with_news(Some(alone), 9, PayoutNews::Paid { amount_sats: None }, 160).unwrap();
+        assert_eq!(outcomes(&paid), [PayoutOutcome::Rejected, PayoutOutcome::Paid]);
+        assert_eq!(with_rejection(Some(paid), 9, COFFEE, 150, 170, WHY), None);
         // A cleared record is not brought back.
         assert_eq!(with_rejection(None, 7, COFFEE, 150, 151, WHY), None);
+    }
+
+    /// A payment filed while two destinations were open leaves both in doubt.
+    /// The node's refusal of one, filed after it from another task, says the
+    /// other is the one paid (PR #942 review).
+    #[test]
+    fn a_refusal_filed_after_the_payment_names_the_paid_one() {
+        let route = with_destination(
+            Some(take_route(7)),
+            7,
+            sent(COFFEE, PayoutSource::Entered, 150),
+        )
+        .unwrap();
+        let paid = with_news(Some(route), 7, PayoutNews::Paid { amount_sats: None }, 400).unwrap();
+        assert_eq!(outcomes(&paid), [PayoutOutcome::MaybePaid, PayoutOutcome::MaybePaid]);
+
+        let route = with_rejection(Some(paid), 7, COFFEE, 150, 410, "NotAllowedByStatus").unwrap();
+
+        assert_eq!(outcomes(&route), [PayoutOutcome::Paid, PayoutOutcome::Rejected]);
+        assert_eq!(route.destinations[1].rejection.as_deref(), Some("NotAllowedByStatus"));
     }
 
     /// A record stored before #941 carries no refusal reason: it still reads,
