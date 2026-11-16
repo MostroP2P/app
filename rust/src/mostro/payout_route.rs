@@ -272,11 +272,15 @@ pub(crate) fn with_rejection(
     reason: &str,
 ) -> Option<PayoutRoute> {
     let mut route = stored.filter(|r| r.trade_index == trade_index)?;
-    let refused = route.destinations.iter_mut().rev().find(|d| {
-        d.destination == destination
-            && d.submitted_at == submitted_at
-            && (is_open(d) || d.outcome == PayoutOutcome::MaybePaid)
-    })?;
+    // The newest of that key alone: a refusal filed twice finds the one it
+    // refused already settled, and must not fall through to an older twin
+    // sent in the same second (PR #942 review).
+    let refused = route
+        .destinations
+        .iter_mut()
+        .rev()
+        .find(|d| d.destination == destination && d.submitted_at == submitted_at)
+        .filter(|d| is_open(d) || d.outcome == PayoutOutcome::MaybePaid)?;
     let was_in_doubt = refused.outcome == PayoutOutcome::MaybePaid;
     refused.outcome = PayoutOutcome::Rejected;
     refused.outcome_at = Some(at);
@@ -593,7 +597,8 @@ pub(crate) async fn record_news(order_id: &str, trade_index: u32, news: PayoutNe
 }
 
 /// Mark a destination the node refused; see [`with_rejection`]. A record
-/// cleared meanwhile stays cleared: there is nothing to mark.
+/// cleared meanwhile stays cleared: there is nothing to mark. Whether it
+/// marked one.
 pub(crate) async fn record_rejection(
     order_id: &str,
     trade_index: u32,
@@ -601,9 +606,9 @@ pub(crate) async fn record_rejection(
     submitted_at: i64,
     at: i64,
     reason: &str,
-) {
+) -> bool {
     let Some(db) = crate::db::app_db::db() else {
-        return;
+        return false;
     };
     let changed = update(db, order_id, |stored| {
         with_rejection(stored, trade_index, destination, submitted_at, at, reason)
@@ -612,6 +617,7 @@ pub(crate) async fn record_rejection(
     if changed {
         crate::api::trade_touch::touch_trade(order_id);
     }
+    changed
 }
 
 /// Mark the earlier destinations a node-acknowledged one replaced; see
@@ -889,6 +895,25 @@ mod tests {
         assert_eq!(with_rejection(Some(paid), 9, COFFEE, 150, 170, WHY), None);
         // A cleared record is not brought back.
         assert_eq!(with_rejection(None, 7, COFFEE, 150, 151, WHY), None);
+    }
+
+    /// The refusal is filed twice, by the dispatcher and by the caller it
+    /// woke. Between the two the same destination can be sent again in the
+    /// same second: the second filing finds the one it refused, newest of
+    /// that key, already settled, and marks no older one (PR #942 review).
+    #[test]
+    fn a_second_filing_of_a_refusal_marks_no_older_twin() {
+        let first = sent(COFFEE, PayoutSource::Entered, 150);
+        let route = with_destination(Some(take_route(7)), 7, first.clone()).unwrap();
+        let route = with_destination(Some(route), 7, first).unwrap();
+        const WHY: &str = "InvalidInvoice";
+        let refused = with_rejection(Some(route), 7, COFFEE, 150, 151, WHY).unwrap();
+        assert_eq!(
+            outcomes(&refused),
+            [PayoutOutcome::Submitted, PayoutOutcome::Submitted, PayoutOutcome::Rejected]
+        );
+
+        assert_eq!(with_rejection(Some(refused), 7, COFFEE, 150, 152, WHY), None);
     }
 
     /// A payment filed while two destinations were open leaves both in doubt.
