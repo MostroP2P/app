@@ -211,6 +211,10 @@ Future<void> _pumpRoutedTradeDetail(
               body: Text('add invoice ${state.pathParameters['orderId']}'),
             ),
       ),
+      GoRoute(
+        path: AppRoute.payBond,
+        builder: (_, state) => Scaffold(body: Text('pay bond ${state.uri}')),
+      ),
     ],
   );
   addTearDown(router.dispose);
@@ -3361,6 +3365,76 @@ void main() {
         find.text(_en.tradeInstructionWaitingMakerBond, findRichText: true),
         findsOneWidget,
       );
+    });
+  });
+
+  // #943: a maker parked on their own deposit cancels from the pay-bond
+  // screen, but landing there with no prompt read as "Cancel took me to pay".
+  group('a maker waiting on their own deposit', () {
+    const orderId = 'order-maker-bond';
+    final trade = fakeTrade(
+      orderId: orderId,
+      status: OrderStatus.waitingMakerBond,
+      kind: OrderKind.buy,
+      isMine: true,
+      bond: BondInfo(
+        role: BondRole.maker,
+        amountSats: BigInt.from(7700),
+        invoice: 'lnbc77000n1bond',
+        state: BondState.requested,
+        requestedAt: intToPlatformInt64(1000),
+      ),
+    );
+
+    testWidgets('cancels through the deposit screen\'s leave prompt', (
+      tester,
+    ) async {
+      // Arrange
+      await _pumpRoutedTradeDetail(
+        tester,
+        orderId: orderId,
+        status: OrderStatus.waitingMakerBond,
+        loadTrades: () async => [trade],
+      );
+
+      // Act
+      await tester.tap(_cancelButton());
+      await _finishPageTransition(tester);
+
+      // Assert: the deposit screen, asked to open its leave prompt.
+      expect(find.text('pay bond /pay_bond/$orderId?leave=1'), findsOneWidget);
+    });
+
+    testWidgets('Cancel shows no success check once the user is back', (
+      tester,
+    ) async {
+      // Arrange
+      await _pumpRoutedTradeDetail(
+        tester,
+        orderId: orderId,
+        status: OrderStatus.waitingMakerBond,
+        loadTrades: () async => [trade],
+      );
+      await tester.tap(_cancelButton());
+      await _finishPageTransition(tester);
+
+      // Act: back from the deposit screen without cancelling.
+      final navigator = tester.state<NavigatorState>(
+        find.byType(Navigator).first,
+      );
+      navigator.pop();
+      await _finishPageTransition(tester);
+
+      // Assert
+      expect(find.byType(TradeDetailScreen), findsOneWidget);
+      expect(
+        find.descendant(
+          of: _cancelButton(),
+          matching: find.byIcon(Icons.check),
+        ),
+        findsNothing,
+      );
+      expect(find.text(_en.cancelTradeButton), findsOneWidget);
     });
   });
 }
