@@ -312,8 +312,14 @@ const PUBLISH_COALESCE_MS: u64 = 200;
 #[derive(Debug, Clone)]
 #[flutter_rust_bridge::frb(ignore)]
 pub(crate) enum OrderBookDelta {
-    Upserted { revision: u64, order: OrderInfo },
-    Removed { revision: u64, order_id: String },
+    Upserted {
+        revision: u64,
+        order: OrderInfo,
+    },
+    Removed {
+        revision: u64,
+        order_id: String,
+    },
     /// The book was replaced or emptied wholesale. What vanished cannot be
     /// told order by order, so the subscriber starts over from a snapshot —
     /// which carries the revision, so this needs none.
@@ -1847,7 +1853,8 @@ async fn take_order_once(
         detach_request_waiter(&trade_pk_hex, request_id);
     }
 
-    let (status, amount_sats, hold_invoice, bond_request, trade_pubkeys, handed_guard) = match reply {
+    let (status, amount_sats, hold_invoice, bond_request, trade_pubkeys, handed_guard) = match reply
+    {
         Ok(Ok(Wake {
             reply:
                 DaemonReply::TakeAccepted {
@@ -1864,7 +1871,14 @@ async fn take_order_once(
                 "orders",
                 format!("take_order confirmed by daemon: order={order_id} reply={action:?}"),
             );
-            (status, amount_sats, hold_invoice, bond, trade_pubkeys, order_guard)
+            (
+                status,
+                amount_sats,
+                hold_invoice,
+                bond,
+                trade_pubkeys,
+                order_guard,
+            )
         }
         Ok(Ok(Wake {
             reply: DaemonReply::Rejected { reason, message },
@@ -1885,7 +1899,14 @@ async fn take_order_once(
             // Only the create flow sends Confirmed; a take record can never
             // receive it. Treat defensively as an acceptance without data.
             log::warn!("[orders] take_order received a create-style confirmation");
-            (None, None, None, None, crate::mostro::pending::TradePubkeys::default(), None)
+            (
+                None,
+                None,
+                None,
+                None,
+                crate::mostro::pending::TradePubkeys::default(),
+                None,
+            )
         }
         _ => {
             // No daemon response within the timeout. Do not persist or show
@@ -2162,7 +2183,8 @@ pub async fn send_invoice(
     source: crate::api::types::PayoutSource,
     wallet_name: Option<String>,
 ) -> Result<()> {
-    let (destination, amount_opt) = resolve_add_invoice_destination(&invoice_or_address, amount_sats)?;
+    let (destination, amount_opt) =
+        resolve_add_invoice_destination(&invoice_or_address, amount_sats)?;
     let is_address = amount_opt.is_some() || destination.contains('@');
 
     let trade_index = get_trade_key_index(&order_id).await.ok_or_else(|| {
@@ -2339,13 +2361,8 @@ async fn note_payout_sent(
     epoch: u64,
 ) {
     if payout_row_is_current(order_id, trade_index).await {
-        crate::mostro::payout_route::record_destination_since(
-            order_id,
-            trade_index,
-            sent,
-            epoch,
-        )
-        .await;
+        crate::mostro::payout_route::record_destination_since(order_id, trade_index, sent, epoch)
+            .await;
     }
 }
 
@@ -3002,10 +3019,7 @@ async fn waiting_bond_status(order_id: &str) -> Option<crate::api::types::OrderS
 /// to resolve it. Anything else never leaves the device: the daemon would
 /// only answer `CantDo(InvalidInvoice)`, so that marker is raised here — the
 /// marker alone, the prose is Dart's.
-fn resolve_add_invoice_destination(
-    input: &str,
-    amount_sats: u64,
-) -> Result<(String, Option<u64>)> {
+fn resolve_add_invoice_destination(input: &str, amount_sats: u64) -> Result<(String, Option<u64>)> {
     use crate::api::types::PaymentDestination;
     match crate::api::invoice::classify(input) {
         PaymentDestination::Bolt11(_) => {
@@ -3019,7 +3033,6 @@ fn resolve_add_invoice_destination(
         | PaymentDestination::Unknown => Err(anyhow::anyhow!("InvalidInvoice")),
     }
 }
-
 
 /// The local side of a cancel request, applied once it is published.
 ///
@@ -3520,12 +3533,18 @@ pub(crate) async fn subscribe_daemon_messages(
 /// too), a bare marker for the rest.
 fn cant_do_message(reason: &str) -> String {
     match reason {
-        "OutOfRangeSatsAmount" => "Order rejected: sats amount is out of the allowed range.".to_string(),
-        "OutOfRangeFiatAmount" => "Order rejected: fiat amount is out of the allowed range.".to_string(),
+        "OutOfRangeSatsAmount" => {
+            "Order rejected: sats amount is out of the allowed range.".to_string()
+        }
+        "OutOfRangeFiatAmount" => {
+            "Order rejected: fiat amount is out of the allowed range.".to_string()
+        }
         "InvalidAmount" => "Order rejected: invalid amount.".to_string(),
         "InvalidInvoice" => "Order rejected: invalid Lightning invoice.".to_string(),
         "IsNotYourOrder" => "Order rejected: this order does not belong to you.".to_string(),
-        "NotAllowedByStatus" => "Action rejected: not allowed in the current order status.".to_string(),
+        "NotAllowedByStatus" => {
+            "Action rejected: not allowed in the current order status.".to_string()
+        }
         "OrderAlreadyCanceled" => "Order is already canceled.".to_string(),
         // mostro-core 0.14.6: the node is draining (e.g. before a
         // Lightning node migration) and refuses new orders and takes;
@@ -3934,8 +3953,9 @@ async fn dispatch_mostro_message(
             // a taker (#567).
             if let Some(order_id) = &kind.id {
                 let status = match kind.action {
-                    Action::AddInvoice => add_invoice_sync(&kind.payload)
-                        .map(|(status, _)| format!("{status:?}")),
+                    Action::AddInvoice => {
+                        add_invoice_sync(&kind.payload).map(|(status, _)| format!("{status:?}"))
+                    }
                     Action::PayInvoice => Some("WaitingPayment".to_string()),
                     _ => None,
                 };
@@ -5500,7 +5520,9 @@ async fn advance_claim_phase(
         return;
     };
     let Ok(Some(claim)) = db.get_bond_claim(node_pubkey, order_id).await else {
-        log::info!("[orders] {phase:?} for order={order_id} with no claim from this node — ignored");
+        log::info!(
+            "[orders] {phase:?} for order={order_id} with no claim from this node — ignored"
+        );
         return;
     };
     let rank = |p: crate::api::types::BondClaimPhase| match p {
@@ -5512,7 +5534,8 @@ async fn advance_claim_phase(
     };
     if claim.phase == phase
         || (claim.phase == crate::api::types::BondClaimPhase::Completed)
-        || (rank(claim.phase) > rank(phase) && claim.phase != crate::api::types::BondClaimPhase::Expired)
+        || (rank(claim.phase) > rank(phase)
+            && claim.phase != crate::api::types::BondClaimPhase::Expired)
     {
         return;
     }
@@ -5651,7 +5674,11 @@ fn restored_bond_row(
         peer_since: None,
         rated_at: None,
         bond: Some(BondInfo {
-            role: if maker { BondRole::Maker } else { BondRole::Taker },
+            role: if maker {
+                BondRole::Maker
+            } else {
+                BondRole::Taker
+            },
             amount_sats: 0,
             invoice: None,
             state: BondState::Requested,
@@ -6388,9 +6415,10 @@ async fn confirm_maker_bond(
     if is_restored_maker_placeholder(trade) {
         if let Some((kind, node)) = published {
             if let Some(mostro_core::message::Payload::Order(so)) = &kind.payload {
-                if let (Some(filled), Some(db)) =
-                    (fill_restored_maker_row(trade, so, node), crate::db::app_db::db())
-                {
+                if let (Some(filled), Some(db)) = (
+                    fill_restored_maker_row(trade, so, node),
+                    crate::db::app_db::db(),
+                ) {
                     if let Err(e) = persist_trade_row(db, &filled).await {
                         crate::api::logging::blog_warn(
                             "orders",
@@ -6944,9 +6972,7 @@ async fn bond_cancel_reason(order_id: &str) -> Option<crate::api::types::TradeUp
 /// answers with the same bolt11 (upstream §6.5.1); this is the same-take
 /// re-request of `docs/ANTI_ABUSE_BOND.md` §9 — same key and index, fresh
 /// `request_id`, the existing row updated, never a second one.
-pub async fn request_bond_invoice_again(
-    order_id: String,
-) -> Result<crate::api::types::TradeInfo> {
+pub async fn request_bond_invoice_again(order_id: String) -> Result<crate::api::types::TradeInfo> {
     use crate::api::types::*;
     let db = crate::db::app_db::db().ok_or_else(|| anyhow::anyhow!("StorageUnavailable"))?;
     let trade = db
@@ -7038,7 +7064,9 @@ pub async fn request_bond_invoice_again(
     // below: held until the refreshed bond is written.
     let (request, _order_guard) = match reply {
         Ok(Ok(Wake {
-            reply: DaemonReply::TakeAccepted { bond: Some(bond), .. },
+            reply: DaemonReply::TakeAccepted {
+                bond: Some(bond), ..
+            },
             order_guard,
         })) => (bond, order_guard),
         Ok(Ok(Wake {
@@ -7102,8 +7130,14 @@ pub async fn request_bond_invoice_again(
 /// the payout record (#823), for the same reason.
 async fn clear_maker_step_start(db: &impl Storage, order_id: &str) -> bool {
     let keys = [
-        ("step start", crate::db::settings_keys::invoice_step_start(order_id)),
-        ("payout amount", crate::db::settings_keys::payout_amount(order_id)),
+        (
+            "step start",
+            crate::db::settings_keys::invoice_step_start(order_id),
+        ),
+        (
+            "payout amount",
+            crate::db::settings_keys::payout_amount(order_id),
+        ),
     ];
     // Through the payout module, which also stops a submission still waiting
     // on the node from writing it back for the next take (PR #824 review).
@@ -7782,8 +7816,9 @@ async fn wipe_trade_row(
     // Its tombstone then names no node, and the trade reads as the active
     // node's.
     let node = match db.get_trade_by_order_id(order_id).await {
-        Ok(trade) => trade
-            .and_then(|t| crate::mostro::trade_node::trade_node(&t).map(str::to_owned)),
+        Ok(trade) => {
+            trade.and_then(|t| crate::mostro::trade_node::trade_node(&t).map(str::to_owned))
+        }
         Err(e) => {
             crate::api::logging::blog_warn(
                 "orders",
@@ -7910,7 +7945,6 @@ async fn persist_trade_row_in(
     crate::api::push::request_reconcile();
     saved
 }
-
 
 /// Writes `status` / `hold_invoice` / `amount_sats` to the trade row only when
 /// at least one *provided* field differs from what the row already holds, and
@@ -8809,10 +8843,8 @@ fn spawn_take_window_prune() {
     }
     crate::rt::spawn(async {
         loop {
-            crate::rt::time::sleep(crate::rt::time::Duration::from_secs(
-                TAKE_WINDOW_PRUNE_SECS,
-            ))
-            .await;
+            crate::rt::time::sleep(crate::rt::time::Duration::from_secs(TAKE_WINDOW_PRUNE_SECS))
+                .await;
             let dropped = order_book()
                 .drop_past_take_window(crate::rt::unix_now())
                 .await;
@@ -9870,9 +9902,7 @@ where
                         crate::api::types::OrderStatus::Pending,
                         Some(crate::api::types::TradeUpdateReason::TakerLeft),
                     );
-                    log::info!(
-                        "[orders] sweep: resynced republished maker order={oid} to pending"
-                    );
+                    log::info!("[orders] sweep: resynced republished maker order={oid} to pending");
                     resynced += 1;
                 }
             }
@@ -9955,8 +9985,14 @@ async fn fetch_book_events(
     // turn a relay that never sends one held a node switch twice (#842).
     use std::future::IntoFuture as _;
     let (pending, recent) = futures_util::future::join(
-        client.fetch_events(pending_filter).timeout(timeout).into_future(),
-        client.fetch_events(recent_filter).timeout(timeout).into_future(),
+        client
+            .fetch_events(pending_filter)
+            .timeout(timeout)
+            .into_future(),
+        client
+            .fetch_events(recent_filter)
+            .timeout(timeout)
+            .into_future(),
     )
     .await;
     if let Err(e) = &pending {
@@ -10695,8 +10731,7 @@ async fn ingest_order_event_by(
             // The d-tag task may be gone (idled out) by the time a slow
             // payout completes: this feed then carries the seller's
             // `success` alone (#642).
-            let public_success = (ingested.ours
-                && ingested.wire.status == OrderStatus::Success)
+            let public_success = (ingested.ours && ingested.wire.status == OrderStatus::Success)
                 .then(|| ingested.wire.id.clone());
             let filed = match only_from {
                 Some(author) => {
@@ -10865,8 +10900,8 @@ async fn classify_ingested_order(
     let judged_at = crate::rt::unix_now();
     let dropped_for_strangers = is_hard_terminal(&info.status)
         || crate::nostr::order_events::is_past_take_window(&info, judged_at);
-    let ours = info.is_mine
-        || (dropped_for_strangers && lookup_trade_key_index(&info.id).await.is_some());
+    let ours =
+        info.is_mine || (dropped_for_strangers && lookup_trade_key_index(&info.id).await.is_some());
     IngestedOrder {
         order: info,
         wire,
@@ -11349,8 +11384,7 @@ fn release_finished_trade_subscriptions(order_id: &str, known_index: Option<u32>
         // Keyed by the finished trade's own key, which no retake reuses.
         if let Some(index) = release.trade_index {
             if let Ok(keys) = crate::api::identity::get_active_trade_keys(index).await {
-                crate::nostr::subscriptions::teardown(&client, &keys.public_key().to_hex())
-                    .await;
+                crate::nostr::subscriptions::teardown(&client, &keys.public_key().to_hex()).await;
             }
         }
         crate::api::logging::blog_debug(
@@ -11705,8 +11739,9 @@ impl OrderDeltaStream {
         use crate::api::types::OrderDelta;
         match self.rx.recv().await {
             Ok(OrderBookDelta::Upserted { revision, order }) => Some(
-                bridge_revision(revision)
-                    .map_or(OrderDelta::Resync, |revision| OrderDelta::Upserted { revision, order }),
+                bridge_revision(revision).map_or(OrderDelta::Resync, |revision| {
+                    OrderDelta::Upserted { revision, order }
+                }),
             ),
             Ok(OrderBookDelta::Removed { revision, order_id }) => Some(
                 bridge_revision(revision).map_or(OrderDelta::Resync, |revision| {
@@ -12177,7 +12212,10 @@ pub(crate) async fn ask_daemon_with(
     let start = crate::rt::time::Instant::now();
 
     publish.await?;
-    crate::api::logging::blog_info(log_category, format!("{label} published — waiting for daemon"));
+    crate::api::logging::blog_info(
+        log_category,
+        format!("{label} published — waiting for daemon"),
+    );
 
     loop {
         let remaining = reply_window.saturating_sub(start.elapsed());
@@ -12859,8 +12897,14 @@ mod tests {
             .await;
 
         // Assert
-        assert!(result.is_ok(), "offline is deferred, not failed: {result:?}");
-        assert!(while_offline.is_empty(), "no relay could have taken the REQ");
+        assert!(
+            result.is_ok(),
+            "offline is deferred, not failed: {result:?}"
+        );
+        assert!(
+            while_offline.is_empty(),
+            "no relay could have taken the REQ"
+        );
         assert!(
             !client
                 .subscription(&orders_subscription_id())
@@ -13172,9 +13216,9 @@ mod tests {
             assert!(book.get_order(kept).await.is_some(), "{kept}");
         }
         assert!(
-            drain(&mut deltas)
-                .iter()
-                .any(|d| matches!(d, OrderBookDelta::Removed { order_id, .. } if *order_id == stranger)),
+            drain(&mut deltas).iter().any(
+                |d| matches!(d, OrderBookDelta::Removed { order_id, .. } if *order_id == stranger)
+            ),
             "subscribers hear of the removal"
         );
     }
@@ -13219,8 +13263,14 @@ mod tests {
         assert_eq!(seen.len(), 2);
         match (&seen[0], &seen[1]) {
             (
-                OrderBookDelta::Upserted { revision: first, order: a },
-                OrderBookDelta::Upserted { revision: second, order: b },
+                OrderBookDelta::Upserted {
+                    revision: first,
+                    order: a,
+                },
+                OrderBookDelta::Upserted {
+                    revision: second,
+                    order: b,
+                },
             ) => {
                 assert_eq!((a.id.as_str(), b.id.as_str()), ("d-1", "d-2"));
                 assert!(second > first, "revisions must grow: {first} then {second}");
@@ -13280,7 +13330,8 @@ mod tests {
         let mut deltas = book.subscribe_deltas();
 
         // Act
-        book.update_order_status("moves", OrderStatus::FiatSent).await;
+        book.update_order_status("moves", OrderStatus::FiatSent)
+            .await;
 
         // Assert
         let seen = drain(&mut deltas);
@@ -13434,7 +13485,12 @@ mod tests {
     }
 
     async fn book_ids(book: &OrderBook) -> Vec<String> {
-        book.bridge_snapshot().await.orders.into_iter().map(|o| o.id).collect()
+        book.bridge_snapshot()
+            .await
+            .orders
+            .into_iter()
+            .map(|o| o.id)
+            .collect()
     }
 
     async fn next_delta(stream: &mut OrderDeltaStream) -> OrderDelta {
@@ -13454,7 +13510,8 @@ mod tests {
 
         // Act
         book.upsert_order(dummy_order_info("added")).await;
-        book.update_order_status("before", OrderStatus::Active).await;
+        book.update_order_status("before", OrderStatus::Active)
+            .await;
         book.remove_order("added").await;
         for _ in 0..3 {
             assert!(mirror.apply(next_delta(&mut stream).await));
@@ -13509,7 +13566,9 @@ mod tests {
         let mut stream = OrderDeltaStream::over(&book);
 
         // Act
-        let published = book.publish_on_stored_events_end(&orders_subscription_id()).await;
+        let published = book
+            .publish_on_stored_events_end(&orders_subscription_id())
+            .await;
 
         // Assert
         assert!(published);
@@ -13524,10 +13583,14 @@ mod tests {
     async fn a_snapshot_says_whether_the_stored_book_was_already_replayed() {
         // Arrange
         let book = OrderBook::new();
-        assert!(!book.bridge_snapshot().await.loaded, "nothing confirmed yet");
+        assert!(
+            !book.bridge_snapshot().await.loaded,
+            "nothing confirmed yet"
+        );
 
         // Act
-        book.publish_on_stored_events_end(&orders_subscription_id()).await;
+        book.publish_on_stored_events_end(&orders_subscription_id())
+            .await;
 
         // Assert
         assert!(book.bridge_snapshot().await.loaded);
@@ -13539,7 +13602,8 @@ mod tests {
     async fn clearing_the_book_forgets_the_confirmation() {
         // Arrange
         let book = OrderBook::new();
-        book.publish_on_stored_events_end(&orders_subscription_id()).await;
+        book.publish_on_stored_events_end(&orders_subscription_id())
+            .await;
 
         // Act
         book.clear().await;
@@ -13557,7 +13621,8 @@ mod tests {
         let mut deltas = book.subscribe_deltas();
 
         // Act
-        book.publish_on_stored_events_end(&recent_orders_subscription_id()).await;
+        book.publish_on_stored_events_end(&recent_orders_subscription_id())
+            .await;
 
         // Assert
         assert!(drain(&mut deltas).is_empty());
@@ -13574,9 +13639,13 @@ mod tests {
 
         // Act: more changes than the channel holds, none of them read.
         for n in 0..=ORDER_DELTA_CAPACITY {
-            book.upsert_order_deferred(dummy_order_info(&format!("flood-{n}"))).await;
+            book.upsert_order_deferred(dummy_order_info(&format!("flood-{n}")))
+                .await;
         }
-        assert!(!mirror.apply(next_delta(&mut stream).await), "expected a resync");
+        assert!(
+            !mirror.apply(next_delta(&mut stream).await),
+            "expected a resync"
+        );
         mirror = Mirror::from(&book).await;
         book.remove_order("flood-0").await;
         while mirror.orders.contains_key("flood-0") {
@@ -13737,7 +13806,11 @@ mod tests {
             Tag::parse(["fa", "20"]).unwrap(),
             Tag::parse(["z", "order"]).unwrap(),
         ];
-        tags.extend(extra.iter().map(|(name, value)| Tag::parse([*name, *value]).unwrap()));
+        tags.extend(
+            extra
+                .iter()
+                .map(|(name, value)| Tag::parse([*name, *value]).unwrap()),
+        );
         EventBuilder::new(Kind::from(38383u16), "")
             .tags(tags)
             .custom_created_at(Timestamp::from_secs(at))
@@ -14132,12 +14205,19 @@ mod tests {
     #[test]
     fn a_restore_reply_is_checked_against_the_asking_identity_first() {
         let session = fn_body("async fn restore_session_on(node: &str)");
-        let origin = session.find("let origin_identity").expect("captures who asked");
-        let published = session.find("publish_event_json(&event_json)").expect("publishes");
+        let origin = session
+            .find("let origin_identity")
+            .expect("captures who asked");
+        let published = session
+            .find("publish_event_json(&event_json)")
+            .expect("publishes");
         let check = session
             .find("restore_answer_is_for(")
             .expect("checks the reply's identity");
-        assert!(origin < published, "the asking identity is taken before sending");
+        assert!(
+            origin < published,
+            "the asking identity is taken before sending"
+        );
         for effect in [
             "restore_progress::found(",
             "persist_restored_trade_rows(",
@@ -14316,16 +14396,26 @@ mod tests {
     #[test]
     fn a_restore_reports_each_of_its_steps() {
         let session = fn_body("async fn restore_session_on(node: &str)");
-        let published = session.find("publish_event_json(&event_json)").expect("publishes");
+        let published = session
+            .find("publish_event_json(&event_json)")
+            .expect("publishes");
         let connected = session
             .find("RestoreProgress::Connected")
             .expect("reports the request reaching a relay");
-        let found = session.find("restore_progress::found(").expect("reports the answer");
+        let found = session
+            .find("restore_progress::found(")
+            .expect("reports the answer");
         let rows = session
             .find("persist_restored_trade_rows(")
             .expect("loads the details");
-        assert!(published < connected, "Connected only once a relay took the request");
-        assert!(found < rows, "the total is known before the first order loads");
+        assert!(
+            published < connected,
+            "Connected only once a relay took the request"
+        );
+        assert!(
+            found < rows,
+            "the total is known before the first order loads"
+        );
         let counter = session
             .find("last_trade_index(&sender_keys,")
             .expect("asks for the trade-key counter");
@@ -14351,7 +14441,10 @@ mod tests {
         window.clear();
 
         // Assert
-        assert!(!window.record(&id), "a replay after the swap must be handled");
+        assert!(
+            !window.record(&id),
+            "a replay after the swap must be handled"
+        );
         assert_eq!(window.seen.len(), window.order.len());
     }
 
@@ -15487,8 +15580,13 @@ mod tests {
         use crate::mostro::restore_history::RestoreSnapshot;
         let db = bond_test_db().await;
         let id = |tag: &str| format!("{tag}-{}", uuid::Uuid::new_v4());
-        let (done, dead, settled, live, fresh) =
-            (id("done"), id("dead"), id("settled"), id("live"), id("fresh"));
+        let (done, dead, settled, live, fresh) = (
+            id("done"),
+            id("dead"),
+            id("settled"),
+            id("live"),
+            id("fresh"),
+        );
         let mut rows = Vec::new();
         for (oid, status, index) in [
             (&done, S::Success, 40),
@@ -15651,7 +15749,9 @@ mod tests {
         use crate::api::types::OrderStatus as S;
         let db = bond_test_db().await;
         let oid = format!("retake-{}", uuid::Uuid::new_v4());
-        db.save_trade(&seam_trade_row(&oid, S::Canceled)).await.unwrap();
+        db.save_trade(&seam_trade_row(&oid, S::Canceled))
+            .await
+            .unwrap();
         let (old_generation, _) = claim_single_order_task(&oid);
 
         // The retake is in flight: it holds the order lock.
@@ -15667,11 +15767,16 @@ mod tests {
         );
 
         // The retake lands: a live row and a fresh d-tag claim, then unlocks.
-        db.save_trade(&seam_trade_row(&oid, S::WaitingPayment)).await.unwrap();
+        db.save_trade(&seam_trade_row(&oid, S::WaitingPayment))
+            .await
+            .unwrap();
         let (new_generation, _) = claim_single_order_task(&oid);
         drop(retake);
 
-        assert!(release.await.unwrap().is_none(), "a live row stands the release down");
+        assert!(
+            release.await.unwrap().is_none(),
+            "a live row stands the release down"
+        );
         assert!(single_order_task_is_current(&oid, new_generation));
         release_single_order_task(&oid, new_generation);
     }
@@ -15716,7 +15821,11 @@ mod tests {
 
         let unknown = format!("grace-unknown-{}", uuid::Uuid::new_v4());
         saved_completed_row(db, &unknown, None).await;
-        assert_eq!(grace_of(unknown).await, None, "completed at an unknown time");
+        assert_eq!(
+            grace_of(unknown).await,
+            None,
+            "completed at an unknown time"
+        );
 
         let canceled = format!("grace-canceled-{}", uuid::Uuid::new_v4());
         let mut row = saved_completed_row(db, &canceled, Some(now - 60)).await;
@@ -15745,8 +15854,12 @@ mod tests {
 
         let kept = format!("grace-kept-{}", uuid::Uuid::new_v4());
         let row = saved_completed_row(db, &kept, Some(now - 60)).await;
-        claim_chat(ChatChannel::Peer, &kept).await.expect("peer chat claimed");
-        claim_chat(ChatChannel::Dispute, &kept).await.expect("dispute chat claimed");
+        claim_chat(ChatChannel::Peer, &kept)
+            .await
+            .expect("peer chat claimed");
+        claim_chat(ChatChannel::Dispute, &kept)
+            .await
+            .expect("dispute chat claimed");
         let until = now - 60 + crate::api::messages::PEER_CHAT_GRACE_SECS;
         let started = std::sync::Arc::new(std::sync::Mutex::new(None));
         let stopped = release_finished_chats_with(&kept, Some(&(row, until)), |trade| {
@@ -15764,8 +15877,12 @@ mod tests {
         stop_chat_subscription(ChatChannel::Peer, &kept).await;
 
         let ended = format!("grace-ended-{}", uuid::Uuid::new_v4());
-        claim_chat(ChatChannel::Peer, &ended).await.expect("peer chat claimed");
-        claim_chat(ChatChannel::Dispute, &ended).await.expect("dispute chat claimed");
+        claim_chat(ChatChannel::Peer, &ended)
+            .await
+            .expect("peer chat claimed");
+        claim_chat(ChatChannel::Dispute, &ended)
+            .await
+            .expect("dispute chat claimed");
         let stopped = release_finished_chats_with(&ended, None, |_| async {
             panic!("no chat is started outside a window");
         })
@@ -15794,9 +15911,15 @@ mod tests {
         let db = bond_test_db().await;
         let now = crate::rt::unix_now();
         let away = format!("grace-away-{}", uuid::Uuid::new_v4());
-        saved_completed_row(db, &away, Some(now - crate::api::messages::PEER_CHAT_GRACE_SECS - 10))
-            .await;
-        claim_chat(ChatChannel::Peer, &away).await.expect("peer chat claimed");
+        saved_completed_row(
+            db,
+            &away,
+            Some(now - crate::api::messages::PEER_CHAT_GRACE_SECS - 10),
+        )
+        .await;
+        claim_chat(ChatChannel::Peer, &away)
+            .await
+            .expect("peer chat claimed");
 
         crate::api::messages::resubscribe_active_chats().await;
 
@@ -15846,21 +15969,28 @@ mod tests {
     /// trade's chat is never touched.
     #[tokio::test]
     async fn the_grace_end_closes_the_peer_chat_once_the_window_is_over() {
-        use crate::api::messages::{chat_running, claim_chat, stop_chat_subscription, ChatChannel};
         use crate::api::messages::PEER_CHAT_GRACE_SECS as GRACE;
+        use crate::api::messages::{chat_running, claim_chat, stop_chat_subscription, ChatChannel};
         let db = bond_test_db().await;
         let now = crate::rt::unix_now();
 
         let over = format!("grace-over-{}", uuid::Uuid::new_v4());
         saved_completed_row(db, &over, Some(now - GRACE - 10)).await;
-        claim_chat(ChatChannel::Peer, &over).await.expect("peer chat claimed");
+        claim_chat(ChatChannel::Peer, &over)
+            .await
+            .expect("peer chat claimed");
         assert_eq!(close_grace_chat_if_over(&over).await, None);
         assert!(!chat_running(ChatChannel::Peer, &over).await);
 
         let running = format!("grace-running-{}", uuid::Uuid::new_v4());
         saved_completed_row(db, &running, Some(now - 60)).await;
-        claim_chat(ChatChannel::Peer, &running).await.expect("peer chat claimed");
-        assert_eq!(close_grace_chat_if_over(&running).await, Some(now - 60 + GRACE));
+        claim_chat(ChatChannel::Peer, &running)
+            .await
+            .expect("peer chat claimed");
+        assert_eq!(
+            close_grace_chat_if_over(&running).await,
+            Some(now - 60 + GRACE)
+        );
         assert!(chat_running(ChatChannel::Peer, &running).await);
         stop_chat_subscription(ChatChannel::Peer, &running).await;
 
@@ -15868,9 +15998,14 @@ mod tests {
         let mut row = seam_trade_row(&live, OrderStatus::FiatSent);
         row.counterparty_pubkey = "peer-trade-pubkey".into();
         db.save_trade(&row).await.unwrap();
-        claim_chat(ChatChannel::Peer, &live).await.expect("peer chat claimed");
+        claim_chat(ChatChannel::Peer, &live)
+            .await
+            .expect("peer chat claimed");
         assert_eq!(close_grace_chat_if_over(&live).await, None);
-        assert!(chat_running(ChatChannel::Peer, &live).await, "a live trade's chat stays");
+        assert!(
+            chat_running(ChatChannel::Peer, &live).await,
+            "a live trade's chat stays"
+        );
         stop_chat_subscription(ChatChannel::Peer, &live).await;
     }
 
@@ -15901,11 +16036,7 @@ mod tests {
     }
 
     /// A seller's row at `SettledHoldInvoice`, its trade key bound.
-    async fn saved_settled_seller_row(
-        db: &impl crate::db::Storage,
-        order_id: &str,
-        is_mine: bool,
-    ) {
+    async fn saved_settled_seller_row(db: &impl crate::db::Storage, order_id: &str, is_mine: bool) {
         let mut row = seam_trade_row(order_id, OrderStatus::SettledHoldInvoice);
         row.counterparty_pubkey = "peer-trade-pubkey".into();
         row.order.is_mine = is_mine;
@@ -15969,8 +16100,14 @@ mod tests {
             (row.order.status, row.completed_at)
         };
 
-        assert_eq!(completion_of(OrderStatus::Success).await, (OrderStatus::Success, None));
-        assert_eq!(completion_of(OrderStatus::Dispute).await, (OrderStatus::Success, None));
+        assert_eq!(
+            completion_of(OrderStatus::Success).await,
+            (OrderStatus::Success, None)
+        );
+        assert_eq!(
+            completion_of(OrderStatus::Dispute).await,
+            (OrderStatus::Success, None)
+        );
         assert_eq!(
             completion_of(OrderStatus::SettledByAdmin).await,
             (OrderStatus::SettledByAdmin, None),
@@ -16091,10 +16228,9 @@ mod tests {
         let newer = book_event_at(&order_id, "in-progress", &node, 2_000);
         ingest_order_event_with(&newer, Publish::WhenBatchEnds).await;
         let older = book_event_at(&order_id, "canceled", &node, 1_000);
-        let outcome = handle_single_order_event(&older, &order_id, &node.public_key(), || {
-            node_hex.clone()
-        })
-        .await;
+        let outcome =
+            handle_single_order_event(&older, &order_id, &node.public_key(), || node_hex.clone())
+                .await;
 
         assert_eq!(outcome, SingleOrderEvent::Ignored);
         let row = db.get_trade_by_order_id(&order_id).await.unwrap();
@@ -16143,7 +16279,11 @@ mod tests {
     /// The node the restores of these tests were sent to, and their rows'.
     const RESTORED_NODE: &str = "dddd4444dddd4444dddd4444dddd4444dddd4444dddd4444dddd4444dddd4444";
 
-    fn history_row(order_id: &str, index: u32, status: OrderStatus) -> crate::api::types::TradeInfo {
+    fn history_row(
+        order_id: &str,
+        index: u32,
+        status: OrderStatus,
+    ) -> crate::api::types::TradeInfo {
         let mut row = seam_trade_row(order_id, status);
         row.trade_key_index = index;
         row.order.node_pubkey = RESTORED_NODE.to_string();
@@ -16168,7 +16308,11 @@ mod tests {
             .map(|t| t.order.id)
             .collect();
         assert_eq!(shown, vec!["live-order", "new-order"]);
-        assert_eq!(visible_trades(trades, &[]).len(), 4, "no restore hides nothing");
+        assert_eq!(
+            visible_trades(trades, &[]).len(),
+            4,
+            "no restore hides nothing"
+        );
     }
 
     /// Another node than [RESTORED_NODE], with trades of its own.
@@ -16681,8 +16825,10 @@ mod tests {
     #[tokio::test]
     async fn an_older_admin_settled_still_refines_a_replayed_purchase_completed() {
         use mostro_core::message::Action;
-        let path = std::env::temp_dir()
-            .join(format!("mostro_admin_settle_replay_{}.db", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "mostro_admin_settle_replay_{}.db",
+            std::process::id()
+        ));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
 
@@ -16713,8 +16859,10 @@ mod tests {
     #[tokio::test]
     async fn a_purchase_completed_dates_the_buyers_completion_by_its_message() {
         use mostro_core::message::Action;
-        let path = std::env::temp_dir()
-            .join(format!("mostro_purchase_completed_{}.db", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "mostro_purchase_completed_{}.db",
+            std::process::id()
+        ));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
 
@@ -16880,7 +17028,10 @@ mod tests {
     fn send_invoice_publishes_the_normalized_destination() {
         // A bolt11: scheme and whitespace stripped, case kept, no amount.
         let (dest, amount) = resolve_add_invoice_destination(
-            &format!("  lightning:{} \n", crate::api::invoice::test_vectors::COFFEE),
+            &format!(
+                "  lightning:{} \n",
+                crate::api::invoice::test_vectors::COFFEE
+            ),
             999,
         )
         .expect("a bolt11 is accepted");
@@ -17070,7 +17221,11 @@ mod tests {
         let so = small_order_with(Status::Pending, 1_000);
         match classify_take_reply(
             &Action::PayBondInvoice,
-            &Some(Payload::PaymentRequest(Some(so), "lnbc10u1bond".into(), None)),
+            &Some(Payload::PaymentRequest(
+                Some(so),
+                "lnbc10u1bond".into(),
+                None,
+            )),
         ) {
             DaemonReply::TakeAccepted {
                 status,
@@ -17316,7 +17471,9 @@ mod tests {
         store_trade_key_index(&taken_id, 61).await;
         let mut taken = seam_trade_row(&taken_id, crate::api::types::OrderStatus::Active);
         taken.order.is_mine = false;
-        persist_trade_row(db, &taken).await.expect("persist take row");
+        persist_trade_row(db, &taken)
+            .await
+            .expect("persist take row");
         assert!(
             !order_book()
                 .get_order(&taken_id)
@@ -17608,6 +17765,10 @@ mod tests {
             entered: Arc<tokio::sync::Notify>,
             release: Arc<tokio::sync::Notify>,
         },
+        /// Every trade-row read fails; a status write lands and is counted.
+        FailTradeRead {
+            status_writes: std::sync::atomic::AtomicUsize,
+        },
     }
 
     impl Storage for PersistProbe {
@@ -17629,7 +17790,7 @@ mod tests {
         async fn save_trade(&self, _trade: &crate::api::types::TradeInfo) -> Result<()> {
             match self {
                 Self::FailSave => anyhow::bail!("injected save failure"),
-                Self::FailDelete(_) => unimplemented!(),
+                Self::FailDelete(_) | Self::FailTradeRead { .. } => unimplemented!(),
                 Self::PauseSave { entered, release } => {
                     entered.notify_one();
                     release.notified().await;
@@ -17807,7 +17968,10 @@ mod tests {
             &self,
             _order_id: &str,
         ) -> Result<Option<crate::api::types::TradeInfo>> {
-            unimplemented!()
+            match self {
+                Self::FailTradeRead { .. } => anyhow::bail!("injected read failure"),
+                _ => unimplemented!(),
+            }
         }
         async fn delete_trade_by_order_id(&self, _order_id: &str) -> Result<()> {
             unimplemented!()
@@ -17829,11 +17993,19 @@ mod tests {
         async fn update_trade_fields(
             &self,
             _order_id: &str,
-            _status: Option<crate::api::types::OrderStatus>,
+            status: Option<crate::api::types::OrderStatus>,
             _hold_invoice: Option<String>,
             _amount_sats: Option<u64>,
         ) -> Result<()> {
-            unimplemented!()
+            match self {
+                Self::FailTradeRead { status_writes } => {
+                    if status.is_some() {
+                        status_writes.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                    }
+                    Ok(())
+                }
+                _ => unimplemented!(),
+            }
         }
         async fn set_trade_range_slice(
             &self,
@@ -18073,8 +18245,10 @@ mod tests {
     async fn cancel_of_a_never_active_take_is_left_for_the_daemons_canceled() {
         use mostro_core::message::{Action, Message};
 
-        let path = std::env::temp_dir()
-            .join(format!("mostro_cancel_never_active_{}.db", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "mostro_cancel_never_active_{}.db",
+            std::process::id()
+        ));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
 
@@ -18177,8 +18351,10 @@ mod tests {
     /// ex-taker's book although every other client could take it.
     #[tokio::test]
     async fn a_lost_take_returns_to_the_book_when_the_republish_came_first() {
-        let path = std::env::temp_dir()
-            .join(format!("mostro_lost_take_republish_first_{}.db", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "mostro_lost_take_republish_first_{}.db",
+            std::process::id()
+        ));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
 
@@ -18220,8 +18396,10 @@ mod tests {
     /// would refuse it exactly as the row did.
     #[tokio::test]
     async fn a_lost_take_returns_to_the_book_when_the_canceled_came_first() {
-        let path = std::env::temp_dir()
-            .join(format!("mostro_lost_take_canceled_first_{}.db", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "mostro_lost_take_canceled_first_{}.db",
+            std::process::id()
+        ));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
 
@@ -18256,8 +18434,10 @@ mod tests {
     /// drop the correctly public entry and hide the order again.
     #[tokio::test]
     async fn a_republish_seen_only_by_the_book_feed_survives_the_wipe() {
-        let path = std::env::temp_dir()
-            .join(format!("mostro_lost_take_book_feed_{}.db", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "mostro_lost_take_book_feed_{}.db",
+            std::process::id()
+        ));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
 
@@ -18306,14 +18486,16 @@ mod tests {
     #[tokio::test]
     async fn a_public_update_of_our_order_rings_the_doorbell() {
         // Arrange
-        let path = std::env::temp_dir()
-            .join(format!("mostro_touch_public_{}.db", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("mostro_touch_public_{}.db", std::process::id()));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
         let order_id = uuid::Uuid::new_v4().to_string();
         let taken = wire_order(&order_id, OrderStatus::WaitingBuyerInvoice);
         order_book().upsert_order(taken.clone()).await;
-        db.save_trade(&cancel_test_row(taken)).await.expect("save the trade row");
+        db.save_trade(&cancel_test_row(taken))
+            .await
+            .expect("save the trade row");
         let mut touches = crate::api::trade_touch::on_trade_touched().await.unwrap();
 
         // Act
@@ -18327,8 +18509,8 @@ mod tests {
     #[tokio::test]
     async fn a_hold_invoice_reaching_the_row_rings_the_doorbell() {
         // Arrange
-        let path = std::env::temp_dir()
-            .join(format!("mostro_touch_invoice_{}.db", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("mostro_touch_invoice_{}.db", std::process::id()));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
         let order_id = uuid::Uuid::new_v4().to_string();
@@ -18355,8 +18537,8 @@ mod tests {
     #[tokio::test]
     async fn a_write_that_changes_nothing_stays_silent() {
         // Arrange
-        let path = std::env::temp_dir()
-            .join(format!("mostro_touch_noop_{}.db", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("mostro_touch_noop_{}.db", std::process::id()));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
         let order_id = uuid::Uuid::new_v4().to_string();
@@ -18396,8 +18578,8 @@ mod tests {
     #[tokio::test]
     async fn a_wiped_trade_rings_the_doorbell() {
         // Arrange
-        let path = std::env::temp_dir()
-            .join(format!("mostro_touch_wipe_{}.db", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("mostro_touch_wipe_{}.db", std::process::id()));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
         let order_id = uuid::Uuid::new_v4().to_string();
@@ -18423,8 +18605,8 @@ mod tests {
     #[tokio::test]
     async fn a_step_start_from_an_earlier_take_is_not_reported() {
         // Arrange: the row is on generation 100, the stored start on 94.
-        let path = std::env::temp_dir()
-            .join(format!("mostro_step_generation_{}.db", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("mostro_step_generation_{}.db", std::process::id()));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
         let order_id = uuid::Uuid::new_v4().to_string();
@@ -18459,8 +18641,8 @@ mod tests {
     #[tokio::test]
     async fn wiping_a_row_takes_its_step_start_with_it() {
         // Arrange
-        let path = std::env::temp_dir()
-            .join(format!("mostro_wipe_step_start_{}.db", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("mostro_wipe_step_start_{}.db", std::process::id()));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
         let order_id = uuid::Uuid::new_v4().to_string();
@@ -18497,14 +18679,18 @@ mod tests {
     /// order id could return the dead take — its status and its trade key.
     #[tokio::test]
     async fn a_confirmed_take_replaces_the_orders_earlier_row() {
-        let path = std::env::temp_dir()
-            .join(format!("mostro_one_row_per_order_{}.db", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "mostro_one_row_per_order_{}.db",
+            std::process::id()
+        ));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
 
         let order_id = uuid::Uuid::new_v4().to_string();
         let earlier = cancel_test_row(wire_order(&order_id, OrderStatus::Canceled));
-        db.save_trade(&earlier).await.expect("save the earlier take");
+        db.save_trade(&earlier)
+            .await
+            .expect("save the earlier take");
         let mut retake = cancel_test_row(wire_order(&order_id, OrderStatus::WaitingBuyerInvoice));
         retake.trade_key_index = 2;
 
@@ -18519,7 +18705,10 @@ mod tests {
             .collect();
         assert_eq!(rows.len(), 1, "one row per order after a retake");
         assert_eq!(rows[0].id, retake.id, "the row left is the retake's");
-        assert_eq!(rows[0].trade_key_index, 2, "carrying the retake's trade key");
+        assert_eq!(
+            rows[0].trade_key_index, 2,
+            "carrying the retake's trade key"
+        );
     }
 
     /// Only a *take* is handed back. A maker's own order dies with the
@@ -18527,8 +18716,8 @@ mod tests {
     /// the daemon's Kind 38383 `canceled`, never restored to `pending`.
     #[tokio::test]
     async fn a_makers_wiped_order_is_not_handed_back_to_the_book() {
-        let path = std::env::temp_dir()
-            .join(format!("mostro_maker_wipe_{}.db", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("mostro_maker_wipe_{}.db", std::process::id()));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
 
@@ -18593,8 +18782,8 @@ mod tests {
         use crate::api::types::{CooperativeCancelState, OrderStatus, TradeUpdateReason};
         use mostro_core::message::Action;
 
-        let path = std::env::temp_dir()
-            .join(format!("mostro_cancel_active_{}.db", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("mostro_cancel_active_{}.db", std::process::id()));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
 
@@ -18670,8 +18859,8 @@ mod tests {
         use crate::api::types::{CooperativeCancelState, OrderStatus, TradeUpdateReason};
         use mostro_core::message::Action;
 
-        let path = std::env::temp_dir()
-            .join(format!("mostro_cancel_by_peer_{}.db", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("mostro_cancel_by_peer_{}.db", std::process::id()));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
 
@@ -18696,7 +18885,11 @@ mod tests {
             .await
             .expect("trade lookup")
             .expect("the row must still be there");
-        assert_eq!(row.order.status, OrderStatus::FiatSent, "a request moves nothing");
+        assert_eq!(
+            row.order.status,
+            OrderStatus::FiatSent,
+            "a request moves nothing"
+        );
         assert_eq!(
             row.cooperative_cancel_state,
             Some(CooperativeCancelState::RequestedByPeer),
@@ -18724,8 +18917,10 @@ mod tests {
         use crate::api::types::{CooperativeCancelState, OrderStatus};
         use mostro_core::message::Action;
 
-        let path = std::env::temp_dir()
-            .join(format!("mostro_cancel_before_dispute_{}.db", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "mostro_cancel_before_dispute_{}.db",
+            std::process::id()
+        ));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
 
@@ -18757,7 +18952,11 @@ mod tests {
             .await
             .expect("trade lookup")
             .expect("the row must still be there");
-        assert_eq!(row.order.status, OrderStatus::Dispute, "the request moves nothing");
+        assert_eq!(
+            row.order.status,
+            OrderStatus::Dispute,
+            "the request moves nothing"
+        );
         assert_eq!(
             row.cooperative_cancel_state,
             Some(CooperativeCancelState::RequestedByPeer),
@@ -18772,8 +18971,8 @@ mod tests {
         use crate::api::types::OrderStatus;
         use mostro_core::message::Action;
 
-        let path = std::env::temp_dir()
-            .join(format!("mostro_cancel_after_end_{}.db", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("mostro_cancel_after_end_{}.db", std::process::id()));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
 
@@ -18822,8 +19021,10 @@ mod tests {
     /// message at all: the row must be gone before any `Canceled` arrives.
     #[tokio::test]
     async fn a_makers_never_active_cancel_is_wiped_whichever_signal_lands_first() {
-        let path = std::env::temp_dir()
-            .join(format!("mostro_maker_cancel_race_{}.db", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "mostro_maker_cancel_race_{}.db",
+            std::process::id()
+        ));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
 
@@ -18880,8 +19081,10 @@ mod tests {
     /// order is dead, not back in the book.
     #[tokio::test]
     async fn a_take_whose_maker_cancelled_is_wiped_by_the_public_canceled() {
-        let path = std::env::temp_dir()
-            .join(format!("mostro_take_maker_cancelled_{}.db", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "mostro_take_maker_cancelled_{}.db",
+            std::process::id()
+        ));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
 
@@ -18926,8 +19129,10 @@ mod tests {
     /// the event's time, so it does not read as news.
     #[tokio::test]
     async fn a_public_canceled_wipe_is_announced_at_the_event_time() {
-        let path = std::env::temp_dir()
-            .join(format!("mostro_public_canceled_dated_{}.db", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "mostro_public_canceled_dated_{}.db",
+            std::process::id()
+        ));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
 
@@ -18938,8 +19143,7 @@ mod tests {
             .expect("save the trade row");
         let mut rx = trade_updates_tx().subscribe();
 
-        apply_single_order_update(wire_order(&order_id, OrderStatus::Canceled), Some(1_234))
-            .await;
+        apply_single_order_update(wire_order(&order_id, OrderStatus::Canceled), Some(1_234)).await;
 
         let mut dated = Vec::new();
         while let Ok(update) = rx.try_recv() {
@@ -18947,7 +19151,10 @@ mod tests {
                 dated.push((update.status, update.occurred_at));
             }
         }
-        assert!(trade_row_gone(&order_id).await, "precondition: the take is wiped");
+        assert!(
+            trade_row_gone(&order_id).await,
+            "precondition: the take is wiped"
+        );
         assert_eq!(dated, vec![(OrderStatus::Canceled, 1_234)]);
     }
 
@@ -19066,8 +19273,8 @@ mod tests {
     #[tokio::test]
     async fn a_rate_received_closes_the_rating_step() {
         use mostro_core::message::Action;
-        let path = std::env::temp_dir()
-            .join(format!("mostro_rate_received_{}.db", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("mostro_rate_received_{}.db", std::process::id()));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
 
@@ -19091,8 +19298,13 @@ mod tests {
         let mut row = cancel_test_row(wire_order(&rated_here.to_string(), OrderStatus::Success));
         row.rated_at = Some(500);
         db.save_trade(&row).await.expect("save the trade row");
-        dispatch_daemon_action_at(rated_here, Action::RateReceived, "test-rate-received-2", 1_000)
-            .await;
+        dispatch_daemon_action_at(
+            rated_here,
+            Action::RateReceived,
+            "test-rate-received-2",
+            1_000,
+        )
+        .await;
         let row = db
             .get_trade_by_order_id(&rated_here.to_string())
             .await
@@ -19106,8 +19318,10 @@ mod tests {
     /// admin cancel, and the row stays as history.
     #[tokio::test]
     async fn a_public_canceled_keeps_an_active_trade_as_history() {
-        let path = std::env::temp_dir()
-            .join(format!("mostro_public_canceled_active_{}.db", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "mostro_public_canceled_active_{}.db",
+            std::process::id()
+        ));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
 
@@ -19140,8 +19354,8 @@ mod tests {
     async fn a_public_canceled_wipe_stops_the_replayed_create_ack() {
         use mostro_core::message::{Action, Message, Payload};
 
-        let path = std::env::temp_dir()
-            .join(format!("mostro_public_wipe_ack_{}.db", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("mostro_public_wipe_ack_{}.db", std::process::id()));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
 
@@ -19220,8 +19434,8 @@ mod tests {
     /// `a_refused_wire_status_does_not_sneak_its_amount_into_the_row`.
     #[tokio::test]
     async fn a_refused_d_tag_status_does_not_sneak_its_amount_into_the_row() {
-        let path = std::env::temp_dir()
-            .join(format!("mostro_dtag_amtgate_{}.db", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("mostro_dtag_amtgate_{}.db", std::process::id()));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
 
@@ -19286,8 +19500,10 @@ mod tests {
     /// and a `canceled` now wipes the row.
     #[tokio::test]
     async fn the_d_tag_task_stops_once_its_node_is_no_longer_active() {
-        let path = std::env::temp_dir()
-            .join(format!("mostro_d_tag_node_switch_{}.db", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "mostro_d_tag_node_switch_{}.db",
+            std::process::id()
+        ));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
 
         let order_id = uuid::Uuid::new_v4().to_string();
@@ -19324,8 +19540,10 @@ mod tests {
     /// for another order, changes nothing.
     #[tokio::test]
     async fn the_d_tag_task_applies_only_its_active_nodes_events() {
-        let path = std::env::temp_dir()
-            .join(format!("mostro_d_tag_active_node_{}.db", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "mostro_d_tag_active_node_{}.db",
+            std::process::id()
+        ));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
 
         let order_id = uuid::Uuid::new_v4().to_string();
@@ -19333,11 +19551,7 @@ mod tests {
         let node = nostr_sdk::prelude::Keys::generate();
         let node_hex = node.public_key().to_hex();
 
-        let forged = book_event_by(
-            &order_id,
-            "canceled",
-            &nostr_sdk::prelude::Keys::generate(),
-        );
+        let forged = book_event_by(&order_id, "canceled", &nostr_sdk::prelude::Keys::generate());
         assert_eq!(
             handle_single_order_event(&forged, &order_id, &node.public_key(), || {
                 node_hex.clone()
@@ -19747,7 +19961,10 @@ mod tests {
             .iter()
             .map(|d| d.outcome)
             .collect();
-        assert_eq!(outcomes, [PayoutOutcome::Replaced, PayoutOutcome::Submitted]);
+        assert_eq!(
+            outcomes,
+            [PayoutOutcome::Replaced, PayoutOutcome::Submitted]
+        );
     }
 
     /// The public `success` can land before the buyer's `purchase-completed`
@@ -19760,15 +19977,20 @@ mod tests {
         use crate::mostro::payout_route;
         use mostro_core::message::Action;
 
-        let path = std::env::temp_dir()
-            .join(format!("mostro_payout_route_late_{}.db", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "mostro_payout_route_late_{}.db",
+            std::process::id()
+        ));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
         let order_uuid = uuid::Uuid::new_v4();
         let order_id = order_uuid.to_string();
-        db.save_trade(&cancel_test_row(wire_order(&order_id, OrderStatus::Success)))
-            .await
-            .expect("save the trade row");
+        db.save_trade(&cancel_test_row(wire_order(
+            &order_id,
+            OrderStatus::Success,
+        )))
+        .await
+        .expect("save the trade row");
         let address = payout_route::destination(
             "alice@example.com",
             PayoutSource::DefaultLightningAddress,
@@ -19800,8 +20022,10 @@ mod tests {
         use crate::api::types::PayoutSource;
         use crate::mostro::payout_route;
 
-        let path = std::env::temp_dir()
-            .join(format!("mostro_payout_route_maker_{}.db", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "mostro_payout_route_maker_{}.db",
+            std::process::id()
+        ));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
         let order_id = uuid::Uuid::new_v4().to_string();
@@ -19847,8 +20071,10 @@ mod tests {
         use crate::mostro::payout_route;
         use mostro_core::message::Action;
 
-        let path = std::env::temp_dir()
-            .join(format!("mostro_payout_route_fast_{}.db", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "mostro_payout_route_fast_{}.db",
+            std::process::id()
+        ));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
         let order_uuid = uuid::Uuid::new_v4();
@@ -19890,7 +20116,9 @@ mod tests {
         use crate::db::settings_keys::{PAYOUT_AMOUNT_PREFIX, PAYOUT_ROUTE_PREFIX};
         assert!(!clear_maker_step_start(&PersistProbe::FailDelete(PAYOUT_ROUTE_PREFIX), "o").await);
         // As any key of the step does.
-        assert!(!clear_maker_step_start(&PersistProbe::FailDelete(PAYOUT_AMOUNT_PREFIX), "o").await);
+        assert!(
+            !clear_maker_step_start(&PersistProbe::FailDelete(PAYOUT_AMOUNT_PREFIX), "o").await
+        );
         assert!(clear_maker_step_start(&PersistProbe::FailDelete("nothing:"), "o").await);
     }
 
@@ -19902,8 +20130,10 @@ mod tests {
         use crate::api::types::{PayoutOutcome, PayoutSource};
         use crate::mostro::payout_route;
 
-        let path = std::env::temp_dir()
-            .join(format!("mostro_payout_route_feed_{}.db", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "mostro_payout_route_feed_{}.db",
+            std::process::id()
+        ));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
         let order_id = uuid::Uuid::new_v4().to_string();
@@ -19954,8 +20184,10 @@ mod tests {
         use crate::api::types::{PayoutOutcome, PayoutSource, TakePayout};
         use crate::mostro::payout_route;
 
-        let path = std::env::temp_dir()
-            .join(format!("mostro_payout_route_book_{}.db", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "mostro_payout_route_book_{}.db",
+            std::process::id()
+        ));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
         let take = |order_id: &str| {
@@ -19975,9 +20207,12 @@ mod tests {
 
         // The d-tag subscription brings the public `success`.
         let order_id = uuid::Uuid::new_v4().to_string();
-        db.save_trade(&cancel_test_row(wire_order(&order_id, OrderStatus::SettledHoldInvoice)))
-            .await
-            .expect("save the trade row");
+        db.save_trade(&cancel_test_row(wire_order(
+            &order_id,
+            OrderStatus::SettledHoldInvoice,
+        )))
+        .await
+        .expect("save the trade row");
         take(&order_id).await;
         apply_single_order_update(wire_order(&order_id, OrderStatus::Success), Some(5_000)).await;
         let route = payout_route::destinations(&order_id).await;
@@ -19986,9 +20221,12 @@ mod tests {
 
         // The payout check finds it in the book.
         let order_id = uuid::Uuid::new_v4().to_string();
-        db.save_trade(&cancel_test_row(wire_order(&order_id, OrderStatus::SettledHoldInvoice)))
-            .await
-            .expect("save the trade row");
+        db.save_trade(&cancel_test_row(wire_order(
+            &order_id,
+            OrderStatus::SettledHoldInvoice,
+        )))
+        .await
+        .expect("save the trade row");
         take(&order_id).await;
         apply_payout_completed(&order_id, Some(6_000)).await;
         assert_eq!(
@@ -20034,8 +20272,10 @@ mod tests {
     async fn a_finished_take_leaves_no_wire_note_behind() {
         use mostro_core::message::Action;
 
-        let path = std::env::temp_dir()
-            .join(format!("mostro_finished_take_note_{}.db", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "mostro_finished_take_note_{}.db",
+            std::process::id()
+        ));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
 
         let (_, order_id) = noted_active_take().await;
@@ -20081,8 +20321,10 @@ mod tests {
     /// book.
     #[tokio::test]
     async fn a_cancelled_take_settles_before_its_note_is_forgotten() {
-        let path = std::env::temp_dir()
-            .join(format!("mostro_settle_before_forget_{}.db", std::process::id()));
+        let path = std::env::temp_dir().join(format!(
+            "mostro_settle_before_forget_{}.db",
+            std::process::id()
+        ));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
 
@@ -20101,7 +20343,10 @@ mod tests {
 
         apply_single_order_update(wire_order(&order_id, OrderStatus::Canceled), None).await;
 
-        assert!(trade_row_gone(&order_id).await, "the never-active take is wiped");
+        assert!(
+            trade_row_gone(&order_id).await,
+            "the never-active take is wiped"
+        );
         assert_eq!(
             book_status(&order_id).await,
             None,
@@ -20134,7 +20379,10 @@ mod tests {
 
         dispatch_daemon_canceled(order_uuid, "test-maker-wipe-note").await;
 
-        assert!(trade_row_gone(&order_id).await, "the never-active row is wiped");
+        assert!(
+            trade_row_gone(&order_id).await,
+            "the never-active row is wiped"
+        );
         assert!(
             !order_book().has_wire_note(&order_id),
             "a maker's wipe must forget the note too"
@@ -20890,8 +21138,7 @@ mod tests {
         use mostro_core::message::{Action, Message, Payload};
 
         // Arrange: a take waiting on its nonce, as `take_order` leaves it.
-        let path =
-            std::env::temp_dir().join(format!("mostro_take_step_{}.db", std::process::id()));
+        let path = std::env::temp_dir().join(format!("mostro_take_step_{}.db", std::process::id()));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let order_uuid = uuid::Uuid::new_v4();
         let order_id = order_uuid.to_string();
@@ -20952,13 +21199,8 @@ mod tests {
         row.timeout_at = None;
         db.save_trade(&row).await.expect("save the maker's row");
         let first_take = row.started_at;
-        crate::api::invoice::record_invoice_step_start(
-            &order_id,
-            "WaitingPayment",
-            first_take,
-            7,
-        )
-        .await;
+        crate::api::invoice::record_invoice_step_start(&order_id, "WaitingPayment", first_take, 7)
+            .await;
         crate::api::invoice::record_payout_amount(&order_id, 311, first_take, 7).await;
         // The daemon put it back on the book; the DM never got through.
         order_info.status = crate::api::types::OrderStatus::Pending;
@@ -21454,13 +21696,8 @@ mod tests {
         row.trade_key_index = 7;
         db.save_trade(&row).await.expect("save the maker's row");
         let first_take = crate::rt::unix_now() - 600;
-        crate::api::invoice::record_invoice_step_start(
-            &order_id,
-            "WaitingPayment",
-            first_take,
-            7,
-        )
-        .await;
+        crate::api::invoice::record_invoice_step_start(&order_id, "WaitingPayment", first_take, 7)
+            .await;
         assert_eq!(
             crate::api::invoice::trade_step_started_at(order_id.clone()).await,
             Some(first_take),
@@ -22256,7 +22493,11 @@ mod tests {
 
         // Assert
         let after = book_by_id(&book).await;
-        assert_eq!(after.len(), 2, "the public book is the same for any identity");
+        assert_eq!(
+            after.len(),
+            2,
+            "the public book is the same for any identity"
+        );
         assert!(after.values().all(|o| !o.is_mine));
         assert_eq!(after["mine"].status, OrderStatus::Pending);
         assert!(matches!(deltas.try_recv(), Ok(OrderBookDelta::Reset)));
@@ -22279,8 +22520,14 @@ mod tests {
         book.forget_ownership().await;
 
         // Assert
-        assert_eq!(book_by_id(&book).await["taken"].status, OrderStatus::InProgress);
-        assert!(!book.has_wire_note("taken"), "the note belonged to the old trade");
+        assert_eq!(
+            book_by_id(&book).await["taken"].status,
+            OrderStatus::InProgress
+        );
+        assert!(
+            !book.has_wire_note("taken"),
+            "the note belonged to the old trade"
+        );
     }
 
     #[tokio::test]
@@ -22674,7 +22921,15 @@ mod tests {
 
         order_book().upsert_order(dummy_order_info(&order_id)).await;
 
-        apply_peer_reveal(&order_id, &peer_hex, &trade_keys, 7, TradeRole::Seller, true).await;
+        apply_peer_reveal(
+            &order_id,
+            &peer_hex,
+            &trade_keys,
+            7,
+            TradeRole::Seller,
+            true,
+        )
+        .await;
 
         let session = session_manager()
             .get_session(&order_id)
@@ -23202,6 +23457,27 @@ mod tests {
         assert_eq!(row.completed_at, Some(1_000));
     }
 
+    /// #934 review: a row that cannot be read is not a row that is not there.
+    /// The status write is skipped, or the book's plain `canceled` could land
+    /// over an admin verdict the failed read would have shown.
+    #[tokio::test]
+    async fn a_public_status_is_not_written_when_the_row_cannot_be_read() {
+        use crate::api::types::OrderStatus;
+        let probe = PersistProbe::FailTradeRead {
+            status_writes: std::sync::atomic::AtomicUsize::new(0),
+        };
+        let order_id = uuid::Uuid::new_v4().to_string();
+
+        let wrote =
+            write_public_status(&probe, &order_id, &OrderStatus::Canceled, None, Some(1_000)).await;
+
+        assert!(!wrote);
+        let PersistProbe::FailTradeRead { status_writes } = &probe else {
+            unreachable!()
+        };
+        assert_eq!(status_writes.load(std::sync::atomic::Ordering::SeqCst), 0);
+    }
+
     /// #933: the node's own `canceled` over a live trade (its escrow given
     /// back, say) dates the chat's grace window, as the book's `canceled`
     /// does when it lands first: the row keeps its history and records when
@@ -23469,12 +23745,7 @@ mod tests {
             None,
         ));
         dispatch_mostro_message(
-            daemon_message(
-                order_uuid,
-                Action::AddInvoice,
-                Some(replay.clone()),
-                1_000,
-            ),
+            daemon_message(order_uuid, Action::AddInvoice, Some(replay.clone()), 1_000),
             "test-wipegen-replay",
             &my5_hex,
             1,
@@ -23594,7 +23865,11 @@ mod tests {
             production(include_str!("orders.rs")),
             production(include_str!("orders/late_take.rs")),
         ];
-        let calls = |needle: &str| code.iter().map(|c| c.matches(needle).count()).sum::<usize>();
+        let calls = |needle: &str| {
+            code.iter()
+                .map(|c| c.matches(needle).count())
+                .sum::<usize>()
+        };
         assert_eq!(
             calls(".save_trade("),
             1,
@@ -24150,7 +24425,8 @@ mod tests {
     async fn a_replayed_pay_bond_invoice_does_not_rebuild_a_trade() {
         use mostro_core::message::{Action, Payload};
 
-        let path = std::env::temp_dir().join(format!("mostro_rebuild_bond_{}.db", std::process::id()));
+        let path =
+            std::env::temp_dir().join(format!("mostro_rebuild_bond_{}.db", std::process::id()));
         let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
         let db = crate::db::app_db::db().expect("store initialised");
 
@@ -24181,7 +24457,11 @@ mod tests {
             daemon_message(
                 order_uuid,
                 Action::PayBondInvoice,
-                Some(Payload::PaymentRequest(Some(so), "lnbc10u1...".to_string(), None)),
+                Some(Payload::PaymentRequest(
+                    Some(so),
+                    "lnbc10u1...".to_string(),
+                    None,
+                )),
                 2_000,
             ),
             "test-rebuild-bond",
@@ -24191,7 +24471,10 @@ mod tests {
         .await;
 
         assert!(
-            db.get_trade_by_order_id(&order_id).await.expect("lookup").is_none(),
+            db.get_trade_by_order_id(&order_id)
+                .await
+                .expect("lookup")
+                .is_none(),
             "a bond bolt11 is not a trade to recover"
         );
         assert!(drain_updates(&mut rx, &order_id).is_empty());
@@ -24208,8 +24491,7 @@ mod tests {
         invoice: &str,
         expires_at: Option<i64>,
     ) -> crate::api::types::TradeInfo {
-        let mut trade =
-            seam_trade_row(order_id, crate::api::types::OrderStatus::WaitingTakerBond);
+        let mut trade = seam_trade_row(order_id, crate::api::types::OrderStatus::WaitingTakerBond);
         trade.order.is_mine = false;
         trade.role = TradeRole::Buyer;
         trade.current_step =
@@ -24276,7 +24558,10 @@ mod tests {
         );
         assert_eq!(opaque.expires_at, None);
         let row = bonded_taker_row("x", "lnbc1garbage", None);
-        assert!(!bond_expired(&row, i64::MAX), "no known expiry never lapses");
+        assert!(
+            !bond_expired(&row, i64::MAX),
+            "no known expiry never lapses"
+        );
 
         // A bond inferred locked is paid: the row is a live trade caught
         // between the bond write and the status write, never an expiry.
@@ -24332,7 +24617,12 @@ mod tests {
             None,
         );
         dispatch_mostro_message(
-            daemon_message(order_uuid, Action::BondSlashed, Some(Payload::Order(so)), 2_001),
+            daemon_message(
+                order_uuid,
+                Action::BondSlashed,
+                Some(Payload::Order(so)),
+                2_001,
+            ),
             "test-bond-slash",
             "ff00ff45",
             1,
@@ -24381,7 +24671,12 @@ mod tests {
             None,
         );
         dispatch_mostro_message(
-            daemon_message(order_uuid, Action::AddInvoice, Some(Payload::Order(so)), 2_000),
+            daemon_message(
+                order_uuid,
+                Action::AddInvoice,
+                Some(Payload::Order(so)),
+                2_000,
+            ),
             "test-bond-lock",
             "ff00ff40",
             1,
@@ -24584,7 +24879,11 @@ mod tests {
             daemon_message(
                 order_uuid,
                 Action::PayBondInvoice,
-                Some(Payload::PaymentRequest(None, BOND_BOLT11.to_string(), Some(1_200))),
+                Some(Payload::PaymentRequest(
+                    None,
+                    BOND_BOLT11.to_string(),
+                    Some(1_200),
+                )),
                 1_000,
             ),
             "test-bond-stale",
@@ -24593,7 +24892,13 @@ mod tests {
         )
         .await;
 
-        let bond = db.get_trade_by_order_id(&order_id).await.unwrap().unwrap().bond.unwrap();
+        let bond = db
+            .get_trade_by_order_id(&order_id)
+            .await
+            .unwrap()
+            .unwrap()
+            .bond
+            .unwrap();
         assert_eq!(bond.invoice.as_deref(), Some("lnbc1newer"));
         assert_eq!(bond.requested_at, 5_000);
         assert!(drain_updates(&mut rx, &order_id).is_empty());
@@ -25392,9 +25697,16 @@ mod tests {
             .await
             .expect_err("a published order is not abandoned");
         assert_eq!(err.to_string(), "NotWaitingBond");
-        let kept = db.get_trade_by_order_id(&order_id).await.unwrap().expect("row kept");
+        let kept = db
+            .get_trade_by_order_id(&order_id)
+            .await
+            .unwrap()
+            .expect("row kept");
         assert_eq!(kept.order.status, crate::api::types::OrderStatus::Pending);
-        assert!(drain_reasoned(&mut rx, &order_id).is_empty(), "no Canceled emitted");
+        assert!(
+            drain_reasoned(&mut rx, &order_id).is_empty(),
+            "no Canceled emitted"
+        );
     }
 
     /// A maker row past its deadline whose order the public book already
@@ -25412,7 +25724,11 @@ mod tests {
         let mut rx = trade_updates_tx().subscribe();
 
         assert!(!close_expired_bond_trade(&row, 1_001).await, "not wiped");
-        let kept = db.get_trade_by_order_id(&order_id).await.unwrap().expect("row kept");
+        let kept = db
+            .get_trade_by_order_id(&order_id)
+            .await
+            .unwrap()
+            .expect("row kept");
         assert_eq!(kept.order.status, crate::api::types::OrderStatus::Pending);
         assert_eq!(
             kept.bond.map(|b| b.state),
@@ -25570,7 +25886,9 @@ mod tests {
         let db = bond_test_db().await;
         let order_uuid = uuid::Uuid::new_v4();
         let order_id = order_uuid.to_string();
-        db.save_trade(&cashu_seller_row(&order_id, 51)).await.unwrap();
+        db.save_trade(&cashu_seller_row(&order_id, 51))
+            .await
+            .unwrap();
         let key = "ff00ff91";
         let rx = register_cashu_lock(key, 991);
 
@@ -25921,7 +26239,10 @@ mod tests {
             *reason,
             Some(crate::api::types::TradeUpdateReason::OrderPublished)
         );
-        assert!((before..=after).contains(at), "{at} not in {before}..={after}");
+        assert!(
+            (before..=after).contains(at),
+            "{at} not in {before}..={after}"
+        );
     }
 
     /// The user's explicit "remove from this device" never drops an order
@@ -26219,7 +26540,13 @@ mod tests {
     ) -> mostro_core::transport::UnwrappedMessage {
         let sender = nostr_sdk::prelude::PublicKey::from_hex(sender_hex).expect("valid pubkey");
         mostro_core::transport::UnwrappedMessage {
-            message: mostro_core::message::Message::new_order(Some(order_uuid), None, None, action, None),
+            message: mostro_core::message::Message::new_order(
+                Some(order_uuid),
+                None,
+                None,
+                action,
+                None,
+            ),
             signature: None,
             sender,
             identity: sender,
@@ -26260,11 +26587,19 @@ mod tests {
             31,
         )
         .await;
-        let claim = db.get_bond_claim(&node, &order_id).await.unwrap().expect("claim persisted");
+        let claim = db
+            .get_bond_claim(&node, &order_id)
+            .await
+            .unwrap()
+            .expect("claim persisted");
         assert_eq!(claim.phase, crate::api::types::BondClaimPhase::Pending);
         assert_eq!(claim.amount_sats, 1_500);
         assert_eq!(claim.slashed_at, slashed_at);
-        assert_eq!(claim.deadline_at, slashed_at + 15 * 86_400, "default window");
+        assert_eq!(
+            claim.deadline_at,
+            slashed_at + 15 * 86_400,
+            "default window"
+        );
         assert_eq!(claim.fiat_code, "VES");
         assert!(crate::mostro::bond_claims::is_claim_node(&node));
 
@@ -26287,7 +26622,11 @@ mod tests {
         )
         .await;
         assert_eq!(
-            db.get_bond_claim(&node, &order_id).await.unwrap().unwrap().phase,
+            db.get_bond_claim(&node, &order_id)
+                .await
+                .unwrap()
+                .unwrap()
+                .phase,
             crate::api::types::BondClaimPhase::Acknowledged
         );
         dispatch_mostro_message(
@@ -26298,7 +26637,11 @@ mod tests {
         )
         .await;
         assert_eq!(
-            db.get_bond_claim(&node, &order_id).await.unwrap().unwrap().phase,
+            db.get_bond_claim(&node, &order_id)
+                .await
+                .unwrap()
+                .unwrap()
+                .phase,
             crate::api::types::BondClaimPhase::Completed
         );
         assert_eq!(
@@ -26337,7 +26680,11 @@ mod tests {
             32,
         )
         .await;
-        assert!(db.get_bond_claim(&node, &order_uuid.to_string()).await.unwrap().is_none());
+        assert!(db
+            .get_bond_claim(&node, &order_uuid.to_string())
+            .await
+            .unwrap()
+            .is_none());
     }
 
     /// After a node switch the issuing node is not the active one: its claim
@@ -26359,7 +26706,11 @@ mod tests {
             33,
         )
         .await;
-        assert!(db.get_bond_claim(&other, &order_id).await.unwrap().is_none());
+        assert!(db
+            .get_bond_claim(&other, &order_id)
+            .await
+            .unwrap()
+            .is_none());
 
         // The claim was issued while `other` was active; the user switched.
         let seeded = crate::mostro::bond_claims::PayoutRequest {
@@ -26372,8 +26723,11 @@ mod tests {
             fiat_amount: None,
             payment_method: "PagoMovil".into(),
         };
-        let (claim, _) = crate::mostro::bond_claims::upsert_claim(None, &seeded, None, slashed_at + 1);
-        crate::api::bond::persist_claim(&claim.unwrap()).await.unwrap();
+        let (claim, _) =
+            crate::mostro::bond_claims::upsert_claim(None, &seeded, None, slashed_at + 1);
+        crate::api::bond::persist_claim(&claim.unwrap())
+            .await
+            .unwrap();
         assert!(crate::mostro::bond_claims::is_claim_node(&other));
 
         dispatch_mostro_message(
@@ -26384,14 +26738,24 @@ mod tests {
         )
         .await;
         assert_eq!(
-            db.get_bond_claim(&other, &order_id).await.unwrap().unwrap().phase,
+            db.get_bond_claim(&other, &order_id)
+                .await
+                .unwrap()
+                .unwrap()
+                .phase,
             crate::api::types::BondClaimPhase::Acknowledged
         );
 
         // Anything else from that node is not its business.
-        db.save_trade(&bonded_maker_row(&order_id, Some(BOND_BOLT11), None, None, 33))
-            .await
-            .unwrap();
+        db.save_trade(&bonded_maker_row(
+            &order_id,
+            Some(BOND_BOLT11),
+            None,
+            None,
+            33,
+        ))
+        .await
+        .unwrap();
         dispatch_mostro_message(
             claim_message(order_uuid, &other, Action::Canceled),
             "test-claim-foreign-cancel",
@@ -26438,7 +26802,10 @@ mod tests {
             41,
         )
         .await;
-        assert!(rx.try_recv().is_err(), "the echo must not resolve the waiter");
+        assert!(
+            rx.try_recv().is_err(),
+            "the echo must not resolve the waiter"
+        );
 
         dispatch_mostro_message(
             correlated_message(order_uuid, 811, Action::BondInvoiceAccepted, None, 5_001),
@@ -26448,7 +26815,10 @@ mod tests {
         )
         .await;
         match rx.try_recv() {
-            Ok(Wake { reply: DaemonReply::Acknowledged, .. }) => {}
+            Ok(Wake {
+                reply: DaemonReply::Acknowledged,
+                ..
+            }) => {}
             _ => panic!("the acknowledgement resolves the waiter"),
         }
     }
@@ -26471,7 +26841,11 @@ mod tests {
             45,
         )
         .await;
-        let claim = db.get_bond_claim(&node, &order_id).await.unwrap().expect("claim persisted");
+        let claim = db
+            .get_bond_claim(&node, &order_id)
+            .await
+            .unwrap()
+            .expect("claim persisted");
         assert_eq!(claim.trade_index, Some(45));
         db.delete_bond_claim(&node, &order_id).await.unwrap();
         crate::api::bond::refresh_claim_nodes().await;
@@ -26502,7 +26876,11 @@ mod tests {
             46,
         )
         .await;
-        let claim = db.get_bond_claim(&left, &order_id).await.unwrap().expect("claim created");
+        let claim = db
+            .get_bond_claim(&left, &order_id)
+            .await
+            .unwrap()
+            .expect("claim created");
         assert_eq!(claim.amount_sats, 700);
 
         db.delete_bond_claim(&left, &order_id).await.unwrap();
@@ -26537,23 +26915,32 @@ mod tests {
         };
         // Past its (frozen) deadline: the submission expires it instead.
         let (claim, _) = crate::mostro::bond_claims::upsert_claim(None, &request, None, 2_000);
-        crate::api::bond::persist_claim(&claim.unwrap()).await.unwrap();
+        crate::api::bond::persist_claim(&claim.unwrap())
+            .await
+            .unwrap();
         let mut rx = crate::api::bond::subscribe_claim_updates();
         let err = crate::api::bond::submit_bond_payout_invoice(order_id.clone(), "lnbc1x".into())
             .await
             .expect_err("expired");
         assert_eq!(err.to_string(), "BondClaimExpired");
-        assert_eq!(drain_claims(&mut rx, &order_id), vec![crate::api::types::BondClaimPhase::Expired]);
+        assert_eq!(
+            drain_claims(&mut rx, &order_id),
+            vec![crate::api::types::BondClaimPhase::Expired]
+        );
 
         // A live claim with a decodable bolt11 for another amount.
         let mut live = request.clone();
         live.amount_sats = 1_500; // BOND_BOLT11 is for 2 500 µBTC = 250 000 sats
         live.slashed_at = crate::rt::unix_now();
-        let (claim, _) = crate::mostro::bond_claims::upsert_claim(None, &live, None, live.slashed_at);
-        crate::api::bond::persist_claim(&claim.unwrap()).await.unwrap();
-        let err = crate::api::bond::submit_bond_payout_invoice(order_id.clone(), BOND_BOLT11.into())
+        let (claim, _) =
+            crate::mostro::bond_claims::upsert_claim(None, &live, None, live.slashed_at);
+        crate::api::bond::persist_claim(&claim.unwrap())
             .await
-            .expect_err("wrong amount");
+            .unwrap();
+        let err =
+            crate::api::bond::submit_bond_payout_invoice(order_id.clone(), BOND_BOLT11.into())
+                .await
+                .expect_err("wrong amount");
         assert_eq!(err.to_string(), "InvoiceAmountMismatch");
         _db.delete_bond_claim(&node, &order_id).await.unwrap();
         crate::api::bond::refresh_claim_nodes().await;
@@ -26572,7 +26959,9 @@ mod tests {
         row.trade_key_index = 71;
         row.bond.as_mut().unwrap().state = crate::api::types::BondState::Locked;
         db.save_trade(&row).await.unwrap();
-        wipe_never_active_trade(&order_id, true, 5_000, 71).await.unwrap();
+        wipe_never_active_trade(&order_id, true, 5_000, 71)
+            .await
+            .unwrap();
         assert!(db.get_trade_by_order_id(&order_id).await.unwrap().is_none());
 
         let mut rx = crate::api::bond::subscribe_slashed();
@@ -26594,13 +26983,20 @@ mod tests {
             None,
         );
         dispatch_mostro_message(
-            daemon_message(order_uuid, Action::BondSlashed, Some(Payload::Order(so)), 6_000),
+            daemon_message(
+                order_uuid,
+                Action::BondSlashed,
+                Some(Payload::Order(so)),
+                6_000,
+            ),
             "test-slash-after-wipe",
             "ff00ff91",
             71,
         )
         .await;
-        let event = rx.try_recv().expect("the slash notice reaches the notification layer");
+        let event = rx
+            .try_recv()
+            .expect("the slash notice reaches the notification layer");
         assert_eq!(event.order_id, order_id);
         assert_eq!(event.amount_sats, 1_000);
     }
@@ -26626,7 +27022,9 @@ mod tests {
         let mut row = bonded_taker_row(&order_id, BOND_BOLT11, None);
         row.trade_key_index = 71;
         _db.save_trade(&row).await.unwrap();
-        wipe_never_active_trade(&order_id, true, 5_000, 71).await.unwrap();
+        wipe_never_active_trade(&order_id, true, 5_000, 71)
+            .await
+            .unwrap();
 
         // Process loss: nothing survives in the coverage map.
         global_dm_keys().write().await.clear();
@@ -26636,7 +27034,10 @@ mod tests {
             pubkeys.contains(&wiped_key.public_key()),
             "the wiped trade's key must be derived back onto the filter"
         );
-        assert!(global_dm_keys().read().await.contains_key(&wiped_key.public_key().to_hex()));
+        assert!(global_dm_keys()
+            .read()
+            .await
+            .contains_key(&wiped_key.public_key().to_hex()));
     }
 
     /// docs/ANTI_ABUSE_BOND.md §6.5 (T4.3): a restore lists an order parked
@@ -26662,14 +27063,13 @@ mod tests {
         let kept = bonded_taker_row(&kept_uuid.to_string(), "lnbc1kept", None);
         db.save_trade(&kept).await.unwrap();
 
-        let restored = |id: uuid::Uuid, index: i64, status: &str| {
-            mostro_core::message::RestoredOrdersInfo {
+        let restored =
+            |id: uuid::Uuid, index: i64, status: &str| mostro_core::message::RestoredOrdersInfo {
                 order_id: id,
                 trade_index: index,
                 status: status.to_string(),
                 counterparty_trade_pubkey: None,
-            }
-        };
+            };
         persist_restored_bond_rows(
             &mostro_core::message::RestoreSessionInfo {
                 restore_orders: vec![
@@ -26684,7 +27084,11 @@ mod tests {
         )
         .await;
 
-        let taker = db.get_trade_by_order_id(&taker_id).await.unwrap().expect("taker row");
+        let taker = db
+            .get_trade_by_order_id(&taker_id)
+            .await
+            .unwrap()
+            .expect("taker row");
         assert_eq!(taker.order.status, OrderStatus::WaitingTakerBond);
         assert_eq!(taker.role, TradeRole::Buyer);
         assert!(!taker.order.is_mine);
@@ -26704,8 +27108,15 @@ mod tests {
         assert!(maker.order.is_mine);
         assert_eq!(maker.bond.map(|b| b.role), Some(BondRole::Maker));
 
-        let untouched = db.get_trade_by_order_id(&kept_uuid.to_string()).await.unwrap().unwrap();
-        assert_eq!(untouched.bond.unwrap().invoice.as_deref(), Some("lnbc1kept"));
+        let untouched = db
+            .get_trade_by_order_id(&kept_uuid.to_string())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(
+            untouched.bond.unwrap().invoice.as_deref(),
+            Some("lnbc1kept")
+        );
 
         // A taker whose public order is nowhere to be found (no book entry,
         // no pool to ask): no row is guessed.
@@ -26718,7 +27129,11 @@ mod tests {
             RESTORED_NODE,
         )
         .await;
-        assert!(db.get_trade_by_order_id(&unknown.to_string()).await.unwrap().is_none());
+        assert!(db
+            .get_trade_by_order_id(&unknown.to_string())
+            .await
+            .unwrap()
+            .is_none());
     }
 
     /// The restored maker placeholder has no side of its own: the daemon's
@@ -26747,14 +27162,24 @@ mod tests {
         so.kind = Some(mostro_core::order::Kind::Buy);
         so.fiat_amount = 250;
         dispatch_mostro_message(
-            correlated_message(order_uuid, 903, Action::NewOrder, Some(Payload::Order(so)), 2_000),
+            correlated_message(
+                order_uuid,
+                903,
+                Action::NewOrder,
+                Some(Payload::Order(so)),
+                2_000,
+            ),
             "test-restored-maker-filled",
             "ff00ff92",
             86,
         )
         .await;
 
-        let row = db.get_trade_by_order_id(&order_id).await.unwrap().expect("row kept");
+        let row = db
+            .get_trade_by_order_id(&order_id)
+            .await
+            .unwrap()
+            .expect("row kept");
         assert_eq!(row.order.status, OrderStatus::Pending);
         assert_eq!(row.order.kind, OrderKind::Buy);
         assert_eq!(row.role, TradeRole::Buyer);
@@ -27411,13 +27836,8 @@ mod tests {
         // relays. Same index, same status: the recorder keeps the old value,
         // which is why its date proves nothing.
         record_status_event(&order_id, now - 1).await;
-        crate::api::invoice::record_invoice_step_start(
-            &order_id,
-            "WaitingPayment",
-            now - 1,
-            index,
-        )
-        .await;
+        crate::api::invoice::record_invoice_step_start(&order_id, "WaitingPayment", now - 1, index)
+            .await;
         assert_eq!(
             db.get_setting(&key).await.unwrap(),
             Some(format!("WaitingPayment:{}:{index}", now - 900)),
@@ -27953,8 +28373,12 @@ mod tests {
         let order_uuid = uuid::Uuid::new_v4();
         let order_id = order_uuid.to_string();
         waiting_buyer_trade(db, &order_id).await;
-        dispatch_add_invoice(order_uuid, mostro_core::order::Status::WaitingBuyerInvoice, 2_000)
-            .await;
+        dispatch_add_invoice(
+            order_uuid,
+            mostro_core::order::Status::WaitingBuyerInvoice,
+            2_000,
+        )
+        .await;
 
         // What a refetch of the book (Refresh user, a node switch) ingests.
         ingest_order_event_with(
@@ -27972,8 +28396,12 @@ mod tests {
         let order_uuid = uuid::Uuid::new_v4();
         let order_id = order_uuid.to_string();
         waiting_buyer_trade(db, &order_id).await;
-        dispatch_add_invoice(order_uuid, mostro_core::order::Status::WaitingBuyerInvoice, 2_000)
-            .await;
+        dispatch_add_invoice(
+            order_uuid,
+            mostro_core::order::Status::WaitingBuyerInvoice,
+            2_000,
+        )
+        .await;
 
         let mut revision = wire_order(&order_id, OrderStatus::InProgress);
         revision.amount_sats = Some(ORDER_SATS);
@@ -28829,7 +29257,9 @@ mod restore_e2e_tests {
             .await
             .expect("first take");
         println!("[test] first take idx={}", first.trade_key_index);
-        cancel_order(order_id.clone()).await.expect("cancel the first take");
+        cancel_order(order_id.clone())
+            .await
+            .expect("cancel the first take");
 
         // The wipe first: the book is no signal for it. mostrod publishes the
         // `pending` republish before it sends the `Canceled`, and the book
@@ -28855,7 +29285,9 @@ mod restore_e2e_tests {
             "a lost take's order must come back to the ex-taker's book"
         );
 
-        db.save_trade(&first).await.expect("plant the first take's row");
+        db.save_trade(&first)
+            .await
+            .expect("plant the first take's row");
         crate::mostro::session::session_manager()
             .install_session(
                 order_id.clone(),
@@ -28889,7 +29321,9 @@ mod restore_e2e_tests {
             "the session must carry the retake's trade key"
         );
 
-        cancel_order(order_id.clone()).await.expect("cancel the retake");
+        cancel_order(order_id.clone())
+            .await
+            .expect("cancel the retake");
         assert!(
             wait_for_book_status(&order_id, OrderStatus::Pending, 40).await,
             "the order must be pending again for the next run"
