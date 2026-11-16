@@ -1250,6 +1250,7 @@
   "chatKeySharedIndicator": "Chat-Schlüssel mit dem Schlichter geteilt",
   "shareChatKeyUnavailable": "Der Chat-Schlüssel dieses Trades ist auf diesem Gerät nicht verfügbar.",
   "moreReactions": "Weitere Reaktionen",
+  "insertEmoji": "Emoji einfügen",
   "messageReactionLabel": "Reaktion: {emoji}",
   "reactionSendFailed": "Die Reaktion konnte nicht gesendet werden. Bitte versuche es erneut.",
   "messageMenuHint": "Nachrichtenmenü öffnen",

@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/composer_emoji_button.dart';
 
 /// Bottom message composition bar.
 ///
-/// Pill-shaped row containing an attach button, a text field, and a send button.
+/// Pill-shaped row containing an attach button, an emoji button, a text field
+/// that grows to five lines, and a send button.
 /// The field takes the cursor as it appears, so a chat opens ready to type.
 class MessageInput extends StatefulWidget {
   const MessageInput({
@@ -32,10 +34,12 @@ class MessageInput extends StatefulWidget {
 
 class _MessageInputState extends State<MessageInput> {
   final _controller = TextEditingController();
+  final _focusNode = FocusNode();
 
   @override
   void dispose() {
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -64,7 +68,8 @@ class _MessageInputState extends State<MessageInput> {
         vertical: AppSpacing.xs,
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        // The buttons stay by the last line as the field grows.
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           // Attachment button / progress
           if (widget.onAttachFile != null)
@@ -90,12 +95,23 @@ class _MessageInputState extends State<MessageInput> {
                     ),
             ),
 
+          ComposerEmojiButton(
+            controller: _controller,
+            focusNode: _focusNode,
+            color: colors.textSubtle,
+          ),
+
           // Text field
           Expanded(
             child: TextField(
               controller: _controller,
+              focusNode: _focusNode,
               autofocus: true,
-              maxLines: 1,
+              // Wraps up to five lines, then scrolls. The keyboard keeps
+              // Send rather than a new-line key, so sending is unchanged.
+              keyboardType: TextInputType.text,
+              minLines: 1,
+              maxLines: 5,
               textInputAction: TextInputAction.send,
               onSubmitted: (_) => _handleSend(),
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(

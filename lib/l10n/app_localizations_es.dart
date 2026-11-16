@@ -4638,6 +4638,9 @@ class AppLocalizationsEs extends AppLocalizations {
   String get moreReactions => 'Más reacciones';
 
   @override
+  String get insertEmoji => 'Insertar emoji';
+
+  @override
   String messageReactionLabel(String emoji) {
     return 'Reacción: $emoji';
   }

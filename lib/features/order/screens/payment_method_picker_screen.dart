@@ -565,8 +565,10 @@ class _CustomMethodSheetState extends State<_CustomMethodSheet> {
       content: TextField(
         controller: _controller,
         autofocus: true,
+        // Suggestions stay on: without them Android asks for a
+        // visible-password field, and Gboard drops its emoji key for one
+        // (#938). Autocorrect stays off so a name like "MODO" is kept.
         autocorrect: false,
-        enableSuggestions: false,
         textInputAction: TextInputAction.done,
         style: TextStyle(fontSize: 15, color: palette.textPrimary),
         decoration: InputDecoration(

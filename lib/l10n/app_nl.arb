@@ -1251,6 +1251,7 @@
   "shareChatKeyUnavailable": "De chatsleutel van deze trade is niet beschikbaar op dit apparaat.",
   "messageMenuHint": "Berichtmenu openen",
   "moreReactions": "Meer reacties",
+  "insertEmoji": "Emoji invoegen",
   "messageReactionLabel": "Reactie: {emoji}",
   "reactionSendFailed": "De reactie kon niet worden verstuurd. Probeer het opnieuw.",
   "cashuAnyMint": "Elke mint",

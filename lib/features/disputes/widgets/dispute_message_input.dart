@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 
 import 'package:mostro/core/app_theme.dart';
 import 'package:mostro/l10n/app_localizations.dart';
+import 'package:mostro/shared/widgets/composer_emoji_button.dart';
 
 /// Message composition bar for dispute/admin chat.
 ///
-/// Same layout as the P2P [MessageInput] — attach + text field + send button.
+/// Same layout as the P2P [MessageInput] — attach + emoji + text field + send
+/// button.
 /// Only rendered when the dispute is still `in-progress`; hidden for
 /// resolved or closed disputes.
 ///
@@ -40,10 +42,12 @@ class DisputeMessageInput extends StatefulWidget {
 
 class _DisputeMessageInputState extends State<DisputeMessageInput> {
   final _controller = TextEditingController();
+  final _focusNode = FocusNode();
 
   @override
   void dispose() {
     _controller.dispose();
+    _focusNode.dispose();
     super.dispose();
   }
 
@@ -59,6 +63,7 @@ class _DisputeMessageInputState extends State<DisputeMessageInput> {
 
   @override
   Widget build(BuildContext context) {
+    // design-check: ignore DS-COL-11 — the v1 composer colours (§14), unchanged; the chat has no palette yet
     final colors = Theme.of(context).extension<AppColors>();
     if (colors == null) throw StateError('AppColors theme extension must be registered');
     final l10n = AppLocalizations.of(context);
@@ -66,6 +71,7 @@ class _DisputeMessageInputState extends State<DisputeMessageInput> {
     return Container(
       decoration: BoxDecoration(
         color: colors.backgroundCard,
+        // design-check: ignore DS-SHP-1 — the v1 composer pill (§14), unchanged; the chat has no palette yet
         borderRadius: BorderRadius.circular(28),
       ),
       padding: const EdgeInsets.symmetric(
@@ -73,7 +79,8 @@ class _DisputeMessageInputState extends State<DisputeMessageInput> {
         vertical: AppSpacing.xs,
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        // The buttons stay by the last line as the field grows.
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           // Attachment button / progress
           SizedBox(
@@ -98,11 +105,22 @@ class _DisputeMessageInputState extends State<DisputeMessageInput> {
                   ),
           ),
 
+          ComposerEmojiButton(
+            controller: _controller,
+            focusNode: _focusNode,
+            color: colors.textSubtle,
+          ),
+
           // Text field
           Expanded(
             child: TextField(
               controller: _controller,
-              maxLines: 1,
+              focusNode: _focusNode,
+              // Wraps up to five lines, then scrolls. The keyboard keeps
+              // Send rather than a new-line key, so sending is unchanged.
+              keyboardType: TextInputType.text,
+              minLines: 1,
+              maxLines: 5,
               textInputAction: TextInputAction.send,
               onSubmitted: (_) => _handleSend(),
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
@@ -114,14 +132,17 @@ class _DisputeMessageInputState extends State<DisputeMessageInput> {
                 filled: true,
                 fillColor: colors.backgroundInput,
                 border: OutlineInputBorder(
+                  // design-check: ignore DS-SHP-4 — the v1 composer field (§14), unchanged; the chat has no palette yet
                   borderRadius: BorderRadius.circular(AppRadius.input),
                   borderSide: BorderSide.none,
                 ),
                 enabledBorder: OutlineInputBorder(
+                  // design-check: ignore DS-SHP-4 — the v1 composer field (§14), unchanged; the chat has no palette yet
                   borderRadius: BorderRadius.circular(AppRadius.input),
                   borderSide: BorderSide.none,
                 ),
                 focusedBorder: OutlineInputBorder(
+                  // design-check: ignore DS-SHP-4 — the v1 composer field (§14), unchanged; the chat has no palette yet
                   borderRadius: BorderRadius.circular(AppRadius.input),
                   borderSide: BorderSide.none,
                 ),

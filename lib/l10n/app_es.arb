@@ -1251,6 +1251,7 @@
   "shareChatKeyUnavailable": "La clave del chat de esta operación no está disponible en este dispositivo.",
   "messageMenuHint": "Abrir el menú del mensaje",
   "moreReactions": "Más reacciones",
+  "insertEmoji": "Insertar emoji",
   "messageReactionLabel": "Reacción: {emoji}",
   "reactionSendFailed": "No se pudo enviar la reacción. Inténtalo de nuevo.",
   "cashuAnyMint": "Cualquier mint",

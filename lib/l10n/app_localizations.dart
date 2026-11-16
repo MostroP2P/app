@@ -7602,6 +7602,12 @@ abstract class AppLocalizations {
   /// **'More reactions'**
   String get moreReactions;
 
+  /// Chat composers: tooltip of the emoji button, and the title of the sheet with every emoji it opens
+  ///
+  /// In en, this message translates to:
+  /// **'Insert emoji'**
+  String get insertEmoji;
+
   /// Screen-reader label of the reaction shown under a chat message
   ///
   /// In en, this message translates to:
