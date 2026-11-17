@@ -1729,6 +1729,10 @@ class AppLocalizationsIt extends AppLocalizations {
       'Questo ordine non attende più una fattura. Aggiornamento dello stato…';
 
   @override
+  String get invoicePayoutInFlight =>
+      'Il nodo sta ancora pagando la tua fattura precedente. Se quel pagamento fallisce, te ne chiederà una nuova.';
+
+  @override
   String get invoiceAwaitingNode =>
       'Inviata. Il nodo non ha ancora risposto: ti porteremo all\'operazione non appena lo farà.';
 

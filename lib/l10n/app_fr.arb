@@ -497,6 +497,7 @@
   "viewOrderLink": "Voir l'ordre",
   "timeLeftLabel": "{time} restant",
   "invoiceNoLongerExpected": "Cet ordre n'attend plus de facture. Mise à jour de son statut…",
+  "invoicePayoutInFlight": "Le nœud est encore en train de payer ta facture précédente. Si ce paiement échoue, il t'en demandera une nouvelle.",
   "invoiceAwaitingNode": "Envoyée. Le nœud n'a pas encore répondu ; vous serez redirigé vers la transaction dès qu'il le fera.",
   "invoiceAwaitingNodeLong": "Toujours pas de réponse du nœud. Si la transaction n'avance pas, renvoyez-la.",
   "invoiceSubmitInFlight": "Une facture pour cet ordre est déjà en cours d'envoi. Attendez la réponse.",

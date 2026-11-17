@@ -11228,6 +11228,7 @@ impl SseDecode for crate::api::types::PayoutDestination {
         let mut var_outcome = <crate::api::types::PayoutOutcome>::sse_decode(deserializer);
         let mut var_outcomeAt = <Option<i64>>::sse_decode(deserializer);
         let mut var_attempts = <Option<u32>>::sse_decode(deserializer);
+        let mut var_rejection = <Option<String>>::sse_decode(deserializer);
         return crate::api::types::PayoutDestination {
             destination: var_destination,
             is_lightning_address: var_isLightningAddress,
@@ -11239,6 +11240,7 @@ impl SseDecode for crate::api::types::PayoutDestination {
             outcome: var_outcome,
             outcome_at: var_outcomeAt,
             attempts: var_attempts,
+            rejection: var_rejection,
         };
     }
 }
@@ -14409,6 +14411,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::PayoutDestination {
             self.outcome.into_into_dart().into_dart(),
             self.outcome_at.into_into_dart().into_dart(),
             self.attempts.into_into_dart().into_dart(),
+            self.rejection.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -17138,6 +17141,7 @@ impl SseEncode for crate::api::types::PayoutDestination {
         <crate::api::types::PayoutOutcome>::sse_encode(self.outcome, serializer);
         <Option<i64>>::sse_encode(self.outcome_at, serializer);
         <Option<u32>>::sse_encode(self.attempts, serializer);
+        <Option<String>>::sse_encode(self.rejection, serializer);
     }
 }
 

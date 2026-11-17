@@ -1509,6 +1509,7 @@ async fn create_order_once(params: NewOrderParams) -> Result<OrderInfo> {
         Ok(Ok(Wake {
             reply: DaemonReply::BondRequested { daemon_id, bond },
             order_guard,
+            ..
         })) => {
             crate::api::logging::blog_info(
                 "orders",
@@ -1859,6 +1860,7 @@ async fn take_order_once(
                     trade_pubkeys,
                 },
             order_guard,
+            ..
         })) => {
             crate::api::logging::blog_info(
                 "orders",
@@ -2264,54 +2266,69 @@ pub async fn send_invoice(
         detach_request_waiter(&trade_pk_hex, request_id);
     }
 
-    if matches!(
-        reply,
-        Ok(Ok(Wake {
-            reply: DaemonReply::Rejected { .. },
-            ..
-        }))
-    ) {
-        crate::mostro::payout_route::record_rejection(
-            &order_id,
-            trade_index,
-            &sent_key.destination,
-            sent_key.submitted_at,
-            crate::rt::unix_now(),
-        )
-        .await;
-    }
+    let (verdict, recorded) = match reply {
+        Ok(Ok(wake)) => (Some(wake.reply), wake.payout_recorded),
+        _ => (None, false),
+    };
+    invoice_verdict(&sent_key, trade_index, verdict, recorded, window).await
+}
 
-    match reply {
-        Ok(Ok(Wake {
-            reply: DaemonReply::Rejected { reason, message },
-            ..
-        })) => {
+/// What `send_invoice` returns for the node's `verdict` on `sent`, sent on
+/// trade key `trade_index` (`None`: no answer within `window`), with the
+/// payout record brought up to date with it. `recorded`: the dispatcher
+/// already marked a refusal on the record.
+async fn invoice_verdict(
+    sent: &SentPayout,
+    trade_index: u32,
+    verdict: Option<DaemonReply>,
+    recorded: bool,
+    window: std::time::Duration,
+) -> Result<()> {
+    let order_id = &sent.order_id;
+    match verdict {
+        Some(DaemonReply::Rejected { reason, message }) => {
             crate::api::logging::blog_warn(
                 "orders",
                 format!("add_invoice rejected: {reason} — {message}"),
             );
+            // The dispatcher marked it before waking this caller — unless the
+            // refusal beat `note_payout_sent`, so it is marked here. Only then:
+            // a second filing could reach a later send of the same
+            // destination in the same second (PR #942 review).
+            if !recorded {
+                crate::mostro::payout_route::record_rejection(
+                    order_id,
+                    trade_index,
+                    &sent.destination,
+                    sent.submitted_at,
+                    crate::rt::unix_now(),
+                    &reason,
+                )
+                .await;
+            }
             Err(anyhow::anyhow!("{message}"))
         }
-        Ok(Ok(_)) => {
+        Some(_) => {
             crate::api::logging::blog_info(
                 "orders",
                 format!("add_invoice acknowledged by daemon for order={order_id}"),
             );
             // The dispatcher recorded it before waking this caller — unless
-            // the acknowledgement beat `note_payout_sent` above, so it is
-            // recorded again here; a second time changes nothing.
+            // the acknowledgement beat `note_payout_sent`, so it is recorded
+            // again here; a second time changes nothing.
             crate::mostro::payout_route::record_acknowledgement(
-                &order_id,
+                order_id,
                 trade_index,
-                &sent_key.destination,
-                sent_key.submitted_at,
+                &sent.destination,
+                sent.submitted_at,
             )
             .await;
             Ok(())
         }
-        _ => {
+        None => {
             // Published, not answered: not a failure. The late reply still
-            // lands as a status update and the screen follows it (#615).
+            // lands as a status update and the screen follows it (#615), and
+            // a late refusal marks the payout record (#941).
             crate::api::logging::blog_warn(
                 "orders",
                 format!(
@@ -3972,6 +3989,7 @@ async fn dispatch_mostro_message(
                 match tx.send(crate::mostro::pending::Wake {
                     reply,
                     order_guard: order_guard.take(),
+                    payout_recorded: false,
                 }) {
                     Ok(()) => {
                         crate::api::logging::blog_info(
@@ -5178,11 +5196,33 @@ async fn dispatch_mostro_message(
             let matched = take_matching_restore(trade_pubkey_hex, event_ts)
                 .or_else(|| take_matching_request(trade_pubkey_hex, kind.request_id));
             if let Some(pending) = matched {
+                // A refused invoice is marked on the trade's payout record
+                // whether its caller still waits or not, as an acknowledged
+                // one is (#941): the add-invoice screen follows that record,
+                // and a refusal changes no status that could move it.
+                let payout_recorded = match &pending.kind {
+                    PendingRequestKind::AddInvoice { sent } => {
+                        crate::mostro::payout_route::record_rejection(
+                            &sent.order_id,
+                            pending.trade_index,
+                            &sent.destination,
+                            sent.submitted_at,
+                            crate::rt::unix_now(),
+                            &reason,
+                        )
+                        .await
+                    }
+                    _ => false,
+                };
                 if let Some(tx) = pending.tx {
                     crate::api::logging::blog_warn("daemon-msg", format!(
                         "CantDo: reason={reason} — notifying waiting caller"
                     ));
-                    let _ = tx.send(Wake::from(DaemonReply::Rejected { reason, message }));
+                    let _ = tx.send(Wake {
+                        reply: DaemonReply::Rejected { reason, message },
+                        order_guard: None,
+                        payout_recorded,
+                    });
                 } else {
                     // Genuine rejection after the 10s timeout: the caller
                     // already returned NoDaemonResponse and persisted nothing,
@@ -6505,6 +6545,7 @@ async fn handle_create_bond_reply(
                 bond: request,
             },
             order_guard: order_guard.take(),
+            payout_recorded: false,
         });
         return;
     }
@@ -7040,6 +7081,7 @@ pub async fn request_bond_invoice_again(
         Ok(Ok(Wake {
             reply: DaemonReply::TakeAccepted { bond: Some(bond), .. },
             order_guard,
+            ..
         })) => (bond, order_guard),
         Ok(Ok(Wake {
             reply: DaemonReply::TakeAccepted { action, .. },
@@ -19929,6 +19971,245 @@ mod tests {
         assert_eq!(outcomes, [PayoutOutcome::Replaced, PayoutOutcome::Submitted]);
     }
 
+    /// #941: the node's refusal of an invoice, arriving after its caller
+    /// stopped waiting, is recorded on the destination it refused, as a late
+    /// acknowledgement is. The add-invoice screen follows that record: a
+    /// refusal that only reached the log left it saying the node had not
+    /// answered, for good — a refusal changes no status.
+    #[tokio::test]
+    async fn a_late_refusal_marks_the_destination_it_refused() {
+        use crate::api::types::{PayoutOutcome, PayoutSource};
+        use crate::mostro::payout_route;
+        use mostro_core::error::CantDoReason;
+        use mostro_core::message::{Message, Payload};
+
+        let path = std::env::temp_dir().join(format!(
+            "mostro_payout_route_late_refusal_{}.db",
+            std::process::id()
+        ));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        // A replacement payout: the first one failed and is still in flight.
+        db.save_trade(&cancel_test_row(wire_order(
+            &order_id,
+            OrderStatus::SettledHoldInvoice,
+        )))
+        .await
+        .expect("save the trade row");
+        let invoice = crate::api::invoice::test_vectors::COFFEE;
+        let since = payout_route::clear_epoch(&order_id);
+        let sent = payout_route::destination(invoice, PayoutSource::Entered, None, 2_000, None);
+        let sent_key = SentPayout {
+            order_id: order_id.clone(),
+            destination: sent.destination.clone(),
+            submitted_at: sent.submitted_at,
+        };
+        payout_route::record_destination_since(&order_id, 1, sent, since).await;
+        // Its caller timed out: the record stays, without a waiter.
+        let trade_key = "ff00ffa1";
+        let nonce = 7_802;
+        register_add_invoice_request(trade_key, nonce, 1, sent_key).expect("registers");
+        detach_request_waiter(trade_key, nonce);
+
+        let sender = nostr_sdk::prelude::PublicKey::from_hex(&active_mostro_pubkey())
+            .expect("valid mostro pubkey");
+        dispatch_mostro_message(
+            mostro_core::transport::UnwrappedMessage {
+                message: Message::cant_do(
+                    Some(order_uuid),
+                    Some(nonce),
+                    Some(Payload::CantDo(Some(CantDoReason::NotAllowedByStatus))),
+                ),
+                signature: None,
+                sender,
+                identity: sender,
+                created_at: nostr_sdk::prelude::Timestamp::from(2_100),
+            },
+            &format!("test-late-refusal-{order_uuid}"),
+            trade_key,
+            1,
+        )
+        .await;
+
+        let route = payout_route::destinations(&order_id).await;
+        assert_eq!(route.len(), 1);
+        assert_eq!(route[0].outcome, PayoutOutcome::Rejected);
+        assert_eq!(route[0].rejection.as_deref(), Some("NotAllowedByStatus"));
+        assert!(
+            !pending_requests().lock().unwrap().contains_key(trade_key),
+            "the refusal consumed the record"
+        );
+    }
+
+    /// A refusal can reach the dispatcher before `send_invoice` has recorded
+    /// the destination as sent: publishing and the record's write both await.
+    /// The dispatcher then finds nothing to mark, so the caller marks it when
+    /// the refusal wakes it, or the refused invoice stays `Submitted` for
+    /// good (PR #942 review).
+    #[tokio::test]
+    async fn a_refusal_faster_than_the_sent_record_still_marks_it() {
+        use crate::api::types::{PayoutOutcome, PayoutSource};
+        use crate::mostro::payout_route;
+        use mostro_core::error::CantDoReason;
+        use mostro_core::message::{Message, Payload};
+
+        let path = std::env::temp_dir().join(format!(
+            "mostro_payout_route_fast_refusal_{}.db",
+            std::process::id()
+        ));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        db.save_trade(&cancel_test_row(wire_order(
+            &order_id,
+            OrderStatus::SettledHoldInvoice,
+        )))
+        .await
+        .expect("save the trade row");
+        let since = payout_route::clear_epoch(&order_id);
+        let sent = payout_route::destination(
+            crate::api::invoice::test_vectors::COFFEE,
+            PayoutSource::Entered,
+            None,
+            3_000,
+            None,
+        );
+        let sent_key = SentPayout {
+            order_id: order_id.clone(),
+            destination: sent.destination.clone(),
+            submitted_at: sent.submitted_at,
+        };
+        let trade_key = "ff00ffa2";
+        let nonce = 7_803;
+        let conf_rx =
+            register_add_invoice_request(trade_key, nonce, 1, sent_key.clone()).expect("registers");
+
+        // Published; the refusal is dispatched before the destination is written.
+        let sender = nostr_sdk::prelude::PublicKey::from_hex(&active_mostro_pubkey())
+            .expect("valid mostro pubkey");
+        dispatch_mostro_message(
+            mostro_core::transport::UnwrappedMessage {
+                message: Message::cant_do(
+                    Some(order_uuid),
+                    Some(nonce),
+                    Some(Payload::CantDo(Some(CantDoReason::InvalidInvoice))),
+                ),
+                signature: None,
+                sender,
+                identity: sender,
+                created_at: nostr_sdk::prelude::Timestamp::from(3_100),
+            },
+            &format!("test-fast-refusal-{order_uuid}"),
+            trade_key,
+            1,
+        )
+        .await;
+        note_payout_sent(&order_id, 1, sent, since).await;
+
+        let wake = conf_rx.await.expect("the refusal woke the caller");
+        assert!(!wake.payout_recorded, "nothing was there to mark yet");
+        let returned = invoice_verdict(
+            &sent_key,
+            1,
+            Some(wake.reply),
+            wake.payout_recorded,
+            std::time::Duration::from_secs(10),
+        )
+        .await;
+
+        assert!(returned.is_err(), "the caller still reports the refusal");
+        let route = payout_route::destinations(&order_id).await;
+        assert_eq!(route.len(), 1);
+        assert_eq!(route[0].outcome, PayoutOutcome::Rejected);
+        assert_eq!(route[0].rejection.as_deref(), Some("InvalidInvoice"));
+    }
+
+    /// The dispatcher marks a refusal before it wakes the caller, and frees
+    /// the trade key for a new send first. The same destination sent again in
+    /// that second is not refused by the woken caller filing it a second
+    /// time (PR #942 review).
+    #[tokio::test]
+    async fn a_refusal_already_marked_is_not_filed_on_the_next_send() {
+        use crate::api::types::{PayoutOutcome, PayoutSource};
+        use crate::mostro::payout_route;
+        use crate::mostro::pending::SentPayout;
+        use mostro_core::error::CantDoReason;
+        use mostro_core::message::{Message, Payload};
+
+        let path = std::env::temp_dir()
+            .join(format!("mostro_payout_route_twin_{}.db", std::process::id()));
+        let _ = crate::db::app_db::init_db(path.to_str().unwrap()).await;
+        let db = crate::db::app_db::db().expect("store initialised");
+        let order_uuid = uuid::Uuid::new_v4();
+        let order_id = order_uuid.to_string();
+        db.save_trade(&cancel_test_row(wire_order(
+            &order_id,
+            OrderStatus::SettledHoldInvoice,
+        )))
+        .await
+        .expect("save the trade row");
+        let since = payout_route::clear_epoch(&order_id);
+        let sent = payout_route::destination(
+            crate::api::invoice::test_vectors::COFFEE,
+            PayoutSource::Entered,
+            None,
+            4_000,
+            None,
+        );
+        let sent_key = SentPayout {
+            order_id: order_id.clone(),
+            destination: sent.destination.clone(),
+            submitted_at: sent.submitted_at,
+        };
+        let trade_key = "ff00ffa3";
+        let nonce = 7_804;
+        let conf_rx =
+            register_add_invoice_request(trade_key, nonce, 1, sent_key.clone()).expect("registers");
+        // A: published and recorded as sent; the node refuses it.
+        note_payout_sent(&order_id, 1, sent.clone(), since).await;
+        let sender = nostr_sdk::prelude::PublicKey::from_hex(&active_mostro_pubkey())
+            .expect("valid mostro pubkey");
+        dispatch_mostro_message(
+            mostro_core::transport::UnwrappedMessage {
+                message: Message::cant_do(
+                    Some(order_uuid),
+                    Some(nonce),
+                    Some(Payload::CantDo(Some(CantDoReason::InvalidInvoice))),
+                ),
+                signature: None,
+                sender,
+                identity: sender,
+                created_at: nostr_sdk::prelude::Timestamp::from(4_000),
+            },
+            &format!("test-twin-refusal-{order_uuid}"),
+            trade_key,
+            1,
+        )
+        .await;
+        // B: the same destination, sent in the same second before A's caller
+        // runs.
+        note_payout_sent(&order_id, 1, sent, since).await;
+
+        let wake = conf_rx.await.expect("the refusal woke the caller");
+        let returned = invoice_verdict(
+            &sent_key,
+            1,
+            Some(wake.reply),
+            wake.payout_recorded,
+            std::time::Duration::from_secs(10),
+        )
+        .await;
+
+        assert!(returned.is_err(), "A's caller still reports the refusal");
+        let route = payout_route::destinations(&order_id).await;
+        assert_eq!(route.len(), 2);
+        assert_eq!(route[0].outcome, PayoutOutcome::Rejected, "A, refused");
+        assert_eq!(route[1].outcome, PayoutOutcome::Submitted, "B, still waiting");
+    }
+
     /// The public `success` can land before the buyer's `purchase-completed`
     /// (two relay streams): the row is already terminal and the status gate
     /// refuses the message, but the payout it reports is still recorded
@@ -20057,7 +20338,7 @@ mod tests {
 
         // A refusal arriving after it (it cannot, but a stale one) changes
         // nothing: only a destination still sent is refused.
-        payout_route::record_rejection(&order_id, 1, &key.0, key.1, 6_000).await;
+        payout_route::record_rejection(&order_id, 1, &key.0, key.1, 6_000, "InvalidInvoice").await;
         assert_eq!(payout_route::destinations(&order_id).await, route);
     }
 

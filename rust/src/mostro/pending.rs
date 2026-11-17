@@ -134,11 +134,16 @@ pub(crate) struct Wake {
     /// and an add-invoice reply is persisted by the dispatch arms themselves,
     /// which still hold the guard.
     pub(crate) order_guard: Option<tokio::sync::OwnedMutexGuard<()>>,
+    /// An add-invoice refusal the dispatcher already marked on the payout
+    /// record. The woken caller files it again only when it is `false`: the
+    /// refusal beat the record of the send. A second filing could otherwise
+    /// reach a later send of the same destination (PR #942 review).
+    pub(crate) payout_recorded: bool,
 }
 
 impl From<DaemonReply> for Wake {
     fn from(reply: DaemonReply) -> Self {
-        Self { reply, order_guard: None }
+        Self { reply, order_guard: None, payout_recorded: false }
     }
 }
 

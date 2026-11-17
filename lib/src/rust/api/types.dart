@@ -1949,6 +1949,12 @@ class PayoutDestination {
   /// `payment-failed` notice. `None` until one arrives.
   final int? attempts;
 
+  /// The node's `CantDo` reason when it refused this destination
+  /// (`NotAllowedByStatus`, `InvalidInvoice`, …), the marker Dart words.
+  /// `None` unless [`Self::outcome`] is `Rejected`, and on records stored
+  /// before #941.
+  final String? rejection;
+
   const PayoutDestination({
     required this.destination,
     required this.isLightningAddress,
@@ -1960,6 +1966,7 @@ class PayoutDestination {
     required this.outcome,
     this.outcomeAt,
     this.attempts,
+    this.rejection,
   });
 
   @override
@@ -1973,7 +1980,8 @@ class PayoutDestination {
       paymentHash.hashCode ^
       outcome.hashCode ^
       outcomeAt.hashCode ^
-      attempts.hashCode;
+      attempts.hashCode ^
+      rejection.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -1989,7 +1997,8 @@ class PayoutDestination {
           paymentHash == other.paymentHash &&
           outcome == other.outcome &&
           outcomeAt == other.outcomeAt &&
-          attempts == other.attempts;
+          attempts == other.attempts &&
+          rejection == other.rejection;
 }
 
 /// What became of one payout destination (#823).

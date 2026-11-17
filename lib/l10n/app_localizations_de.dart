@@ -1738,6 +1738,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Diese Order wartet nicht mehr auf eine Rechnung. Status wird aktualisiert…';
 
   @override
+  String get invoicePayoutInFlight =>
+      'Der Node bezahlt noch deine vorherige Rechnung. Schlägt diese Zahlung fehl, fragt er dich nach einer neuen.';
+
+  @override
   String get invoiceAwaitingNode =>
       'Gesendet. Der Node hat noch nicht geantwortet – du wirst zum Trade weitergeleitet, sobald er es tut.';
 

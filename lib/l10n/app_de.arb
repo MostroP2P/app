@@ -497,6 +497,7 @@
   "viewOrderLink": "Order ansehen",
   "timeLeftLabel": "{time} übrig",
   "invoiceNoLongerExpected": "Diese Order wartet nicht mehr auf eine Rechnung. Status wird aktualisiert…",
+  "invoicePayoutInFlight": "Der Node bezahlt noch deine vorherige Rechnung. Schlägt diese Zahlung fehl, fragt er dich nach einer neuen.",
   "invoiceAwaitingNode": "Gesendet. Der Node hat noch nicht geantwortet – du wirst zum Trade weitergeleitet, sobald er es tut.",
   "invoiceAwaitingNodeLong": "Der Node antwortet immer noch nicht. Wenn der Trade nicht weitergeht, sende sie erneut.",
   "invoiceSubmitInFlight": "Für diese Order wird bereits eine Rechnung gesendet. Warte auf die Antwort.",

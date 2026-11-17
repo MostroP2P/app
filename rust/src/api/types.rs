@@ -1062,6 +1062,12 @@ pub struct PayoutDestination {
     /// How many times the node tries to pay before it gives up, from its
     /// `payment-failed` notice. `None` until one arrives.
     pub attempts: Option<u32>,
+    /// The node's `CantDo` reason when it refused this destination
+    /// (`NotAllowedByStatus`, `InvalidInvoice`, …), the marker Dart words.
+    /// `None` unless [`Self::outcome`] is `Rejected`, and on records stored
+    /// before #941.
+    #[serde(default)]
+    pub rejection: Option<String>,
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
