@@ -4,6 +4,35 @@ All notable changes to Mostro are documented here, newest first. This file is
 written by the release workflow (docs/RELEASING.md) — do not edit it by hand.
 Versions follow [Semantic Versioning](https://semver.org/).
 
+## [2.1.3] - 2026-11-17
+
+### ✨ Features
+
+- let users add emojis in the chats and in a custom payment method ([#940](https://github.com/MostroP2P/app/pull/940)) by @grunch
+
+### 🐛 Bug Fixes
+
+- **bond:** a maker's Cancel asks to drop the order instead of opening the payment ([#944](https://github.com/MostroP2P/app/pull/944)) by @grunch
+- **invoice:** show a refusal that arrives after the reply window ([#942](https://github.com/MostroP2P/app/pull/942)) by @grunch
+- **chat:** keep the peer chat open for its grace window after a cooperative cancel ([#934](https://github.com/MostroP2P/app/pull/934)) by @grunch
+- name the side of each amount field on the new order form ([#936](https://github.com/MostroP2P/app/pull/936)) by @grunch
+- **trades:** clarify the waiting-for-deposit text ([#932](https://github.com/MostroP2P/app/pull/932)) by @Forte11Cuba
+- **mortsom:** download artifacts without forwarding the token ([#930](https://github.com/MostroP2P/app/pull/930)) by @grunch
+- announce an expiry and a taker who left ([#919](https://github.com/MostroP2P/app/pull/919)) by @grunch
+- **settings:** use the create-order currency picker for the default currency ([#895](https://github.com/MostroP2P/app/pull/895)) by @Catrya
+- **notifications:** speak to the user by role on trade cards ([#929](https://github.com/MostroP2P/app/pull/929)) by @grunch
+- **disputes:** sweep every dispute key of a finished order ([#900](https://github.com/MostroP2P/app/pull/900)) by @grunch
+
+### 👷 Build & CI
+
+- **mortsom:** pin the gate to Mortsom main ([#926](https://github.com/MostroP2P/app/pull/926)) by @grunch
+- **mortsom:** run the Mortsom e2e gate on pull requests (shadow mode) ([#924](https://github.com/MostroP2P/app/pull/924)) by @grunch
+- **quality:** limit pull requests to 1,500 lines, not counting tests ([#922](https://github.com/MostroP2P/app/pull/922)) by @grunch
+
+### 🔧 Other Changes
+
+- Add fvm ([`3d05975`](https://github.com/MostroP2P/app/commit/3d05975))
+
 ## [2.1.2] - 2026-10-28
 
 ### ✨ Features
