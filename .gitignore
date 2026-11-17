@@ -53,3 +53,6 @@ test/web/smoke/smoke-failure.png
 # Merge / patch artifacts
 *.orig
 *.rej
+
+# FVM Version Cache
+.fvm/
