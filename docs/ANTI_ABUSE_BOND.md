@@ -825,6 +825,11 @@ Same skeleton as `pay_lightning_invoice_screen.dart` (QR, amount, copy, share,
   confirmation (DS-CMP-20). When the node refuses it with no sign of a lock
   (`MakerCancelRefused`), the row stays and a dialog lets the user choose
   **Remove from this device** or **Keep waiting** (§6.2).
+- Opened with `?leave=1` (`payBondPath(id, leave: true)`), a maker's screen opens that
+  same confirmation once on arrival, and a **No** goes back to the screen it came from.
+  It is how Trade Detail's **Cancel** reaches a maker waiting on their own deposit:
+  the cancel stays this screen's, but landing on the payment alone read as "Cancel
+  took me to pay" (#943). A taker ignores the flag.
 - Restored without an invoice: "Request the invoice again" (taker) / countdown only
   (maker).
 - On `TradeUpdate` leaving the waiting-bond status: taker-buyer → Trade Detail;

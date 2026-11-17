@@ -55,6 +55,7 @@ Future<void> _pump(
   Locale locale = const Locale('en'),
   double textScale = 1,
   bool onWeb = false,
+  bool confirmLeave = false,
 }) async {
   SharedPreferences.setMockInitialValues({
     kBondExplainerOpenKey: explainerOpen,
@@ -93,7 +94,21 @@ Future<void> _pump(
         supportedLocales: AppLocalizations.supportedLocales,
         locale: locale,
         builder: textScaleBuilder(textScale),
-        home: const PayBondInvoiceScreen(orderId: 'order-1'),
+        // Pushed over a base route when it opens with the leave prompt, so
+        // answering No has somewhere to go back to.
+        initialRoute: confirmLeave ? '/bond' : '/',
+        routes: {
+          '/':
+              (_) =>
+                  confirmLeave
+                      ? const Scaffold(body: Text('trade screen'))
+                      : const PayBondInvoiceScreen(orderId: 'order-1'),
+          '/bond':
+              (_) => const PayBondInvoiceScreen(
+                orderId: 'order-1',
+                confirmLeave: true,
+              ),
+        },
       ),
     ),
   );
@@ -612,6 +627,99 @@ void main() {
           expect(closed, ['order-1']);
         },
       );
+    });
+  });
+
+  // #943: Cancel on the trade screen sends a maker here to drop the order;
+  // the screen asks at once instead of leaving them on the payment.
+  group('opened to leave', () {
+    TradeInfo trade({required bool maker}) => fakeTrade(
+      isMine: maker,
+      role: maker ? TradeRole.seller : TradeRole.buyer,
+      status:
+          maker ? OrderStatus.waitingMakerBond : OrderStatus.waitingTakerBond,
+      bond: _bond(role: maker ? BondRole.maker : BondRole.taker),
+    );
+
+    testWidgets('a maker is asked at once whether to drop the order', (
+      tester,
+    ) async {
+      // Arrange + Act
+      await _pump(tester, trade: trade(maker: true), confirmLeave: true);
+      await tester.pumpAndSettle();
+
+      // Assert
+      expect(find.text("Don't publish this order?"), findsOneWidget);
+    });
+
+    testWidgets('Yes drops the order as the screen\'s own link does', (
+      tester,
+    ) async {
+      // Arrange
+      final canceled = <String>[];
+      await _pump(
+        tester,
+        trade: trade(maker: true),
+        confirmLeave: true,
+        cancel: (id) async => canceled.add(id),
+      );
+      await tester.pumpAndSettle();
+
+      // Act
+      await tester.tap(find.text('Yes, cancel'));
+      await tester.pump();
+      await tester.pump();
+
+      // Assert
+      expect(canceled, ['order-1']);
+    });
+
+    testWidgets('No goes back to where the user came from', (tester) async {
+      // Arrange
+      final canceled = <String>[];
+      await _pump(
+        tester,
+        trade: trade(maker: true),
+        confirmLeave: true,
+        cancel: (id) async => canceled.add(id),
+      );
+      await tester.pumpAndSettle();
+
+      // Act
+      await tester.tap(find.text('No'));
+      await tester.pumpAndSettle();
+
+      // Assert
+      expect(canceled, isEmpty);
+      expect(find.byType(PayBondInvoiceScreen), findsNothing);
+      expect(find.text('trade screen'), findsOneWidget);
+    });
+
+    testWidgets('the prompt is asked once, not on every rebuild', (
+      tester,
+    ) async {
+      // Arrange
+      await _pump(tester, trade: trade(maker: true), confirmLeave: true);
+      await tester.pumpAndSettle();
+
+      // Act: the screen rebuilds under the dialog.
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+
+      // Assert
+      expect(find.text("Don't publish this order?"), findsOneWidget);
+    });
+
+    testWidgets('a taker is not prompted: the flag is for the maker', (
+      tester,
+    ) async {
+      // Arrange + Act
+      await _pump(tester, trade: trade(maker: false), confirmLeave: true);
+      await tester.pumpAndSettle();
+
+      // Assert
+      expect(find.text("Don't take this order?"), findsNothing);
+      expect(find.text("Don't publish this order?"), findsNothing);
     });
   });
 }
