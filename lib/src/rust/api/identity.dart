@@ -96,7 +96,8 @@ Future<bool> hasPendingIdentityWipe() =>
 
 /// What the current identity would lose if it were replaced now: locked
 /// escrow, locked or payable bonds, open payout claims, live trades — most
-/// serious first, empty when it is safe to go ahead (issue #533).
+/// serious first — then its Cashu wallet's ecash and the invoices that fund
+/// it not minted yet; empty when it is safe to go ahead (issue #533).
 ///
 /// The Account screen calls this before generating a new user or importing a
 /// seed, and warns. It reads the local rows only: no relay round trip sits

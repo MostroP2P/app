@@ -51,10 +51,11 @@ void main() {
     expect(hostile, isNot(contains('some')));
   });
 
-  // C3b-1: paying a Lightning invoice. Each marker arrives as the bridge
-  // throws it, with a cdk detail after it, and must reach its own message —
-  // never the generic one, and never another marker's.
-  test('every melt marker has its own message', () {
+  // C3b-1 and C3b-2: paying a Lightning invoice and receiving over one. Each
+  // marker arrives as the bridge throws it, with a cdk detail after it, and
+  // must reach its own message — never the generic one, and never another
+  // marker's.
+  test('every melt and mint marker has its own message', () {
     final cases = {
       'CashuInvalidInvoice': l10n.cashuErrorInvalidInvoice,
       'CashuInvoiceNoAmount': l10n.cashuErrorInvoiceNoAmount,
@@ -67,6 +68,10 @@ void main() {
       'CashuMeltInFlight': l10n.cashuErrorMeltInFlight,
       'CashuMeltInsufficientFunds': l10n.cashuErrorMeltInsufficientFunds,
       'CashuMeltFailed': l10n.cashuErrorMeltFailed,
+      'CashuMintUnsupported': l10n.cashuErrorMintUnsupported,
+      'CashuMintAmountOutOfRange': l10n.cashuErrorMintAmountOutOfRange,
+      'CashuMintQuoteUnknown': l10n.cashuErrorMintQuoteUnknown,
+      'CashuMintQuoteFailed': l10n.cashuErrorMintQuoteFailed,
     };
     for (final MapEntry(key: marker, value: message) in cases.entries) {
       final shown = cashuErrorMessage(

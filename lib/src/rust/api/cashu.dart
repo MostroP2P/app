@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `active_wallet`, `build_and_record_escrow`, `canonical_mint`, `changes`, `claim_legacy_store`, `current_identity`, `ensure_enabled`, `ensure_wallet_at`, `escrow_op_lock`, `forget_held_escrow`, `held_escrows`, `hold_unrecorded_escrow`, `identity_balance_at_risk`, `identity_store_name`, `install`, `legacy_store_decision`, `lifecycle_lock`, `live_wallet`, `load_trade`, `move_legacy_store`, `node_default_mint`, `notify`, `now_secs`, `offline_balance`, `open_wallet`, `proof_store_path`, `receive_unbound`, `record_escrow_token`, `recorded_or_held_escrow`, `resubmit_pending_escrows`, `retire_escrow_token`, `same_mint`, `serves`, `settle_escrow_rejection`, `settle_legacy_store`, `sibling_store_path`, `snapshot`, `store_wallet_mint`, `stored_wallet_mint`, `submit_escrow`, `validate_wallet_mint_url`, `wallet_lock`, `wallet_mint_target`
+// These functions are ignored because they are not marked as `pub`: `active_wallet`, `build_and_record_escrow`, `canonical_mint`, `changes`, `claim_legacy_store`, `collect_pending_quotes`, `current_identity`, `ensure_enabled`, `ensure_wallet_at`, `escrow_op_lock`, `forget_held_escrow`, `held_escrows`, `hold_unrecorded_escrow`, `identity_balance_at_risk`, `identity_invoices_at_risk`, `identity_store_name`, `install`, `invoices_at_risk`, `legacy_store_decision`, `lifecycle_lock`, `live_wallet`, `load_trade`, `move_legacy_store`, `node_default_mint`, `notify`, `now_secs`, `offline_balance`, `offline_receiving`, `open_wallet`, `proof_store_path`, `receive_unbound`, `record_escrow_token`, `recorded_or_held_escrow`, `resubmit_pending_escrows`, `retire_escrow_token`, `same_mint`, `serves`, `settle_escrow_rejection`, `settle_legacy_store`, `sibling_store_path`, `snapshot`, `store_wallet_mint`, `stored_wallet_mint`, `submit_escrow`, `validate_wallet_mint_url`, `wallet_lock`, `wallet_mint_target`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `BoundWallet`, `SubmitError`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`
 
@@ -64,8 +64,9 @@ Future<String> cashuCreateToken({required BigInt amountSats}) =>
     RustLib.instance.api.crateApiCashuCashuCreateToken(amountSats: amountSats);
 
 /// Reconcile the proof store with the mint: proofs the mint reports spent are
-/// forgotten, melts still in flight are settled as the mint reports them, and
-/// the new balance is broadcast.
+/// forgotten, melts still in flight are settled as the mint reports them,
+/// invoices paid and not yet minted are collected at every mint
+/// ([`cashu_collect_pending_quotes`]), and the new balance is broadcast.
 ///
 /// The melts are settled here because a bound wallet is reused, not
 /// reconnected: without this, a melt that answered `Pending` would keep its
@@ -77,9 +78,9 @@ Future<String> cashuCreateToken({required BigInt amountSats}) =>
 /// its saga is on record as in flight, and settling it now would roll back a
 /// payment the mint may still make (#864). The next sync settles them.
 ///
-/// Both steps run whatever the other did, and the balance is broadcast after
-/// them even when one fails: either may have moved proofs. The first error is
-/// returned.
+/// Every step runs whatever the others did, and the balance is broadcast
+/// after them even when one fails: any may have moved proofs. The first error
+/// of the sweep or the melts is returned; the collection only logs.
 ///
 /// **Returns nothing on purpose.** It reclaims neither an unredeemed token of
 /// ours nor the proofs of a half-finished send — cdk's state check cannot see
@@ -127,6 +128,55 @@ Future<CashuMeltResult> cashuMelt({
   quoteId: quoteId,
   maxTotalSats: maxTotalSats,
 );
+
+/// An invoice for `amount_sats` that funds the wallet once paid, from any
+/// Lightning wallet — phase C3b-2.
+///
+/// The quote is stored before this returns, so an invoice paid after the app
+/// was closed is still collected.
+///
+/// **Errors**: `CashuNotConnected`, `CashuMintUnsupported`,
+/// `CashuMintAmountOutOfRange`, `CashuMintQuoteFailed`.
+Future<CashuMintQuote> cashuMintQuote({required BigInt amountSats}) =>
+    RustLib.instance.api.crateApiCashuCashuMintQuote(amountSats: amountSats);
+
+/// Whether the invoice of [`cashu_mint_quote`] `quote_id` was paid, minting
+/// its ecash into the wallet when it was. Meant to be polled while the
+/// invoice is on screen; the balance is broadcast once it is issued.
+///
+/// `Waiting` also covers a mint that did not answer and a round skipped
+/// because the quote was being checked elsewhere: neither is an error.
+///
+/// **Errors**: `CashuNotConnected`, `CashuMintQuoteUnknown` (not a quote of
+/// this wallet's mint, e.g. after a change of mint), `CashuMintQuoteFailed`.
+Future<CashuMintQuoteState> cashuClaimMintQuote({required String quoteId}) =>
+    RustLib.instance.api.crateApiCashuCashuClaimMintQuote(quoteId: quoteId);
+
+/// Collect the loaded identity's invoices that were paid and not yet minted,
+/// at every mint it holds quotes for — phase C3b-2. The wallet's status is
+/// broadcast once it ran.
+///
+/// For the invoice paid while the app was closed or in the background: Dart
+/// calls it, unawaited, at start and on resume; Sync runs it too. Quiet by
+/// design: with nothing pending it contacts no mint and builds no wallet,
+/// and it never fails — a mint that does not answer is tried at the next
+/// run. A no-op on web and for an identity without secret words, which has
+/// no wallet. A mint whose quotes all expired a month ago or more, without
+/// it ever answering for them, is left to Sync ([`crate::cashu::Collect`]).
+///
+/// Runs may overlap — start, resume and Sync each start one, unawaited —
+/// and that is allowed: each mint's issue mark lets one run work a mint
+/// while the others skip it, and a skipped mint is collected by a later
+/// run. The status may then be broadcast once per run.
+///
+/// It writes only to the identity's own proof store, which outlives the
+/// identity's deletion on purpose (importing its words brings the balance
+/// back), so a run that ends after a deletion or an import fills that
+/// identity's file, never the next one's. Not stopped by the teardown
+/// either: an abort between the mint's answer and storing its proofs is the
+/// interrupted issue this phase guards against.
+Future<void> cashuCollectPendingQuotes() =>
+    RustLib.instance.api.crateApiCashuCashuCollectPendingQuotes();
 
 /// Drop the in-memory wallet. Proofs stay on disk and the wallet's mint stays
 /// set — this is a disconnect, not a wipe. A node switch does **not** call it:

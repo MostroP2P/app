@@ -8,8 +8,8 @@
 //! Scope, deliberately small: connect to one mint, hold `sat` proofs, receive a
 //! token, export a token, re-check proof state, and settle at connect what an
 //! interrupted session left half done. Melting to Lightning is phase C3b-1 and
-//! NUT-11 locking lives in [`escrow`]; minting from Lightning (C3b-2) and
-//! multi-mint support are not here.
+//! NUT-11 locking lives in [`escrow`]; minting from Lightning is phase C3b-2.
+//! Multi-mint support is not here.
 //!
 //! **Native only.** Proof storage is `cdk-sqlite`, which is `rusqlite` and does
 //! not build for `wasm32`. The web target gets the typed stub at the bottom of
@@ -23,12 +23,15 @@ pub mod escrow;
 #[cfg(not(target_arch = "wasm32"))]
 mod in_flight;
 #[cfg(not(target_arch = "wasm32"))]
+mod mint_clock;
+#[cfg(not(target_arch = "wasm32"))]
 mod wallet;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub use wallet::{
-    ensure_receivable, stored_balance, token_mint_url, CashuWallet, MeltOutcomeInfo, MeltQuoteInfo,
-    MintCapabilities,
+    collect_pending_quotes, ensure_receivable, stored_balance, stored_pending_quotes,
+    token_mint_url, CashuWallet, Collect, MeltOutcomeInfo, MeltQuoteInfo, MintCapabilities,
+    MintQuoteInfo, MintQuoteStatus, PendingQuotes,
 };
 
 // ── WASM stub ────────────────────────────────────────────────────────────────
@@ -45,6 +48,9 @@ pub struct MintCapabilities {
     pub nut05_bolt11: bool,
     pub melt_min_sats: Option<u64>,
     pub melt_max_sats: Option<u64>,
+    pub nut04_bolt11: bool,
+    pub mint_min_sats: Option<u64>,
+    pub mint_max_sats: Option<u64>,
 }
 
 #[cfg(target_arch = "wasm32")]
@@ -69,6 +75,25 @@ pub struct MeltQuoteInfo {
     pub max_total_sats: u64,
 }
 
+/// See the native [`wallet::MintQuoteInfo`].
+#[cfg(target_arch = "wasm32")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MintQuoteInfo {
+    pub quote_id: String,
+    pub invoice: String,
+    pub amount_sats: u64,
+    pub expires_at: u64,
+}
+
+/// See the native [`wallet::MintQuoteStatus`].
+#[cfg(target_arch = "wasm32")]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum MintQuoteStatus {
+    Waiting,
+    Issued { amount_sats: u64 },
+    Expired,
+}
+
 /// See the native [`wallet::MeltOutcomeInfo`].
 #[cfg(target_arch = "wasm32")]
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -83,6 +108,42 @@ pub enum MeltOutcomeInfo {
 /// No proof store on web, so nothing is held there.
 #[cfg(target_arch = "wasm32")]
 pub async fn stored_balance(_db_path: &str, _mint_url: Option<&str>) -> anyhow::Result<u64> {
+    Ok(0)
+}
+
+/// See the native [`wallet::PendingQuotes`].
+#[cfg(target_arch = "wasm32")]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PendingQuotes {
+    pub paid_sats: u64,
+    pub open: u32,
+}
+
+/// No proof store on web, so no invoice pending.
+#[cfg(target_arch = "wasm32")]
+pub async fn stored_pending_quotes(
+    _db_path: &str,
+    _mint_url: Option<&str>,
+) -> anyhow::Result<PendingQuotes> {
+    Ok(PendingQuotes::default())
+}
+
+/// See the native [`wallet::Collect`].
+#[cfg(target_arch = "wasm32")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Collect {
+    Live,
+    Everything,
+}
+
+/// No proof store on web, so no quote to collect.
+#[cfg(target_arch = "wasm32")]
+pub async fn collect_pending_quotes(
+    _db_path: &str,
+    _seed: &zeroize::Zeroizing<[u8; 64]>,
+    _active: Option<&CashuWallet>,
+    _which: Collect,
+) -> anyhow::Result<u64> {
     Ok(0)
 }
 
@@ -130,6 +191,9 @@ impl CashuWallet {
             nut05_bolt11: false,
             melt_min_sats: None,
             melt_max_sats: None,
+            nut04_bolt11: false,
+            mint_min_sats: None,
+            mint_max_sats: None,
         };
         NONE
     }
@@ -163,6 +227,18 @@ impl CashuWallet {
         _quote_id: &str,
         _max_total_sats: u64,
     ) -> anyhow::Result<MeltOutcomeInfo> {
+        anyhow::bail!("CashuUnsupportedOnWeb")
+    }
+
+    pub async fn pending_quotes(&self) -> anyhow::Result<PendingQuotes> {
+        anyhow::bail!("CashuUnsupportedOnWeb")
+    }
+
+    pub async fn mint_quote(&self, _amount_sats: u64) -> anyhow::Result<MintQuoteInfo> {
+        anyhow::bail!("CashuUnsupportedOnWeb")
+    }
+
+    pub async fn claim_mint_quote(&self, _quote_id: &str) -> anyhow::Result<MintQuoteStatus> {
         anyhow::bail!("CashuUnsupportedOnWeb")
     }
 
