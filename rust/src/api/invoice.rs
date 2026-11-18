@@ -280,7 +280,9 @@ fn step_start_applies(stored_index: Option<u32>, row_index: Option<u32>) -> bool
 
 /// Record that the daemon message dated `event_ts`, addressed to trade key
 /// `trade_index`, opened `order_id`'s invoice step in `status` (called from
-/// the AddInvoice / PayInvoice arms).
+/// the AddInvoice / PayInvoice arms and from the WaitingSellerToPay /
+/// WaitingBuyerInvoice status arm, the only message that tells a maker when
+/// its own wait began).
 ///
 /// Kept apart from the status cursor, which every later accepted status
 /// message advances: a re-sent or follow-up message for the same step must
