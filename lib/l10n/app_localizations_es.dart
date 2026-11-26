@@ -1408,17 +1408,16 @@ class AppLocalizationsEs extends AppLocalizations {
   String get noCurrenciesFoundMessage => 'No se encontraron monedas';
 
   @override
-  String get shareLogsTooltip => 'Compartir registros';
-
-  @override
   String get noLogsToShareTooltip => 'No hay registros para compartir';
 
   @override
-  String get noLogEntriesMessage => 'No hay entradas de registro';
+  String get copyLogsTooltip => 'Copiar registros';
 
   @override
-  String get failedToShareLogsMessage =>
-      'No se pudieron compartir los registros';
+  String get logsCopiedMessage => 'Registros copiados';
+
+  @override
+  String get noLogEntriesMessage => 'No hay entradas de registro';
 
   @override
   String get logReportShareHeading => 'Informe de registros de Mostro';

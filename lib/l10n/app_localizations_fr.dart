@@ -1410,16 +1410,16 @@ class AppLocalizationsFr extends AppLocalizations {
   String get noCurrenciesFoundMessage => 'Aucune devise trouvée';
 
   @override
-  String get shareLogsTooltip => 'Partager les journaux';
-
-  @override
   String get noLogsToShareTooltip => 'Aucun journal à partager';
 
   @override
-  String get noLogEntriesMessage => 'Aucune entrée de journal';
+  String get copyLogsTooltip => 'Copier les journaux';
 
   @override
-  String get failedToShareLogsMessage => 'Échec du partage des journaux';
+  String get logsCopiedMessage => 'Journaux copiés';
+
+  @override
+  String get noLogEntriesMessage => 'Aucune entrée de journal';
 
   @override
   String get logReportShareHeading => 'Rapport de journaux Mostro';

@@ -1754,21 +1754,21 @@
   "@noCurrenciesFoundMessage": {
     "description": "Message shown when no currencies match the search"
   },
-  "shareLogsTooltip": "Share logs",
-  "@shareLogsTooltip": {
-    "description": "Tooltip for the share logs action"
-  },
   "noLogsToShareTooltip": "No logs to share",
   "@noLogsToShareTooltip": {
     "description": "Tooltip for the share action when there are no logs"
   },
+  "copyLogsTooltip": "Copy logs",
+  "@copyLogsTooltip": {
+    "description": "Tooltip for the copy-logs action on the log report screen"
+  },
+  "logsCopiedMessage": "Logs copied",
+  "@logsCopiedMessage": {
+    "description": "Snackbar shown after copying the log report to the clipboard"
+  },
   "noLogEntriesMessage": "No log entries",
   "@noLogEntriesMessage": {
     "description": "Message shown when there are no log entries"
-  },
-  "failedToShareLogsMessage": "Failed to share logs",
-  "@failedToShareLogsMessage": {
-    "description": "Snackbar shown when sharing logs fails"
   },
   "logReportShareHeading": "Mostro log report",
   "@logReportShareHeading": {
