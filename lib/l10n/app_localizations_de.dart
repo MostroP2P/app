@@ -1413,17 +1413,16 @@ class AppLocalizationsDe extends AppLocalizations {
   String get noCurrenciesFoundMessage => 'Keine Währungen gefunden';
 
   @override
-  String get shareLogsTooltip => 'Protokolle teilen';
-
-  @override
   String get noLogsToShareTooltip => 'Keine Protokolle zum Teilen';
 
   @override
-  String get noLogEntriesMessage => 'Keine Protokolleinträge';
+  String get copyLogsTooltip => 'Protokolle kopieren';
 
   @override
-  String get failedToShareLogsMessage =>
-      'Protokolle konnten nicht geteilt werden';
+  String get logsCopiedMessage => 'Protokolle kopiert';
+
+  @override
+  String get noLogEntriesMessage => 'Keine Protokolleinträge';
 
   @override
   String get logReportShareHeading => 'Mostro-Protokollbericht';

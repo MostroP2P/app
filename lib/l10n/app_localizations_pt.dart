@@ -1411,17 +1411,16 @@ class AppLocalizationsPt extends AppLocalizations {
   String get noCurrenciesFoundMessage => 'Nenhuma moeda encontrada';
 
   @override
-  String get shareLogsTooltip => 'Compartilhar logs';
-
-  @override
   String get noLogsToShareTooltip => 'Nenhum log para compartilhar';
 
   @override
-  String get noLogEntriesMessage => 'Nenhuma entrada de log';
+  String get copyLogsTooltip => 'Copiar logs';
 
   @override
-  String get failedToShareLogsMessage =>
-      'Não foi possível compartilhar os logs';
+  String get logsCopiedMessage => 'Logs copiados';
+
+  @override
+  String get noLogEntriesMessage => 'Nenhuma entrada de log';
 
   @override
   String get logReportShareHeading => 'Relatório de logs do Mostro';

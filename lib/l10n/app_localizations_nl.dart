@@ -1412,16 +1412,16 @@ class AppLocalizationsNl extends AppLocalizations {
   String get noCurrenciesFoundMessage => 'Geen valuta gevonden';
 
   @override
-  String get shareLogsTooltip => 'Logboek delen';
-
-  @override
   String get noLogsToShareTooltip => 'Geen logboek om te delen';
 
   @override
-  String get noLogEntriesMessage => 'Geen logregels';
+  String get copyLogsTooltip => 'Logboek kopiëren';
 
   @override
-  String get failedToShareLogsMessage => 'Het logboek kon niet worden gedeeld';
+  String get logsCopiedMessage => 'Logboek gekopieerd';
+
+  @override
+  String get noLogEntriesMessage => 'Geen logregels';
 
   @override
   String get logReportShareHeading => 'Mostro-logboekrapport';

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:share_plus/share_plus.dart';
 
 import 'package:mostro/core/app_routes.dart';
 import 'package:mostro/core/app_theme.dart';
@@ -90,14 +90,15 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
                     : context.go(AppRoute.settings),
         actions: [
           IconButton(
-            icon: Icon(Icons.ios_share, size: 19, color: book.limeIcon),
+            icon: Icon(Icons.copy, size: 18, color: book.limeIcon),
             tooltip:
                 entries.isNotEmpty
-                    ? l10n.shareLogsTooltip
+                    ? l10n.copyLogsTooltip
                     : l10n.noLogsToShareTooltip,
-            // Exports what the active filter shows, redacted — never the
-            // whole buffer, which the user cannot see to check.
-            onPressed: entries.isNotEmpty ? () => _shareLogs(entries) : null,
+            // Copies what the active filter shows, redacted — never the
+            // whole buffer, which the user cannot see to check. One action on
+            // every platform: the share sheet did nothing on desktop (#947).
+            onPressed: entries.isNotEmpty ? () => _copyLogs(entries) : null,
           ),
           // An IconButton pads itself by 8; the rest lines the glyph up with
           // the content below.
@@ -215,7 +216,8 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
   static int _minuteOf(LogEntry entry) =>
       platformInt64ToInt(entry.timestamp) ~/ 60;
 
-  Future<void> _shareLogs(List<LogEntry> entries) async {
+  /// Plain-text report of [entries], redacted for sharing.
+  String _buildReport(List<LogEntry> entries) {
     final heading = AppLocalizations.of(context).logReportShareHeading;
     final lines = entries
         .map((e) {
@@ -225,20 +227,14 @@ class _LogReportScreenState extends ConsumerState<LogReportScreen> {
               '${sanitizeForShare(e.message)}';
         })
         .join('\n');
+    return '$heading\n${'=' * heading.length}\n$lines\n';
+  }
 
-    try {
-      await SharePlus.instance.share(
-        ShareParams(text: '$heading\n${'=' * heading.length}\n$lines'),
-      );
-    } catch (e) {
-      debugPrint('Failed to share logs: $e');
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context).failedToShareLogsMessage),
-        ),
-      );
-    }
+  Future<void> _copyLogs(List<LogEntry> entries) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final l10n = AppLocalizations.of(context);
+    await Clipboard.setData(ClipboardData(text: _buildReport(entries)));
+    messenger.showSnackBar(SnackBar(content: Text(l10n.logsCopiedMessage)));
   }
 }
 
@@ -272,7 +268,7 @@ class _FilterRow extends StatelessWidget {
         children: [
           for (final (subsystem, label) in chips)
             Padding(
-              padding: const EdgeInsets.only(right: 7),
+              padding: const EdgeInsets.only(right: 8),
               child: _FilterChip(
                 label: label,
                 selected: subsystem == active,
@@ -407,7 +403,7 @@ class _LogEntryTile extends StatelessWidget {
             borderRadius: const BorderRadius.all(Radius.circular(14)),
             border: Border.all(color: pal.rowDivider),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: 13, vertical: 11),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -416,7 +412,7 @@ class _LogEntryTile extends StatelessWidget {
                   DecoratedBox(
                     decoration: BoxDecoration(
                       color: chipBg,
-                      borderRadius: const BorderRadius.all(Radius.circular(6)),
+                      borderRadius: const BorderRadius.all(Radius.circular(8)),
                     ),
                     child: Padding(
                       padding: const EdgeInsets.symmetric(
@@ -427,7 +423,7 @@ class _LogEntryTile extends StatelessWidget {
                         _levelLabel(entry.level),
                         style: TextStyle(
                           fontFamily: AppFonts.figures,
-                          fontSize: 9,
+                          fontSize: 10,
                           fontWeight: FontWeight.w700,
                           letterSpacing: 0.54,
                           color: chipInk,

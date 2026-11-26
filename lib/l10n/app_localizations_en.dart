@@ -1396,16 +1396,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get noCurrenciesFoundMessage => 'No currencies found';
 
   @override
-  String get shareLogsTooltip => 'Share logs';
-
-  @override
   String get noLogsToShareTooltip => 'No logs to share';
 
   @override
-  String get noLogEntriesMessage => 'No log entries';
+  String get copyLogsTooltip => 'Copy logs';
 
   @override
-  String get failedToShareLogsMessage => 'Failed to share logs';
+  String get logsCopiedMessage => 'Logs copied';
+
+  @override
+  String get noLogEntriesMessage => 'No log entries';
 
   @override
   String get logReportShareHeading => 'Mostro log report';

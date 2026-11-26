@@ -1407,16 +1407,16 @@ class AppLocalizationsIt extends AppLocalizations {
   String get noCurrenciesFoundMessage => 'Nessuna valuta trovata';
 
   @override
-  String get shareLogsTooltip => 'Condividi i log';
-
-  @override
   String get noLogsToShareTooltip => 'Nessun log da condividere';
 
   @override
-  String get noLogEntriesMessage => 'Nessuna voce di registro';
+  String get copyLogsTooltip => 'Copia i log';
 
   @override
-  String get failedToShareLogsMessage => 'Impossibile condividere i log';
+  String get logsCopiedMessage => 'Log copiati';
+
+  @override
+  String get noLogEntriesMessage => 'Nessuna voce di registro';
 
   @override
   String get logReportShareHeading => 'Registro diagnostico di Mostro';

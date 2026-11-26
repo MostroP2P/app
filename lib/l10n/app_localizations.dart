@@ -2526,29 +2526,29 @@ abstract class AppLocalizations {
   /// **'No currencies found'**
   String get noCurrenciesFoundMessage;
 
-  /// Tooltip for the share logs action
-  ///
-  /// In en, this message translates to:
-  /// **'Share logs'**
-  String get shareLogsTooltip;
-
   /// Tooltip for the share action when there are no logs
   ///
   /// In en, this message translates to:
   /// **'No logs to share'**
   String get noLogsToShareTooltip;
 
+  /// Tooltip for the copy-logs action on the log report screen
+  ///
+  /// In en, this message translates to:
+  /// **'Copy logs'**
+  String get copyLogsTooltip;
+
+  /// Snackbar shown after copying the log report to the clipboard
+  ///
+  /// In en, this message translates to:
+  /// **'Logs copied'**
+  String get logsCopiedMessage;
+
   /// Message shown when there are no log entries
   ///
   /// In en, this message translates to:
   /// **'No log entries'**
   String get noLogEntriesMessage;
-
-  /// Snackbar shown when sharing logs fails
-  ///
-  /// In en, this message translates to:
-  /// **'Failed to share logs'**
-  String get failedToShareLogsMessage;
 
   /// First line of the log report text handed to the share sheet
   ///
